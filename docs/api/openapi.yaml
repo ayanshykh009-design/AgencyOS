@@ -1,0 +1,15 @@
+# OpenAPI spec — AgencyOS API
+
+This is a placeholder for the pinned OpenAPI document.
+
+Regenerate from the running backend:
+
+```bash
+curl http://localhost:8000/api/v1/openapi.json -o openapi.yaml
+```
+
+Keep this file in sync with `backend/app/api/v1/`. See the base URL scheme:
+
+- Version: 0.1.0
+- Base path: `/api/v1`
+- Authentication: bearer JWT (once implemented)

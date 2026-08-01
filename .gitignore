@@ -1,0 +1,91 @@
+# ------------------------------------------------------------------
+# AgencyOS root .gitignore
+# ------------------------------------------------------------------
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.code-workspace
+
+# --- Environment & secrets ---
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+secrets/
+
+# --- Python / backend ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+build/
+dist/
+*.whl
+
+# --- Node / frontend ---
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- n8n / workflows ---
+workflows/n8n/.n8n/
+workflows/**/*.tmp
+workflows/**/*.log
+
+# --- Supabase ---
+database/supabase/.branches
+database/supabase/.temp
+database/supabase/.local
+
+# --- Local storage (keep folders, ignore contents) ---
+storage/uploads/*
+!storage/uploads/.gitkeep
+storage/exports/*
+!storage/exports/.gitkeep
+storage/logs/*
+!storage/logs/.gitkeep
+storage/backups/*
+!storage/backups/.gitkeep
+
+# --- Logs ---
+logs/
+*.log
+*.log.*
+
+# --- Docker ---
+*.pid
+docker-compose.override.yml
+
+# --- Test artifacts ---
+tests/artifacts/
+coverage/
+
+# --- Misc ---
+.tmp/
+*.bak

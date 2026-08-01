@@ -1,0 +1,31 @@
+# Supabase project configuration (CLI)
+
+# Project id and display name.
+project_id = "agencyos"
+project_name = "AgencyOS"
+
+[api]
+# REST API port (local CLI stack).
+port = 54321
+
+[db]
+# Local Postgres port.
+port = 54322
+
+[studio]
+# Supabase Studio port.
+port = 54323
+enabled = true
+
+[functions]
+enabled = true
+
+[edge_runtime]
+enabled = true
+port = 54324
+
+[auth]
+enabled = true
+# JWT issuer / secrets are injected from env in real deployments.
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/login"]
