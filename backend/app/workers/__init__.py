@@ -1,7 +1,11 @@
 """Workers package: background / async task processing.
 
-Intended for long-running jobs: email sends, enrichment, campaign execution.
-Plan to plug a task queue here (Celery + Redis, RQ, or ARQ) once needed.
+- ``import_worker``: CSV import processing (validates rows, inserts leads,
+  records per-row errors). Runs in the request's background task today; the
+  worker is written to move to a real queue (Celery/ARQ/RQ) without changes.
 
-Keep workers dependency-injected (import services, never endpoints).
+Keep workers dependency-injected (import repositories, never endpoints).
 """
+from app.workers.import_worker import ImportWorker
+
+__all__ = ["ImportWorker"]
