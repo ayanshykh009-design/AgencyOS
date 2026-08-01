@@ -27,11 +27,11 @@ setup: ## Bootstrap the repo (env templates + storage dirs)
 
 .PHONY: install
 install: ## Install backend + frontend dependencies locally
-	cd $(BACKEND_DIR) && pip install -r requirements.txt
+	cd $(BACKEND_DIR) && pip install -r requirements-dev.txt
 	cd $(FRONTEND_DIR) && npm install
 
 # ------------------------------------------------------------------
-# Docker Compose (services: postgres, n8n; profile "full": + backend, frontend)
+# Docker Compose (dev)
 # ------------------------------------------------------------------
 
 .PHONY: up
@@ -55,8 +55,24 @@ ps: ## Show running services
 	docker compose ps
 
 .PHONY: build
-build: ## Build images
+build: ## Build dev images
 	docker compose build
+
+# ------------------------------------------------------------------
+# Production Compose (docker-compose.prod.yml)
+# ------------------------------------------------------------------
+
+.PHONY: prod-build
+prod-build: ## Build production images (requires .env.production)
+	docker compose -f docker-compose.prod.yml --env-file .env.production build
+
+.PHONY: prod-up
+prod-up: ## Start the production stack (requires .env.production)
+	docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+
+.PHONY: prod-down
+prod-down: ## Stop the production stack
+	docker compose -f docker-compose.prod.yml down
 
 # ------------------------------------------------------------------
 # Local development servers
@@ -75,8 +91,12 @@ frontend: ## Run the Next.js frontend in dev mode
 # ------------------------------------------------------------------
 
 .PHONY: migrate
-migrate: ## Apply pending Alembic migrations
+migrate: ## Apply pending Alembic migrations (experimental local path)
 	cd $(BACKEND_DIR) && alembic upgrade head
+
+.PHONY: migrate-sql
+migrate-sql: ## Apply SQL migrations (database/migrations/) — V1 schema path
+	bash scripts/db/migrate.sh
 
 .PHONY: migrate-new
 migrate-new: ## Create a new Alembic migration (msg="...")
@@ -87,25 +107,31 @@ seed: ## Run database seeds (see database/seeds/)
 	cd $(BACKEND_DIR) && bash ../scripts/db/seed.sh
 
 # ------------------------------------------------------------------
-# Quality
+# Quality (mirrors the CI pipeline)
 # ------------------------------------------------------------------
 
-.PHONY: test
-test: ## Run backend tests
-	cd $(BACKEND_DIR) && pytest
+.PHONY: ci
+ci: lint test ## Run the full local CI pipeline
 
 .PHONY: lint
-lint: ## Lint backend + typecheck frontend
+lint: ## Lint backend (ruff) + frontend (eslint + prettier + typecheck)
 	cd $(BACKEND_DIR) && ruff check .
+	cd $(FRONTEND_DIR) && npm run lint
+	cd $(FRONTEND_DIR) && npm run format:check
 	cd $(FRONTEND_DIR) && npm run typecheck
 
+.PHONY: test
+test: ## Run backend + frontend test suites
+	cd $(BACKEND_DIR) && pytest
+	cd $(FRONTEND_DIR) && npm test
+
 .PHONY: format
-format: ## Auto-format backend + frontend
+format: ## Auto-format backend (ruff) + frontend (prettier)
 	cd $(BACKEND_DIR) && ruff format .
-	cd $(FRONTEND_DIR) && npm run lint
+	cd $(FRONTEND_DIR) && npm run format
 
 .PHONY: clean
 clean: ## Remove caches and build artifacts
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
 	rm -rf $(FRONTEND_DIR)/.next $(FRONTEND_DIR)/node_modules
-	rm -rf .pytest_cache .ruff_cache
+	rm -rf .pytest_cache .ruff_cache coverage

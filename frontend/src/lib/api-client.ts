@@ -2,10 +2,10 @@
 // All backend calls should route through this module (or src/services/)
 // so base URL + auth headers are applied in one place.
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+import { env } from "@/lib/env";
 
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${env.NEXT_PUBLIC_API_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
       // TODO: attach Authorization: Bearer <token> from session storage.

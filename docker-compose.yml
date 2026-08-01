@@ -1,5 +1,5 @@
 # ==================================================================
-# AgencyOS — Docker Compose
+# AgencyOS — Docker Compose (development)
 #
 # Services:
 #   postgres  — local PostgreSQL dev mirror of the Supabase schema
@@ -7,6 +7,7 @@
 #   backend   — FastAPI (profile: full)
 #   frontend  — Next.js   (profile: full)
 #
+# Production deployments use docker-compose.prod.yml instead.
 # Start infra only:   docker compose up -d postgres n8n
 # Start everything:   docker compose --profile full up -d
 # ==================================================================
@@ -34,7 +35,7 @@ services:
       retries: 10
 
   n8n:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n:${N8N_IMAGE_TAG:-latest}
     container_name: agencyos-n8n
     restart: unless-stopped
     environment:
@@ -58,8 +59,10 @@ services:
     build:
       context: .
       dockerfile: docker/backend/Dockerfile
+    image: agencyos-backend:dev
     container_name: agencyos-backend
     restart: unless-stopped
+    init: true
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-agencyos}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-agencyos}
@@ -71,14 +74,21 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/live')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     profiles: ["full"]
 
   frontend:
     build:
       context: .
       dockerfile: docker/frontend/Dockerfile
+    image: agencyos-frontend:dev
     container_name: agencyos-frontend
     restart: unless-stopped
+    init: true
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
     ports:
@@ -89,6 +99,11 @@ services:
       - /app/.next
     depends_on:
       - backend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     profiles: ["full"]
 
 volumes:

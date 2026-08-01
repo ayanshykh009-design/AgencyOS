@@ -1,32 +1,72 @@
-"""Security primitives.
+"""Security primitives: password hashing + JWT handling.
 
-Placeholder module for authentication/authorization helpers:
-- password hashing (passlib + bcrypt),
-- JWT create/decode (python-jose),
-- API-key helpers.
+Production-grade building blocks:
+- password hashing with Argon2id (via pwdlib),
+- JWT signing/validation with issuer + audience claims (via PyJWT).
 
-Wire real implementations here and consume them from app/api/deps.py.
-No business logic should live in this module.
+Consumed by auth services and app/api/deps.py. No business logic here.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from jose import jwt  # type: ignore
+import jwt
+from jwt import InvalidTokenError
+from pwdlib import PasswordHash
 
 from app.core.config import settings
+from app.core.errors import AppError
+
+# Argon2id via pwdlib (passlib is unmaintained — do not reintroduce it).
+password_hash = PasswordHash.recommended()
 
 
-def create_access_token(subject: str, expires_minutes: int | None = None) -> str:
-    """Create a signed JWT access token for `subject`.
+def hash_password(password: str) -> str:
+    """Hash a plaintext password (Argon2id)."""
+    return password_hash.hash(password)
 
-    Implemented as a placeholder — refine claims (roles, scopes) as needed.
-    """
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=expires_minutes or settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    )
-    payload = {"sub": subject, "exp": expire}
+
+def verify_password(password: str, hashed_password: str) -> bool:
+    """Verify a password against its stored Argon2id hash."""
+    return password_hash.verify(password, hashed_password)
+
+
+def create_access_token(
+    subject: str,
+    expires_minutes: int | None = None,
+    extra_claims: dict[str, Any] | None = None,
+) -> str:
+    """Create a signed JWT for `subject` with iat/exp/iss/aud claims."""
+    now = datetime.now(UTC)
+    payload: dict[str, Any] = {
+        "sub": subject,
+        "iat": now,
+        "exp": now
+        + timedelta(minutes=expires_minutes or settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        "iss": settings.JWT_ISSUER,
+        "aud": settings.JWT_AUDIENCE,
+    }
+    payload.update(extra_claims or {})
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-def decode_access_token(token: str) -> dict:
-    """Decode and validate a JWT, returning its claims."""
-    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+def decode_access_token(token: str) -> dict[str, Any]:
+    """Decode and validate a JWT (signature, expiry, issuer, audience)."""
+    return jwt.decode(
+        token,
+        settings.SECRET_KEY,
+        algorithms=[settings.ALGORITHM],
+        issuer=settings.JWT_ISSUER,
+        audience=settings.JWT_AUDIENCE,
+    )
+
+
+def require_valid_token(token: str) -> dict[str, Any]:
+    """Decode a token or raise a standardized 401 AppError."""
+    try:
+        return decode_access_token(token)
+    except InvalidTokenError:
+        raise AppError(
+            code="auth.invalid_token",
+            message="Invalid or expired token",
+            status_code=401,
+        ) from None

@@ -1,6 +1,6 @@
-# AgencyOS frontend image (dev-oriented).
+# AgencyOS frontend — DEVELOPMENT image.
+# Production uses docker/frontend/Dockerfile.prod (multi-stage, Next.js standalone).
 # Build context is the repo root:  docker build -f docker/frontend/Dockerfile .
-# NOTE: for production, add a multi-stage build (next build + standalone).
 FROM node:20-alpine
 
 WORKDIR /app

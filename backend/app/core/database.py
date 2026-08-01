@@ -2,15 +2,18 @@
 
 Two persistence paths coexist:
 
-1. **Supabase client** (`get_supabase()`) — used for managed/edge operations
-   where RLS policies must be respected.
-2. **SQLAlchemy async engine** (`engine` / `get_db()`) — used for local dev,
-   complex queries, and Alembic migrations against the local Postgres mirror.
+1. **SQLAlchemy async engine** (`engine` / `get_db`) — local dev, complex
+   queries, and Alembic migrations against the local Postgres mirror.
+2. **Supabase client** (`get_supabase`) — managed/edge operations where RLS
+   policies must be respected.
 
 Feature code must consume these via repositories (app/repositories/).
 """
+import logging
 from collections.abc import AsyncGenerator
+from functools import lru_cache
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -20,10 +23,16 @@ from supabase import Client, create_client
 
 from app.core.config import settings
 
+logger = logging.getLogger("agencyos")
+
 # Local async engine (mirrors the Supabase schema in development).
+# Pool settings are tuned for concurrent web workloads; adjust per capacity plan.
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.APP_DEBUG,
+    pool_size=settings.DATABASE_POOL_SIZE,
+    max_overflow=settings.DATABASE_MAX_OVERFLOW,
+    pool_timeout=settings.DATABASE_POOL_TIMEOUT,
     pool_pre_ping=True,
 )
 
@@ -39,8 +48,20 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+async def check_database_connection() -> bool:
+    """Return True if the database answers a trivial query (readiness probe)."""
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        logger.exception("database connectivity check failed")
+        return False
+
+
+@lru_cache
 def get_supabase() -> Client:
-    """Return a Supabase client using the service-role key (server-side only).
+    """Return a cached Supabase admin client (service-role key, server-side only).
 
     NOTE: never expose the service-role key to the frontend. Use the anon key
     + RLS policies for client-facing requests.

@@ -1,4 +1,5 @@
-# AgencyOS backend image.
+# AgencyOS backend — DEVELOPMENT image (hot reload).
+# Production uses docker/backend/Dockerfile.prod (multi-stage, non-root).
 # Build context is the repo root:  docker build -f docker/backend/Dockerfile .
 FROM python:3.12-slim
 
@@ -17,6 +18,4 @@ COPY backend/ .
 
 EXPOSE 8000
 
-# Dev default (hot reload). For production, replace with:
-#   CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

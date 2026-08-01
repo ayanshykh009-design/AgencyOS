@@ -22,11 +22,16 @@ Operating System. Built on the Next.js App Router.
 cd frontend
 npm install
 cp .env.example .env.local
-npm run dev        # http://localhost:3000
-npm run build      # production build
-npm run lint       # eslint
-npm run typecheck  # tsc --noEmit
+npm run dev          # http://localhost:3000
+npm run build        # production build
+npm run lint         # eslint (flat config)
+npm run typecheck    # tsc --noEmit
+npm test             # vitest
+npm run format       # prettier
 ```
+
+Env vars are validated at startup by `src/lib/env.ts` (zod) — add new
+`NEXT_PUBLIC_*` vars there, not inline in components.
 
 ## Conventions
 

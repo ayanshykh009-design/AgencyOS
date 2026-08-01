@@ -1,0 +1,113 @@
+# ==================================================================
+# AgencyOS — Production Compose
+#
+# Self-hosted reference deployment. Before using:
+#   1. cp .env.example .env.production  and fill every value
+#   2. Pin N8N_IMAGE_TAG to an audited release
+#   3. Terminate TLS at a reverse proxy in front of backend/frontend
+#   4. Prefer managed Supabase over the local postgres service below
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml --env-file .env.production build
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+# ==================================================================
+
+name: agencyos-prod
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: agencyos-prod-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1g
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile.prod
+    image: agencyos-backend:${APP_VERSION:-latest}
+    container_name: agencyos-prod-backend
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      # The compose subnet hostname for Postgres overrides the localhost default.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1g
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend/Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    image: agencyos-frontend:${APP_VERSION:-latest}
+    container_name: agencyos-prod-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512m
+
+  n8n:
+    image: n8nio/n8n:${N8N_IMAGE_TAG:-latest}
+    container_name: agencyos-prod-n8n
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      N8N_HOST: ${N8N_HOST}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      GENERIC_TIMEZONE: ${APP_TIMEZONE:-UTC}
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    volumes:
+      - n8ndata:/home/node/.n8n
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+volumes:
+  pgdata:
+  n8ndata:

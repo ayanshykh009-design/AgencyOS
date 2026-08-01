@@ -1,0 +1,37 @@
+# AgencyOS backend — production image (multi-stage, non-root).
+# Build context is the repo root:
+#   docker build -f docker/backend/Dockerfile.prod -t agencyos-backend .
+
+# --- Stage 1: wheelhouse (install deps, cache-friendly) ---
+FROM python:3.12-slim AS builder
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /build
+COPY backend/requirements.txt .
+RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
+
+# --- Stage 2: slim runtime (no build toolchain, no dev deps) ---
+FROM python:3.12-slim AS runtime
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/venv/bin:$PATH"
+WORKDIR /app
+
+# Non-root user.
+RUN groupadd --system app && useradd --system --gid app app
+
+COPY --from=builder /wheels /wheels
+RUN python -m venv /venv \
+    && /venv/bin/pip install --no-cache-dir --find-links=/wheels /wheels/* \
+    && rm -rf /wheels
+
+COPY --chown=app:app backend/ .
+
+USER app
+EXPOSE 8000
+
+# Docker-managed health check against the liveness endpoint.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/live')"
+
+# Multiple workers = scale-out on a single instance. Raise behind a reverse proxy.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
