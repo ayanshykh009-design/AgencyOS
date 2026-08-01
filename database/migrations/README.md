@@ -11,6 +11,7 @@ AgencyOS schema. Naming: `NNNN_description.sql` (e.g. `0001_core_enums.sql`).
 | `0004_outreach_tables.sql`| `outreach_messages`, `outreach_attempts`, `follow_ups`, `manual_outreach_queue` |
 | `0005_conversations_activity.sql` | `conversations`, `conversation_messages`, `activity_logs` |
 | `0006_imports_provider.sql` | `import_jobs`, `import_row_errors`, `provider_usage` |
+| `0007_auth.sql`             | `users.password_hash`, `refresh_tokens` (rotation-based) |
 
 Rules:
 

@@ -25,6 +25,7 @@ from app.models import (
     ProviderUsage,
     User,
 )
+from app.schemas.user import UserRead
 
 # All 15 core tables from the V1 database plan.
 ALL_MODELS = (
@@ -177,13 +178,24 @@ def test_no_secrets_columns() -> None:
     secret_hints = ("password", "api_key", "secret", "credential", "auth_token")
     # Token USAGE accounting (input_tokens/output_tokens) is not a credential.
     token_count_columns = {"input_tokens", "output_tokens"}
+    # users.password_hash stores an Argon2id hash (non-reversible) and is
+    # intentionally absent from every API response schema (UserRead excludes it);
+    # the raw value can never be recovered, so the column itself is safe.
+    hashed_secret_columns = {"password_hash"}
     for table in Base.metadata.tables.values():
         for col in table.c:
             if col.name in token_count_columns:
                 continue
+            if col.name in hashed_secret_columns:
+                continue
             assert not any(hint in col.name for hint in secret_hints), (
                 f"column {table.name}.{col.name} looks like a secret"
             )
+
+
+def test_password_hash_never_serialized() -> None:
+    """The password hash must never be returned by a response schema."""
+    assert "password_hash" not in UserRead.model_fields
 
 
 def test_all_org_uuids_reference_organizations() -> None:

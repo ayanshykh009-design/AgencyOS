@@ -19,6 +19,7 @@ from app.models.organization import Organization
 from app.models.outreach_attempt import OutreachAttempt
 from app.models.outreach_message import OutreachMessage
 from app.models.provider_usage import ProviderUsage
+from app.models.refresh_token import RefreshToken
 from app.models.user import User
 
 __all__ = [
@@ -37,5 +38,6 @@ __all__ = [
     "OutreachAttempt",
     "OutreachMessage",
     "ProviderUsage",
+    "RefreshToken",
     "User",
 ]

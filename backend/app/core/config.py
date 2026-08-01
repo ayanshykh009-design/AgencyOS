@@ -30,8 +30,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     JWT_ISSUER: str = "agencyos"
     JWT_AUDIENCE: str = "agencyos-api"
+    # Shared secret for inbound webhooks (n8n / contact forms). Endpoints that
+    # rely on it refuse to operate when this is empty.
+    WEBHOOK_SECRET: str = ""
 
     # --- Database (local dev mirror of Supabase) ---
     DATABASE_URL: str = (
@@ -65,6 +69,12 @@ class Settings(BaseSettings):
     # --- Rate limiting (slowapi) ---
     RATE_LIMIT_DEFAULT: str = "200/minute"
     RATE_LIMIT_STRICT: str = "20/minute"
+
+    # --- CSV import worker ---
+    IMPORT_WORKER_ENABLED: bool = True
+    IMPORT_CHUNK_SIZE: int = 200
+    # Directory for uploaded CSV files (volume-mounted into storage/uploads).
+    UPLOAD_DIR: str = str(BACKEND_DIR.parent / "storage" / "uploads")
 
     # --- Observability (OpenTelemetry) ---
     OTEL_ENABLED: bool = False

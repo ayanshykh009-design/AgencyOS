@@ -7,6 +7,8 @@ Production-grade building blocks:
 Consumed by auth services and app/api/deps.py. No business logic here.
 """
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
+from secrets import token_urlsafe
 from typing import Any
 
 import jwt
@@ -70,3 +72,16 @@ def require_valid_token(token: str) -> dict[str, Any]:
             message="Invalid or expired token",
             status_code=401,
         ) from None
+
+
+# --- Refresh tokens (opaque, rotated) ---
+
+
+def generate_refresh_token() -> str:
+    """Generate an opaque, high-entropy refresh token (returned once)."""
+    return token_urlsafe(48)
+
+
+def hash_refresh_token(token: str) -> str:
+    """Return the SHA-256 digest stored in refresh_tokens.token_hash."""
+    return sha256(token.encode("utf-8")).hexdigest()

@@ -1,6 +1,9 @@
 -- RLS policies for public.users.
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
+-- password_hash is never readable through PostgREST (service role unaffected).
+REVOKE SELECT (password_hash) ON public.users FROM anon, authenticated;
+
 CREATE POLICY "users_select_org" ON public.users
   FOR SELECT TO authenticated
   USING (organization_id = public.tenant_org_id());

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """A user account. Auth tokens/credentials live outside this schema."""
+    """A user account. Phase 2 added first-party auth (password_hash)."""
 
     __tablename__ = "users"
     __table_args__ = (
@@ -39,6 +39,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(Text)
     last_login_at: Mapped[datetime | None] = mapped_column()
 
     organization: Mapped[Organization] = relationship(back_populates="users")

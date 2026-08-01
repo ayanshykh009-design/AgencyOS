@@ -1,4 +1,5 @@
--- Agency users (auth tokens/credentials live outside this schema).
+-- Agency users. Phase 2 added first-party auth: password_hash holds the
+-- Argon2id hash (NULL for identity-provider-only accounts).
 CREATE TABLE IF NOT EXISTS public.users (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations (id) ON DELETE CASCADE,
@@ -6,6 +7,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   full_name       text NOT NULL CHECK (length(btrim(full_name)) > 0),
   role            public.user_role NOT NULL DEFAULT 'member',
   is_active       boolean NOT NULL DEFAULT true,
+  password_hash   text,
   last_login_at   timestamptz,
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
