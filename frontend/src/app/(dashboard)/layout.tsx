@@ -14,6 +14,9 @@ export default function DashboardLayout({ children }: Readonly<{ children: React
             <a className="font-medium text-gray-900" href={ROUTES.dashboard}>
               Dashboard
             </a>
+            <a className="hover:text-gray-900" href={ROUTES.ai}>
+              AI
+            </a>
           </nav>
         </div>
         <SignOutButton />

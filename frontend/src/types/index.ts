@@ -105,3 +105,49 @@ export interface ApiError {
   message: string;
   details?: Record<string, unknown> | null;
 }
+
+/** Static description of an AI-callable tool (backend ToolManifestEntry). */
+export interface ToolManifestEntry {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+/** A tool call the brain executed (backend ToolCallRead). */
+export interface ToolCallRead {
+  name: string;
+  arguments: Record<string, unknown>;
+}
+
+/** Outcome of a single tool execution (backend ToolResultRead). */
+export interface ToolResultRead {
+  ok: boolean;
+  error?: string | null;
+  text: string;
+}
+
+/** Result of an AI brain run (backend BrainRunResponse). */
+export interface BrainRunResponse {
+  success: boolean;
+  response?: string | null;
+  error?: string | null;
+  steps_taken: number;
+  tool_calls: ToolCallRead[];
+  tool_results: ToolResultRead[];
+}
+
+export type OutreachChannel = "email" | "linkedin";
+
+/** Result of an n8n dispatch (backend DispatchResponse). */
+export interface DispatchResponse {
+  workflow: string;
+  status: number;
+  data: Record<string, unknown>;
+}
+
+/** Effective per-org AI configuration (backend OrganizationAISettingsRead). */
+export interface OrganizationAISettings {
+  provider: string;
+  model: string;
+  overridden: boolean;
+}

@@ -5,5 +5,7 @@
 export { login, logout, fetchCurrentUser } from "./auth";
 export { getDashboardSummary } from "./dashboard";
 export { listLeads, getLead } from "./leads";
+export { listAITools, runBrain, dispatchDraft, getAISettings, updateAISettings } from "./ai";
 export type { LoginInput } from "./auth";
 export type { LeadQuery } from "./leads";
+export type { BrainRunInput } from "./ai";
