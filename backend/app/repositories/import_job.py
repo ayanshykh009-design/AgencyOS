@@ -36,6 +36,32 @@ class ImportJobRepository:
             )
         return job
 
+    async def claim(
+        self, organization_id: uuid.UUID, job_id: uuid.UUID
+    ) -> ImportJob | None:
+        """Atomically claim a PENDING job via ``SELECT ... FOR UPDATE``.
+
+        Locks the row so only one runner can transition PENDING -> PROCESSING.
+        Returns the job if claimed, or ``None`` if it was not PENDING. The lock
+        is held until the caller's transaction commits, which prevents two
+        runners from importing the same job concurrently.
+        """
+        stmt = (
+            select(ImportJob)
+            .where(
+                ImportJob.organization_id == organization_id,
+                ImportJob.id == job_id,
+                ImportJob.status == ImportStatus.PENDING,
+            )
+            .with_for_update()
+        )
+        result = await self._session.execute(stmt)
+        job = result.scalar_one_or_none()
+        if job is None:
+            return None
+        job.status = ImportStatus.PROCESSING
+        return job
+
     async def list(
         self,
         organization_id: uuid.UUID,

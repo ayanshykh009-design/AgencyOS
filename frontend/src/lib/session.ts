@@ -18,7 +18,7 @@ export interface Session {
   user: User;
 }
 
-/** Cookie marker consumed by src/middleware.ts. */
+/** Cookie marker consumed by src/proxy.ts. */
 export const AUTH_COOKIE = "agencyos.auth";
 /** Keep the middleware marker aligned with the refresh-token lifetime. */
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30;

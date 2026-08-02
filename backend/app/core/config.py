@@ -47,6 +47,8 @@ class Settings(BaseSettings):
 
     # --- Supabase (managed PostgreSQL) ---
     SUPABASE_URL: str = ""
+    # TODO: unused by feature code today (server-side access uses the service
+    # role key via get_supabase); reserved for client-facing anon-key flows.
     SUPABASE_ANON_KEY: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
 
@@ -69,6 +71,8 @@ class Settings(BaseSettings):
     # --- Rate limiting (slowapi) ---
     RATE_LIMIT_DEFAULT: str = "200/minute"
     RATE_LIMIT_STRICT: str = "20/minute"
+    # AI endpoints trigger LLM/n8n work — keep them tighter than the default.
+    RATE_LIMIT_AI: str = "60/minute"
 
     # --- CSV import worker ---
     IMPORT_WORKER_ENABLED: bool = True
@@ -91,6 +95,9 @@ class Settings(BaseSettings):
     LLM_TIMEOUT_SECONDS: int = 60
     LLM_MAX_TOKENS: int = 4096
     LLM_DEFAULT_TEMPERATURE: float = 0.7
+    LLM_MAX_RETRIES: int = 3
+    LLM_RETRY_MIN_BACKOFF: float = 1.0
+    LLM_RETRY_MAX_BACKOFF: float = 30.0
 
     # --- n8n automation ---
     N8N_BASE_URL: str = ""
@@ -105,6 +112,16 @@ class Settings(BaseSettings):
         """Parse TRUSTED_HOSTS into a list of allowed Host headers."""
         return [h.strip() for h in self.TRUSTED_HOSTS.split(",") if h.strip()]
 
+    def _validate_redis_url(self) -> None:
+        if not self.REDIS_URL:
+            return
+        if not self.REDIS_URL.startswith(("redis://", "rediss://")):
+            raise RuntimeError("REDIS_URL must use the redis:// or rediss:// scheme")
+
+    def validate_runtime(self) -> None:
+        """Environment-agnostic startup validation (called on every boot)."""
+        self._validate_redis_url()
+
     def validate_for_production(self) -> None:
         """Fail fast on dangerous configuration when APP_ENV=production."""
         if self.APP_ENV != "production":
@@ -115,6 +132,7 @@ class Settings(BaseSettings):
             raise RuntimeError("SECRET_KEY must be overridden in production")
         if not self.DATABASE_URL.startswith(("postgresql", "postgres")):
             raise RuntimeError("DATABASE_URL must be set in production")
+        self._validate_redis_url()
 
 
 @lru_cache

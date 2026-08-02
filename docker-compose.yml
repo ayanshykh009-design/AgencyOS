@@ -35,7 +35,9 @@ services:
       retries: 10
 
   n8n:
-    image: n8nio/n8n:${N8N_IMAGE_TAG:-latest}
+    # Pin a specific release (default) for reproducible dev; override via
+    # N8N_IMAGE_TAG when deliberately upgrading.
+    image: n8nio/n8n:${N8N_IMAGE_TAG:-2.32.7}
     container_name: agencyos-n8n
     restart: unless-stopped
     environment:
@@ -51,6 +53,11 @@ services:
       - "${N8N_PORT:-5678}:5678"
     volumes:
       - ./workflows/n8n:/home/node/.n8n
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:5678/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
     depends_on:
       postgres:
         condition: service_healthy

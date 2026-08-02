@@ -6,6 +6,7 @@ header; refuses to operate when ``WEBHOOK_SECRET`` is unset.
 """
 from __future__ import annotations
 
+import secrets
 import uuid
 
 from fastapi import APIRouter, Header
@@ -35,7 +36,8 @@ def _check_secret(secret: str | None) -> None:
             message="Webhooks are not configured on this deployment",
             status_code=503,
         )
-    if not secret or secret != settings.WEBHOOK_SECRET:
+    provided = secret or ""
+    if not secrets.compare_digest(provided.encode(), settings.WEBHOOK_SECRET.encode()):
         raise AppError(
             code="webhook.invalid_secret",
             message="Invalid webhook secret",

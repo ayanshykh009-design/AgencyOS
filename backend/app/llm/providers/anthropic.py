@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -27,24 +28,34 @@ def _role(role: MessageRole) -> str:
     }[role]
 
 
+def _load_json(raw: str) -> Any:
+    try:
+        return json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return raw
+
+
 def _content(message: LLMMessage) -> str | list[dict[str, Any]]:
     if message.tool_calls:
-        return [
-            {
-                "type": "tool_result",
-                "tool_use": {
+        blocks: list[dict[str, Any]] = []
+        if message.content:
+            blocks.append({"type": "text", "text": message.content})
+        for tc in message.tool_calls:
+            blocks.append(
+                {
+                    "type": "tool_use",
                     "id": tc.id,
                     "name": tc.name,
-                    "input": tc.arguments,
-                },
-            }
-            for tc in message.tool_calls
-        ]
+                    "input": _load_json(tc.arguments),
+                }
+            )
+        return blocks
     if message.tool_call_id:
         return [
             {
                 "type": "tool_result",
-                "tool_use": {"id": message.tool_call_id, "input": ""},
+                "tool_use_id": message.tool_call_id,
+                "content": message.content,
             }
         ]
     return message.content

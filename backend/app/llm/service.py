@@ -8,12 +8,21 @@ usage is forwarded to an injectable recorder (by default the existing
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from datetime import date
-from typing import Any
+from typing import Any, TypeVar
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
+from tenacity import (
+    AsyncRetrying,
+    before_sleep_log,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.llm.models import (
     ChatResult,
@@ -23,6 +32,54 @@ from app.llm.models import (
     ToolDefinition,
 )
 from app.llm.providers import ProviderClient
+
+logger = logging.getLogger("agencyos")
+
+T = TypeVar("T")
+
+# HTTP statuses worth retrying: rate limits and server-side hiccups.
+_RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    """Transient provider failures only — never auth or validation errors."""
+    if isinstance(exc, httpx.HTTPError):
+        return True
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int) and status in _RETRYABLE_STATUS:
+        return True
+    response = getattr(exc, "response", None)
+    status = getattr(response, "status_code", None)
+    return isinstance(status, int) and status in _RETRYABLE_STATUS
+
+
+async def _async_sleep(seconds: float) -> None:
+    """Indirection over ``asyncio.sleep`` so tests can fast-forward backoff."""
+    import asyncio
+
+    await asyncio.sleep(seconds)
+
+
+async def _with_retry(coro_factory: Callable[[], Awaitable[T]]) -> T:
+    """Run ``coro_factory`` with exponential backoff on transient errors."""
+    from app.core.config import settings
+
+    async def _call() -> T:
+        return await coro_factory()
+
+    retrier = AsyncRetrying(
+        sleep=_async_sleep,
+        reraise=True,
+        stop=stop_after_attempt(max(1, settings.LLM_MAX_RETRIES)),
+        wait=wait_exponential(
+            multiplier=1.0,
+            min=max(0.1, settings.LLM_RETRY_MIN_BACKOFF),
+            max=max(0.1, settings.LLM_RETRY_MAX_BACKOFF),
+        ),
+        retry=retry_if_exception(_is_retryable),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
+    return await retrier(_call)
 
 
 class LLMService:
@@ -107,12 +164,14 @@ class LLMService:
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> ChatResult:
-        result = await self.client.chat(
-            messages,
-            tools=tools,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            stream=False,
+        result = await _with_retry(
+            lambda: self.client.chat(
+                messages,
+                tools=tools,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=False,
+            )
         )
         if isinstance(result, ChatResult):
             await self._record(result.usage)
@@ -127,12 +186,14 @@ class LLMService:
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> AsyncIterator[ChatResult]:
-        iterator = await self.client.chat(
-            messages,
-            tools=tools,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            stream=True,
+        iterator = await _with_retry(
+            lambda: self.client.chat(
+                messages,
+                tools=tools,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=True,
+            )
         )
         if not hasattr(iterator, "__aiter__"):
             raise TypeError("provider does not support streaming")
@@ -144,7 +205,7 @@ class LLMService:
             await self._record(final_usage)
 
     async def embeddings(self, inputs: list[str]) -> EmbedResult:
-        result = await self.client.embeddings(inputs)
+        result = await _with_retry(lambda: self.client.embeddings(inputs))
         await self._record(result.usage)
         return result
 

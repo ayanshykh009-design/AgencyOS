@@ -32,7 +32,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!session) return;
     let cancelled = false;
-    setLoading(true);
     getDashboardSummary()
       .then((data) => {
         if (cancelled) return;

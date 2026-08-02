@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Generic, TypeVar
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,14 +61,14 @@ class TenantRepository(Generic[ModelT]):
         return list(result.scalars().all())
 
     async def count(self, organization_id: uuid.UUID) -> int:
-        """Count entities within an organization."""
+        """Count entities within an organization (single aggregate query)."""
         stmt = (
-            select(self._model.id)  # type: ignore[attr-defined]
+            select(func.count(self._model.id))  # type: ignore[attr-defined]
             .where(self._model.organization_id == organization_id)  # type: ignore[attr-defined]
             .order_by(None)
         )
         result = await self._session.execute(stmt)
-        return len(result.all())
+        return int(result.scalar_one())
 
     # -- writes --------------------------------------------------------
 

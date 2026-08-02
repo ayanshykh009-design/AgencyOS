@@ -219,3 +219,98 @@ def test_snippets_to_text_formats_and_caps() -> None:
     text = service._snippets_to_text([{"title": "T", "url": "https://x", "snippet": "s" * 500}])
     assert "T (https://x)" in text
     assert len(text.split(": ")[-1]) <= 300
+
+
+# ---------------------------------------------------------------------------
+# Provider selection (per-org AI settings vs env defaults)
+# ---------------------------------------------------------------------------
+
+
+class _FakeOrgRepo:
+    def __init__(self, org: Any) -> None:
+        self._org = org
+
+    async def get(self, organization_id: uuid.UUID) -> Any:
+        return self._org
+
+
+def _org_with_ai(provider: str | None, model: str | None) -> SimpleNamespace:
+    ai: dict[str, str] = {}
+    if provider:
+        ai["provider"] = provider
+    if model:
+        ai["model"] = model
+    return SimpleNamespace(settings={"ai": ai})
+
+
+async def test_resolve_ai_config_uses_org_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services.llm_settings import OrganizationRepository, resolve_ai_config
+
+    monkeypatch.setattr(
+        OrganizationRepository, "get", _FakeOrgRepo(_org_with_ai("anthropic", "claude-3-5")).get
+    )
+    provider, model = await resolve_ai_config(_FakeSession(), ORG_ID)
+    assert provider == "anthropic"
+    assert model == "claude-3-5"
+
+
+async def test_resolve_ai_config_falls_back_to_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.core.config import settings as app_settings
+    from app.services.llm_settings import OrganizationRepository, resolve_ai_config
+
+    monkeypatch.setattr(
+        OrganizationRepository, "get", _FakeOrgRepo(SimpleNamespace(settings={})).get
+    )
+    provider, model = await resolve_ai_config(_FakeSession(), ORG_ID)
+    assert provider == app_settings.LLM_PROVIDER
+    assert model == app_settings.LLM_DEFAULT_MODEL
+
+
+async def test_resolve_ai_config_rejects_unknown_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.core.errors import AppError
+    from app.services.llm_settings import OrganizationRepository, resolve_ai_config
+
+    monkeypatch.setattr(
+        OrganizationRepository, "get", _FakeOrgRepo(_org_with_ai("warp-drive", None)).get
+    )
+    with pytest.raises(AppError):
+        await resolve_ai_config(_FakeSession(), ORG_ID)
+
+
+async def test_llm_for_org_uses_resolved_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    import app.services.llm_settings as llm_settings_mod
+    import app.services.research_service as research_mod
+
+    org = _org_with_ai("gemini", "gemini-2.0-flash")
+    monkeypatch.setattr(
+        llm_settings_mod.OrganizationRepository, "get", _FakeOrgRepo(org).get
+    )
+
+    captured: dict[str, Any] = {}
+
+    class _RecordingLlm(LLMService):
+        def __init__(self, provider: str, **kwargs: Any) -> None:
+            captured["provider"] = provider
+            captured["kwargs"] = kwargs
+            super().__init__(client=None)
+
+        @classmethod
+        def for_provider(cls, provider: str, **kwargs: Any) -> _RecordingLlm:
+            return cls(provider, **kwargs)
+
+    monkeypatch.setattr(research_mod, "LLMService", _RecordingLlm)
+
+    service = ResearchService(_FakeSession())
+    service._leads = _FakeLeadRepo(session := _FakeSession())
+    service._research_repo = _FakeResearchRepo(session)
+    llm = await service._llm_for_org(ORG_ID)
+
+    assert isinstance(llm, _RecordingLlm)
+    assert captured["provider"] == "gemini"
+    assert captured["kwargs"]["model"] == "gemini-2.0-flash"
+    assert captured["kwargs"]["organization_id"] == ORG_ID
+    assert captured["kwargs"]["feature"] == "research"

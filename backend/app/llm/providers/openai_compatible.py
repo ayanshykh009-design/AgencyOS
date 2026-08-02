@@ -18,9 +18,40 @@ from app.llm.models import (
     EmbedResult,
     LLMMessage,
     LLMUsage,
+    ToolCall,
+    ToolDefinition,
 )
 from app.llm.pricing import estimate_cost
 from app.llm.providers import _build_http_options
+
+
+def _message(message: LLMMessage) -> dict[str, Any]:
+    msg: dict[str, Any] = {"role": message.role.value, "content": message.content}
+    if message.name:
+        msg["name"] = message.name
+    if message.tool_call_id:
+        msg["tool_call_id"] = message.tool_call_id
+    if message.tool_calls:
+        msg["tool_calls"] = [
+            {
+                "id": tc.id,
+                "type": "function",
+                "function": {"name": tc.name, "arguments": tc.arguments},
+            }
+            for tc in message.tool_calls
+        ]
+    return msg
+
+
+def _tool(tool: ToolDefinition) -> dict[str, Any]:
+    return {
+        "type": "function",
+        "function": {
+            "name": tool.name,
+            "description": tool.description,
+            "parameters": tool.parameters,
+        },
+    }
 
 
 class OpenAICompatibleClient:
@@ -57,19 +88,21 @@ class OpenAICompatibleClient:
         self,
         messages: list[LLMMessage],
         *,
-        tools: list | None = None,
+        tools: list[ToolDefinition] | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
         stream: bool = False,
     ) -> ChatResult | AsyncIterator[ChatResult]:
         payload: dict[str, Any] = {
             "model": self.model,
-            "messages": [{"role": m.role.value, "content": m.content} for m in messages],
+            "messages": [_message(m) for m in messages],
         }
         if temperature is not None:
             payload["temperature"] = temperature
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
+        if tools:
+            payload["tools"] = [_tool(t) for t in tools]
         if stream:
             payload["stream"] = True
 
@@ -83,8 +116,18 @@ class OpenAICompatibleClient:
         usage = data.get("usage", {}) or {}
         input_tokens = usage.get("prompt_tokens", 0)
         output_tokens = usage.get("completion_tokens", 0)
+        message_data = data["choices"][0]["message"]
+        tool_calls = [
+            ToolCall(
+                id=tc.get("id", ""),
+                name=tc.get("function", {}).get("name", ""),
+                arguments=tc.get("function", {}).get("arguments", ""),
+            )
+            for tc in (message_data.get("tool_calls") or [])
+            if tc.get("type") == "function"
+        ]
         return ChatResult(
-            text=data["choices"][0]["message"].get("content", ""),
+            text=message_data.get("content") or "",
             usage=LLMUsage(
                 provider=self.provider,
                 model=self.model,
@@ -94,6 +137,8 @@ class OpenAICompatibleClient:
             ),
             model=data.get("model", self.model),
             finish_reason=data["choices"][0].get("finish_reason", ""),
+            tool_calls=tool_calls,
+            response_id=data.get("id", ""),
         )
 
     async def embeddings(self, inputs: list[str]) -> EmbedResult:

@@ -90,14 +90,14 @@ class ImportWorker:
         async with async_session_factory() as session:
             jobs = ImportJobRepository(session)
             leads = LeadRepository(session)
-            job = await jobs.get_or_404(organization_id, job_id)
-            if job.status is not ImportStatus.PENDING:
-                return
 
-            job.status = ImportStatus.PROCESSING
+            # Atomically claim the job: only one runner may transition
+            # PENDING -> PROCESSING, so concurrent duplicate runs back off.
+            job = await jobs.claim(organization_id, job_id)
+            if job is None:
+                return
             job.total_rows = len(rows)
             job.started_at = utcnow()
-            await session.flush()
 
             processed = 0
             failed = 0
@@ -154,7 +154,7 @@ class ImportWorker:
                         f"Imported {processed} lead(s) from {job.file_name} "
                         f"({failed} row(s) rejected)"
                     ),
-                    metadata={"processed": processed, "failed": failed},
+                    metadata_={"processed": processed, "failed": failed},
                     occurred_at=utcnow(),
                 )
             )

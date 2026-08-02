@@ -1,4 +1,4 @@
-// Auth / routing middleware.
+// Auth / routing middleware (Next 16 renamed `middleware` -> `proxy`).
 //
 // The backend owns real authentication (JWT validation). Here we only route:
 // unauthenticated visitors to the (dashboard) route group are redirected to
@@ -12,7 +12,7 @@ import type { NextRequest } from "next/server";
 import { ROUTES } from "@/lib/constants";
 import { AUTH_COOKIE } from "@/lib/session";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const authenticated = Boolean(request.cookies.get(AUTH_COOKIE)?.value);
   const { pathname } = request.nextUrl;
 

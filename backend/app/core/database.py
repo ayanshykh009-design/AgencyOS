@@ -65,6 +65,9 @@ def get_supabase() -> Client:
 
     NOTE: never expose the service-role key to the frontend. Use the anon key
     + RLS policies for client-facing requests.
+
+    TODO: currently reserved for managed/edge operations (RLS-aware writes);
+    no feature code consumes this yet, so it is intentionally unused.
     """
     if not settings.SUPABASE_URL or not settings.SUPABASE_SERVICE_ROLE_KEY:
         raise RuntimeError("SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not configured")

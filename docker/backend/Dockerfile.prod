@@ -26,6 +26,10 @@ RUN python -m venv /venv \
 
 COPY --chown=app:app backend/ .
 
+# Pre-create persistent storage owned by the app user so the /storage named
+# volume (uploads + LOG_TO_FILE logs) stays writable under the non-root user.
+RUN mkdir -p /storage/uploads /storage/logs && chown -R app:app /storage
+
 USER app
 EXPOSE 8000
 

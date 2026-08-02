@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import httpx
 import pytest
 
 from app.llm.models import (
@@ -205,3 +206,77 @@ def test_service_render_prompt_renders_via_prompt_manager() -> None:
 def test_service_for_provider_unsupported_raises() -> None:
     with pytest.raises(ValueError):
         LLMService.for_provider("warp-drive")
+
+
+class _StatusError(RuntimeError):
+    """Transport-style error carrying an HTTP status code."""
+
+    def __init__(self, status_code: int) -> None:
+        super().__init__(f"status {status_code}")
+        self.status_code = status_code
+
+
+async def _fast_sleep(seconds: float) -> None:
+    """No-op backoff for retry tests."""
+
+
+class FlakyClient(FakeClient):
+    """Raises a queued exception per chat call until exhausted, then succeeds."""
+
+    def __init__(self, failures: list[Exception]) -> None:
+        super().__init__()
+        self._failures = list(failures)
+        self.attempts = 0
+
+    async def chat(self, messages, *, tools=None, temperature=None, max_tokens=None, stream=False):
+        self.attempts += 1
+        if self._failures:
+            raise self._failures.pop(0)
+        return await super().chat(
+            messages, tools=tools, temperature=temperature, max_tokens=max_tokens, stream=stream
+        )
+
+
+@pytest.mark.asyncio
+async def test_service_retries_transient_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.llm.service._async_sleep", _fast_sleep)
+    client = FlakyClient(failures=[httpx.ConnectError("boom"), httpx.ConnectError("boom")])
+    service = LLMService(client)
+
+    result = await service.chat([LLMMessage(MessageRole.USER, "hi")])
+
+    assert result.text == "hello"
+    assert client.attempts == 3
+
+
+@pytest.mark.asyncio
+async def test_service_retries_rate_limit_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.llm.service._async_sleep", _fast_sleep)
+    client = FlakyClient(failures=[_StatusError(429)])
+    service = LLMService(client)
+
+    result = await service.chat([LLMMessage(MessageRole.USER, "hi")])
+
+    assert result.text == "hello"
+    assert client.attempts == 2
+
+
+@pytest.mark.asyncio
+async def test_service_does_not_retry_non_transient_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = FlakyClient(failures=[ValueError("bad request")])
+    service = LLMService(client)
+
+    with pytest.raises(ValueError):
+        await service.chat([LLMMessage(MessageRole.USER, "hi")])
+    assert client.attempts == 1
+
+
+@pytest.mark.asyncio
+async def test_service_gives_up_after_max_attempts(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.llm.service._async_sleep", _fast_sleep)
+    client = FlakyClient(failures=[_StatusError(500), _StatusError(500), _StatusError(500)])
+    service = LLMService(client)
+
+    with pytest.raises(_StatusError):
+        await service.chat([LLMMessage(MessageRole.USER, "hi")])
+    assert client.attempts == 3

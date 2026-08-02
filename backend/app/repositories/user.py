@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -47,23 +47,23 @@ class UserRepository:
         return list(result.scalars().all())
 
     async def count_by_org(self, organization_id: uuid.UUID) -> int:
-        stmt = select(User.id).where(User.organization_id == organization_id)
+        stmt = select(func.count(User.id)).where(User.organization_id == organization_id)
         result = await self._session.execute(stmt)
-        return len(result.all())
+        return int(result.scalar_one())
 
     async def count_active_by_org(self, organization_id: uuid.UUID) -> int:
-        stmt = select(User.id).where(
+        stmt = select(func.count(User.id)).where(
             User.organization_id == organization_id, User.is_active.is_(True)
         )
         result = await self._session.execute(stmt)
-        return len(result.all())
+        return int(result.scalar_one())
 
     async def count_role(self, organization_id: uuid.UUID, role: UserRole) -> int:
-        stmt = select(User.id).where(
+        stmt = select(func.count(User.id)).where(
             User.organization_id == organization_id, User.role == role
         )
         result = await self._session.execute(stmt)
-        return len(result.all())
+        return int(result.scalar_one())
 
     def add(self, user: User) -> None:
         self._session.add(user)

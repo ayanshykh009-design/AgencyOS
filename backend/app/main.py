@@ -27,6 +27,7 @@ logger = setup_logging()
 @asynccontextmanager
 async def lifespan(application: FastAPI):
     """Startup/shutdown lifecycle hooks (with fail-fast config validation)."""
+    settings.validate_runtime()
     settings.validate_for_production()
     setup_telemetry(application)
     logger.info(

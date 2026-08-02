@@ -1,11 +1,15 @@
-"""AI automation endpoints: tool manifest, brain run, and n8n dispatch."""
+"""AI automation endpoints: tool manifest, brain run, and n8n dispatch.
 
-from __future__ import annotations
-
-from fastapi import APIRouter
+NOTE: intentionally does NOT use ``from __future__ import annotations``.
+slowapi's ``functools.wraps`` copies string annotations and FastAPI then
+resolves them against slowapi's globals, producing unresolved ForwardRefs.
+"""
+from fastapi import APIRouter, Request
 
 from app.api.deps import CurrentUser, DbSession
+from app.core.config import settings
 from app.core.errors import AppError
+from app.core.rate_limit import limiter
 from app.schemas.ai import (
     BrainRunRequest,
     BrainRunResponse,
@@ -29,7 +33,9 @@ router = APIRouter()
     response_model=OrganizationAISettingsRead,
     summary="Get the organization's effective AI settings",
 )
+@limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def get_ai_settings(
+    request: Request,
     db: DbSession,
     current_user: CurrentUser,
 ) -> OrganizationAISettingsRead:
@@ -44,7 +50,9 @@ async def get_ai_settings(
     response_model=OrganizationAISettingsRead,
     summary="Update the organization's AI defaults",
 )
+@limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def update_ai_settings(
+    request: Request,
     body: OrganizationAISettingsUpdate,
     db: DbSession,
     current_user: CurrentUser,
@@ -65,7 +73,10 @@ async def update_ai_settings(
     response_model=list[ToolManifestEntry],
     summary="List available AI tools",
 )
-async def list_tools(db: DbSession, current_user: CurrentUser) -> list[ToolManifestEntry]:
+@limiter.limit(settings.RATE_LIMIT_DEFAULT)
+async def list_tools(
+    request: Request, db: DbSession, current_user: CurrentUser
+) -> list[ToolManifestEntry]:
     """Return the static tool manifest (no LLM call)."""
     service = AIService(db)
     manifest = await service.tools()
@@ -77,7 +88,9 @@ async def list_tools(db: DbSession, current_user: CurrentUser) -> list[ToolManif
     response_model=BrainRunResponse,
     summary="Run the AI brain for a goal on a lead",
 )
+@limiter.limit(settings.RATE_LIMIT_AI)
 async def run_brain(
+    request: Request,
     body: BrainRunRequest,
     db: DbSession,
     current_user: CurrentUser,
@@ -110,7 +123,9 @@ async def run_brain(
     response_model=DispatchResponse,
     summary="Dispatch a draft to the n8n automation platform",
 )
+@limiter.limit(settings.RATE_LIMIT_AI)
 async def dispatch(
+    request: Request,
     body: DispatchRequest,
     db: DbSession,
     current_user: CurrentUser,

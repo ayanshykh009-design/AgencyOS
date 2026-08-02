@@ -23,7 +23,7 @@ from app.core.errors import AppError
 from app.llm.service import LLMService
 from app.repositories.lead import LeadRepository
 from app.repositories.lead_research import LeadResearchRepository
-from app.repositories.organization import OrganizationRepository
+from app.services.llm_settings import SUPPORTED_PROVIDERS
 
 logger = logging.getLogger("agencyos")
 
@@ -111,14 +111,7 @@ class AIService:
 
         if provider is not None:
             provider = provider.strip().lower()
-            if provider not in (
-                "openai",
-                "anthropic",
-                "gemini",
-                "openai-compatible",
-                "ollama",
-                "deepseek",
-            ):
+            if provider not in SUPPORTED_PROVIDERS:
                 raise AppError(
                     code="ai.invalid_provider",
                     message=f"unsupported LLM provider: {provider!r}",
@@ -166,26 +159,6 @@ class AIService:
 
     async def _resolve_ai_config(self, organization_id: uuid.UUID) -> tuple[str, str | None]:
         """Read ``organizations.settings.ai`` (provider/model), falling back to env."""
-        org = await OrganizationRepository(self._session).get(organization_id)
-        ai: dict[str, Any] = {}
-        if org is not None and isinstance(org.settings, dict):
-            stored = org.settings.get("ai")
-            if isinstance(stored, dict):
-                ai = stored
+        from app.services.llm_settings import resolve_ai_config
 
-        provider = ai.get("provider") or settings.LLM_PROVIDER
-        model = ai.get("model") or settings.LLM_DEFAULT_MODEL
-        if not isinstance(provider, str) or provider not in (
-            "openai",
-            "anthropic",
-            "gemini",
-            "openai-compatible",
-            "ollama",
-            "deepseek",
-        ):
-            raise AppError(
-                code="ai.invalid_provider",
-                message=f"unsupported LLM provider: {provider!r}",
-                status_code=400,
-            )
-        return provider, model
+        return await resolve_ai_config(self._session, organization_id)

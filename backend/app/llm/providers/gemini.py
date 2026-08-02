@@ -1,12 +1,13 @@
 """Gemini provider client (Google Generative AI).
 
-Uses the ``google-generativeai`` SDK, which is an optional dependency. Importing
-it here means a deployment that never selects the Gemini provider can run with
+Uses the ``google-genai`` SDK, which is an optional dependency. Importing it
+here means a deployment that never selects the Gemini provider can run with
 just the OpenAI/Anthropic SDKs installed.
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import AsyncIterator
 from typing import Any, cast
 
@@ -16,6 +17,7 @@ from app.llm.models import (
     LLMMessage,
     LLMUsage,
     MessageRole,
+    ToolCall,
     ToolDefinition,
 )
 from app.llm.pricing import estimate_cost
@@ -26,8 +28,15 @@ def _role(role: MessageRole) -> str:
         MessageRole.SYSTEM: "model",  # Gemini has no system role; handled separately
         MessageRole.USER: "user",
         MessageRole.ASSISTANT: "model",
-        MessageRole.TOOL: "tool",
+        MessageRole.TOOL: "user",
     }[role]
+
+
+def _load_json(raw: str) -> Any:
+    try:
+        return json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return raw
 
 
 class GeminiClient:
@@ -49,15 +58,51 @@ class GeminiClient:
         return "gemini"
 
     def _build_contents(self, messages: list[LLMMessage]) -> list[Any]:
+        name_by_id: dict[str, str] = {}
+        for m in messages:
+            if m.role is MessageRole.ASSISTANT and m.tool_calls:
+                for tc in m.tool_calls:
+                    name_by_id[tc.id] = tc.name
+
         contents: list[Any] = []
         for m in messages:
             if m.role is MessageRole.SYSTEM:
+                continue
+            if m.tool_calls:
                 contents.append(
-                    self._types.Content(role="user", parts=[self._types.PartFromText(m.content)])
+                    self._types.Content(
+                        role="model",
+                        parts=[
+                            self._types.Part(
+                                function_call=self._types.FunctionCall(
+                                    name=tc.name,
+                                    args=_load_json(tc.arguments),
+                                )
+                            )
+                            for tc in m.tool_calls
+                        ],
+                    )
+                )
+                continue
+            if m.tool_call_id:
+                contents.append(
+                    self._types.Content(
+                        role="user",
+                        parts=[
+                            self._types.Part(
+                                function_response=self._types.FunctionResponse(
+                                    name=name_by_id.get(m.tool_call_id, m.tool_call_id),
+                                    response={"output": m.content},
+                                )
+                            )
+                        ],
+                    )
                 )
                 continue
             contents.append(
-                self._types.Content(role=_role(m.role), parts=[self._types.PartFromText(m.content)])
+                self._types.Content(
+                    role=_role(m.role), parts=[self._types.PartFromText(m.content)]
+                )
             )
         return contents
 
@@ -70,7 +115,10 @@ class GeminiClient:
         max_tokens: int | None = None,
         stream: bool = False,
     ) -> ChatResult | AsyncIterator[ChatResult]:
+        system = "".join(m.content for m in messages if m.role is MessageRole.SYSTEM)
         config: dict[str, Any] = {}
+        if system:
+            config["system_instruction"] = system
         if temperature is not None:
             config["temperature"] = temperature
         if max_tokens is not None:
@@ -101,6 +149,7 @@ class GeminiClient:
         usage = resp.usage_metadata
         input_tokens = getattr(usage, "prompt_token_count", 0) or 0
         output_tokens = getattr(usage, "candidates_token_count", 0) or 0
+        tool_calls = self._parse_function_calls(resp)
         return ChatResult(
             text=resp.text or "",
             usage=LLMUsage(
@@ -112,8 +161,29 @@ class GeminiClient:
             ),
             model=self.model,
             finish_reason=resp.candidates[0].finish_reason.name if resp.candidates else "",
+            tool_calls=tool_calls,
             response_id=resp.name,
         )
+
+    @staticmethod
+    def _parse_function_calls(resp: Any) -> list[ToolCall]:
+        tool_calls: list[ToolCall] = []
+        if not resp.candidates:
+            return tool_calls
+        for idx, part in enumerate(resp.candidates[0].content.parts):
+            fn = getattr(part, "function_call", None)
+            if fn is None:
+                continue
+            args = getattr(fn, "args", None)
+            call_id = getattr(fn, "id", None) or f"gemini_call_{idx}"
+            tool_calls.append(
+                ToolCall(
+                    id=call_id,
+                    name=fn.name,
+                    arguments=json.dumps(args) if args is not None else "",
+                )
+            )
+        return tool_calls
 
     async def _stream(
         self, messages: list[LLMMessage], config: dict[str, Any]

@@ -7,7 +7,10 @@ transports so nothing touches the network.
 
 from __future__ import annotations
 
+import asyncio
+import ipaddress
 import json
+import socket
 import uuid
 from types import SimpleNamespace
 from typing import Any
@@ -30,6 +33,24 @@ LEAD_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
 
 def _transport(handler: Any) -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+_PUBLIC_IP = "93.184.216.34"
+
+
+async def _stub_dns(monkeypatch: pytest.MonkeyPatch, *, ip: str = _PUBLIC_IP) -> None:
+    """Patch the running loop's getaddrinfo so the http tool skips real DNS."""
+
+    loop = asyncio.get_running_loop()
+
+    async def fake_getaddrinfo(host: str, port: int, *args: Any, **kwargs: Any) -> list[Any]:
+        try:
+            literal = str(ipaddress.ip_address(host))
+        except ValueError:
+            literal = ""
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (literal or ip, port))]
+
+    monkeypatch.setattr(loop, "getaddrinfo", fake_getaddrinfo)
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +110,8 @@ def test_export_manifest_is_portable() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_http_get_returns_body() -> None:
+async def test_http_get_returns_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    await _stub_dns(monkeypatch)
     client = _transport(lambda request: httpx.Response(200, text="<html>Hello</html>"))
     tool = HttpGetTool(client=client)
     result = await tool.run({"url": "https://example.com"})
@@ -105,13 +127,127 @@ async def test_http_get_requires_url() -> None:
     assert "url is required" in (result.error or "")
 
 
-async def test_http_get_handles_network_error() -> None:
+async def test_http_get_handles_network_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    await _stub_dns(monkeypatch)
+
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("boom")
 
     tool = HttpGetTool(client=_transport(handler))
     result = await tool.run({"url": "https://example.com"})
     assert result.ok is False
+
+
+# ---------------------------------------------------------------------------
+# http_get SSRF hardening
+# ---------------------------------------------------------------------------
+
+
+async def test_http_get_rejects_private_ip_literal() -> None:
+    tool = HttpGetTool(client=_transport(lambda r: httpx.Response(200)))
+    for url in (
+        "http://127.0.0.1/",
+        "http://10.0.0.5/admin",
+        "http://192.168.1.10/",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://172.16.0.1/",
+    ):
+        result = await tool.run({"url": url})
+        assert result.ok is False, url
+        assert "non-public address" in (result.error or "")
+
+
+async def test_http_get_rejects_ipv6_loopback() -> None:
+    tool = HttpGetTool(client=_transport(lambda r: httpx.Response(200)))
+    result = await tool.run({"url": "http://[::1]/"})
+    assert result.ok is False
+    assert "non-public address" in (result.error or "")
+
+
+async def test_http_get_rejects_non_http_scheme() -> None:
+    tool = HttpGetTool(client=_transport(lambda r: httpx.Response(200)))
+    for url in ("file:///etc/passwd", "ftp://example.com/file", "gopher://example.com/x"):
+        result = await tool.run({"url": url})
+        assert result.ok is False, url
+        assert "only http/https URLs are allowed" in (result.error or "")
+
+
+async def test_http_get_rejects_embedded_credentials() -> None:
+    tool = HttpGetTool(client=_transport(lambda r: httpx.Response(200)))
+    result = await tool.run({"url": "https://user:pass@example.com/"})
+    assert result.ok is False
+    assert "embedded credentials" in (result.error or "")
+
+
+async def test_http_get_rejects_non_standard_port() -> None:
+    tool = HttpGetTool(client=_transport(lambda r: httpx.Response(200)))
+    for url in ("https://example.com:8443/", "http://example.com:8080/"):
+        result = await tool.run({"url": url})
+        assert result.ok is False, url
+        assert "port" in (result.error or "")
+
+
+async def test_http_get_rejects_dns_to_private_ip(monkeypatch: pytest.MonkeyPatch) -> None:
+    await _stub_dns(monkeypatch, ip="10.0.0.5")
+    tool = HttpGetTool(client=_transport(lambda r: httpx.Response(200)))
+    result = await tool.run({"url": "https://internal.corp.local/"})
+    assert result.ok is False
+    assert "non-public address" in (result.error or "")
+
+
+async def test_http_get_follows_public_redirect(monkeypatch: pytest.MonkeyPatch) -> None:
+    await _stub_dns(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"location": "https://example.com/target"})
+        return httpx.Response(200, text="landed")
+
+    tool = HttpGetTool(client=_transport(handler))
+    result = await tool.run({"url": "https://example.com/start"})
+    assert result.ok is True
+    assert result.content["text"] == "landed"
+
+
+async def test_http_get_rejects_redirect_to_private_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    await _stub_dns(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"location": "http://192.168.1.1/admin"})
+        return httpx.Response(200, text="landed")
+
+    tool = HttpGetTool(client=_transport(handler))
+    result = await tool.run({"url": "https://example.com/start"})
+    assert result.ok is False
+    assert "non-public address" in (result.error or "")
+
+
+async def test_http_get_rejects_redirect_to_non_http_scheme(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _stub_dns(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/start":
+            return httpx.Response(302, headers={"location": "file:///etc/passwd"})
+        return httpx.Response(200, text="landed")
+
+    tool = HttpGetTool(client=_transport(handler))
+    result = await tool.run({"url": "https://example.com/start"})
+    assert result.ok is False
+
+
+async def test_http_get_stops_after_too_many_redirects(monkeypatch: pytest.MonkeyPatch) -> None:
+    await _stub_dns(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"location": "/loop"})
+
+    tool = HttpGetTool(client=_transport(handler))
+    result = await tool.run({"url": "https://example.com/start"})
+    assert result.ok is False
+    assert "too many redirects" in (result.error or "")
 
 
 # ---------------------------------------------------------------------------

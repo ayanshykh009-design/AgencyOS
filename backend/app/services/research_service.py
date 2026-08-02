@@ -21,6 +21,7 @@ from app.models.lead_research import LeadResearch
 from app.repositories.lead import LeadRepository
 from app.repositories.lead_research import LeadResearchRepository
 from app.services.base import utcnow
+from app.services.llm_settings import resolve_ai_config
 
 
 class ResearchService:
@@ -36,10 +37,17 @@ class ResearchService:
         self._leads = LeadRepository(session)
         self._research_repo = LeadResearchRepository(session)
         self._http_client = http_client
-        self._llm = llm_service or LLMService.for_provider(
-            provider="openai",
-            organization_id=None,
-            session=session,
+        self._llm = llm_service
+
+    async def _llm_for_org(self, organization_id: uuid.UUID) -> LLMService:
+        if self._llm is not None:
+            return self._llm
+        provider, model = await resolve_ai_config(self._session, organization_id)
+        return LLMService.for_provider(
+            provider,
+            model=model,
+            organization_id=organization_id,
+            session=self._session,
             feature="research",
         )
 
@@ -71,6 +79,8 @@ class ResearchService:
             from app.tools.registry import ToolContext
             from app.tools.web_search_tool import WebSearchTool
 
+            llm = await self._llm_for_org(organization_id)
+
             ctx = ToolContext(http_client=self._http_client)
             web_search = WebSearchTool.instantiate(ctx)
 
@@ -93,11 +103,11 @@ class ResearchService:
                 "rawResearch": self._snippets_to_text(all_snippets),
             }
 
-            rendered = self._llm.render_prompt("signal-extraction", "1.0.0", variables)
+            rendered = llm.render_prompt("signal-extraction", "1.0.0", variables)
 
             from app.llm.models import LLMMessage, MessageRole
 
-            chat_result = await self._llm.chat(
+            chat_result = await llm.chat(
                 [
                     LLMMessage(role=MessageRole.SYSTEM, content=rendered),
                     LLMMessage(role=MessageRole.USER, content="Extract signals."),

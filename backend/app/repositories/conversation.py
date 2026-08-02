@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
@@ -73,7 +73,7 @@ class ConversationRepository:
 
     async def count_open(self, organization_id: uuid.UUID) -> int:
         stmt = (
-            select(Conversation.id)
+            select(func.count(Conversation.id))
             .where(
                 Conversation.organization_id == organization_id,
                 Conversation.is_open.is_(True),
@@ -81,7 +81,7 @@ class ConversationRepository:
             .select_from(Conversation)
         )
         result = await self._session.execute(stmt)
-        return len(result.all())
+        return int(result.scalar_one())
 
     def add(self, conversation: Conversation) -> None:
         self._session.add(conversation)

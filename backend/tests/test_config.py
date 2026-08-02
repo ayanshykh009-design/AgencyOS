@@ -44,3 +44,27 @@ def test_development_skips_production_validation() -> None:
         DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
     )
     settings.validate_for_production()  # must not raise
+
+
+def test_validate_rejects_bad_redis_scheme() -> None:
+    settings = Settings(REDIS_URL="mysql://localhost:3306/cache")
+    with pytest.raises(RuntimeError, match="REDIS_URL"):
+        settings.validate_runtime()
+
+
+def test_validate_accepts_empty_and_valid_redis() -> None:
+    Settings(REDIS_URL="").validate_runtime()
+    Settings(REDIS_URL="redis://localhost:6379/0").validate_runtime()
+    Settings(REDIS_URL="rediss://cache.internal:6379/0").validate_runtime()
+
+
+def test_production_validation_rejects_bad_redis() -> None:
+    settings = Settings(
+        APP_ENV="production",
+        APP_DEBUG=False,
+        SECRET_KEY="a-strong-secret",
+        DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
+        REDIS_URL="sqlite:///rate.db",
+    )
+    with pytest.raises(RuntimeError, match="REDIS_URL"):
+        settings.validate_for_production()
