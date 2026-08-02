@@ -1,0 +1,183 @@
+{
+  "name": "Lead Enrichment — Enrich & Ingest",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-enrichment",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000001",
+      "name": "Inbound Prospect Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "webhookId": "agencyos-lead-enrichment"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apollo.io/v1/people/match",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Api-Key",
+              "value": "={{ $env.APOLLO_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ first_name: $json.body.first_name, last_name: $json.body.last_name, email: $json.body.email, organization_name: $json.body.company }) }}",
+        "contentType": "json",
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000002",
+      "name": "Apollo Lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a2000000-0000-4000-8000-000000000003",
+              "name": "organization_slug",
+              "value": "={{ $env.AGENCYOS_ORG_SLUG }}",
+              "type": "string"
+            },
+            {
+              "id": "a2000000-0000-4000-8000-000000000004",
+              "name": "email",
+              "value": "={{ String($('Inbound Prospect Webhook').item.json.body.email).trim().toLowerCase() }}",
+              "type": "string"
+            },
+            {
+              "id": "a2000000-0000-4000-8000-000000000005",
+              "name": "first_name",
+              "value": "={{ $json.person ? ($json.person.first_name || $('Inbound Prospect Webhook').item.json.body.first_name) : $('Inbound Prospect Webhook').item.json.body.first_name }}",
+              "type": "string"
+            },
+            {
+              "id": "a2000000-0000-4000-8000-000000000006",
+              "name": "last_name",
+              "value": "={{ $json.person ? ($json.person.last_name || $('Inbound Prospect Webhook').item.json.body.last_name) : $('Inbound Prospect Webhook').item.json.body.last_name }}",
+              "type": "string"
+            },
+            {
+              "id": "a2000000-0000-4000-8000-000000000007",
+              "name": "company",
+              "value": "={{ $json.person && $json.person.organization ? ($json.person.organization.name || $('Inbound Prospect Webhook').item.json.body.company) : $('Inbound Prospect Webhook').item.json.body.company }}",
+              "type": "string"
+            },
+            {
+              "id": "a2000000-0000-4000-8000-000000000008",
+              "name": "position",
+              "value": "={{ $json.person ? ($json.person.title || $('Inbound Prospect Webhook').item.json.body.position) : $('Inbound Prospect Webhook').item.json.body.position }}",
+              "type": "string"
+            },
+            {
+              "id": "a2000000-0000-4000-8000-000000000009",
+              "name": "linkedin_url",
+              "value": "={{ $json.person ? ($json.person.linkedin_url || $('Inbound Prospect Webhook').item.json.body.linkedin_url) : $('Inbound Prospect Webhook').item.json.body.linkedin_url }}",
+              "type": "string"
+            },
+            {
+              "id": "a2000000-0000-4000-8000-00000000000a",
+              "name": "website",
+              "value": "={{ $json.person ? ($json.person.website_url || $('Inbound Prospect Webhook').item.json.body.website) : $('Inbound Prospect Webhook').item.json.body.website }}",
+              "type": "string"
+            },
+            {
+              "id": "a2000000-0000-4000-8000-00000000000b",
+              "name": "phone",
+              "value": "={{ $json.person ? ($json.person.phone || $('Inbound Prospect Webhook').item.json.body.phone) : $('Inbound Prospect Webhook').item.json.body.phone }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-00000000000c",
+      "name": "Merge Enrichment",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AGENCYOS_BASE_URL }}/api/v1/webhooks/leads",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AgencyOS-Webhook",
+              "value": "={{ $env.AGENCYOS_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "contentType": "json",
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-00000000000d",
+      "name": "AgencyOS Ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [660, 0]
+    }
+  ],
+  "connections": {
+    "Inbound Prospect Webhook": {
+      "main": [
+        [
+          {
+            "node": "Apollo Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apollo Lookup": {
+      "main": [
+        [
+          {
+            "node": "Merge Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Enrichment": {
+      "main": [
+        [
+          {
+            "node": "AgencyOS Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

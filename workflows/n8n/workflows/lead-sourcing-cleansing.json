@@ -1,0 +1,152 @@
+{
+  "name": "Lead Sourcing — Cleansing & Ingest",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-sourcing",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a01",
+      "name": "Inbound Lead Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "webhookId": "agencyos-lead-sourcing"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a02",
+              "name": "organization_slug",
+              "value": "={{ $env.AGENCYOS_ORG_SLUG }}",
+              "type": "string"
+            },
+            {
+              "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a03",
+              "name": "email",
+              "value": "={{ $json.body.email ? String($json.body.email).trim().toLowerCase() : '' }}",
+              "type": "string"
+            },
+            {
+              "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a04",
+              "name": "first_name",
+              "value": "={{ $json.body.first_name ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a05",
+              "name": "last_name",
+              "value": "={{ $json.body.last_name ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a06",
+              "name": "company",
+              "value": "={{ $json.body.company ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a07",
+              "name": "position",
+              "value": "={{ $json.body.position ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a08",
+              "name": "linkedin_url",
+              "value": "={{ $json.body.linkedin_url ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a09",
+              "name": "website",
+              "value": "={{ $json.body.website ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a0b",
+              "name": "phone",
+              "value": "={{ $json.body.phone ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a0c",
+              "name": "notes",
+              "value": "={{ $json.body.notes ?? '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a0d",
+      "name": "Clean & Map",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.AGENCYOS_BASE_URL }}/api/v1/webhooks/leads",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-AgencyOS-Webhook",
+              "value": "={{ $env.AGENCYOS_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "contentType": "json",
+        "options": {}
+      },
+      "id": "9f1f6f2e-4f6e-4b0a-8f0a-3c0a0a0a0a0e",
+      "name": "AgencyOS Ingest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0]
+    }
+  ],
+  "connections": {
+    "Inbound Lead Webhook": {
+      "main": [
+        [
+          {
+            "node": "Clean & Map",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean & Map": {
+      "main": [
+        [
+          {
+            "node": "AgencyOS Ingest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

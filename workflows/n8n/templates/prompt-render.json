@@ -1,0 +1,84 @@
+{
+  "name": "Template — Prompt Render",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "f7000000-0000-4000-8000-000000000001",
+      "name": "When Testing",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileName": "={{ $env.AGENCYOS_PROMPTS_DIR }}/{{ $json.promptPath }}",
+        "options": {}
+      },
+      "id": "f7000000-0000-4000-8000-000000000002",
+      "name": "Load Prompt File",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: $json.model || 'gpt-4o-mini', messages: [ { role: 'system', content: $json.data }, { role: 'user', content: $json.userMessage } ] }) }}",
+        "contentType": "json",
+        "options": {}
+      },
+      "id": "f7000000-0000-4000-8000-000000000003",
+      "name": "Render With Model",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0]
+    }
+  ],
+  "connections": {
+    "When Testing": {
+      "main": [
+        [
+          {
+            "node": "Load Prompt File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Prompt File": {
+      "main": [
+        [
+          {
+            "node": "Render With Model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

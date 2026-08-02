@@ -1,0 +1,166 @@
+{
+  "name": "Outreach Dispatch — Personalized Cold Email",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "outreach-dispatch",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "b3000000-0000-4000-8000-000000000001",
+      "name": "Inbound Dispatch Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "webhookId": "agencyos-outreach-dispatch"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileName": "={{ $env.AGENCYOS_PROMPTS_DIR }}/cold-email/v1.0.0-ice-breaker.md",
+        "options": {}
+      },
+      "id": "b3000000-0000-4000-8000-000000000002",
+      "name": "Load Ice-Breaker Prompt",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.OPENAI_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'gpt-4o-mini', messages: [ { role: 'system', content: $json.data }, { role: 'user', content: 'Write a short cold email for ' + $('Inbound Dispatch Webhook').item.json.body.first_name + ' at ' + $('Inbound Dispatch Webhook').item.json.body.company + '. Focus on their role: ' + $('Inbound Dispatch Webhook').item.json.body.position + '.' } ] }) }}",
+        "contentType": "json",
+        "options": {}
+      },
+      "id": "b3000000-0000-4000-8000-000000000003",
+      "name": "Render Draft (OpenAI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b3000000-0000-4000-8000-000000000004",
+              "name": "toEmail",
+              "value": "={{ $('Inbound Dispatch Webhook').item.json.body.email }}",
+              "type": "string"
+            },
+            {
+              "id": "b3000000-0000-4000-8000-000000000005",
+              "name": "subject",
+              "value": "={{ 'Quick question about ' + $('Inbound Dispatch Webhook').item.json.body.company }}",
+              "type": "string"
+            },
+            {
+              "id": "b3000000-0000-4000-8000-000000000006",
+              "name": "text",
+              "value": "={{ $json.choices[0].message.content }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b3000000-0000-4000-8000-000000000007",
+      "name": "Prepare Email",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.OUTREACH_FROM_EMAIL }}",
+        "toEmail": "={{ $json.toEmail }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "appendAttribution": false,
+        "options": {}
+      },
+      "id": "b3000000-0000-4000-8000-000000000008",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.sendEmail",
+      "typeVersion": 2,
+      "position": [880, 0],
+      "credentials": {
+        "smtp": {
+          "id": "AGENCYOS_SMTP_CREDENTIAL_ID",
+          "name": "AgencyOS SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Inbound Dispatch Webhook": {
+      "main": [
+        [
+          {
+            "node": "Load Ice-Breaker Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Ice-Breaker Prompt": {
+      "main": [
+        [
+          {
+            "node": "Render Draft (OpenAI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Draft (OpenAI)": {
+      "main": [
+        [
+          {
+            "node": "Prepare Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

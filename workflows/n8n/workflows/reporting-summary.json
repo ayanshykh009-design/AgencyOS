@@ -1,0 +1,115 @@
+{
+  "name": "Reporting — Weekly Pipeline Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": "0 9 * * 1"
+      },
+      "id": "c4000000-0000-4000-8000-000000000001",
+      "name": "Weekly Schedule",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.AGENCYOS_BASE_URL }}/api/v1/dashboard/summary",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $env.AGENCYOS_BOT_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": false,
+        "options": {}
+      },
+      "id": "c4000000-0000-4000-8000-000000000002",
+      "name": "Fetch Dashboard Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $json;\nconst leads = d.leads || {};\nconst usage = d.usage || {};\nconst lines = [\n  'AgencyOS — weekly pipeline summary',\n  '---',\n  'Leads',\n  '  total: ' + (leads.total || 0),\n  '  new: ' + (leads.new || 0),\n  '  contacted: ' + (leads.contacted || 0),\n  '  meetings booked: ' + (leads.meeting_booked || 0),\n  '  won: ' + (leads.won || 0),\n  '  lost: ' + (leads.lost || 0),\n  '---',\n  'Open conversations: ' + ((d.conversations || {}).open || 0),\n  'Outstanding outreach: ' + ((d.outreach || {}).outstanding || 0),\n  'Active imports: ' + ((d.imports || {}).active || 0),\n  '30-day spend: $' + Number((usage.spend_last_30_days_usd || 0)).toFixed(2),\n];\nreturn [{ json: { subject: 'AgencyOS weekly summary', text: lines.join('\\n') } }];",
+        "mode": "runOnceForAllItems"
+      },
+      "id": "c4000000-0000-4000-8000-000000000003",
+      "name": "Format Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $env.OUTREACH_FROM_EMAIL }}",
+        "toEmail": "={{ $env.REPORTING_TO_EMAIL }}",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ $json.text }}",
+        "appendAttribution": false,
+        "options": {}
+      },
+      "id": "c4000000-0000-4000-8000-000000000004",
+      "name": "Send Report",
+      "type": "n8n-nodes-base.sendEmail",
+      "typeVersion": 2,
+      "position": [660, 0],
+      "credentials": {
+        "smtp": {
+          "id": "AGENCYOS_SMTP_CREDENTIAL_ID",
+          "name": "AgencyOS SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Weekly Schedule": {
+      "main": [
+        [
+          {
+            "node": "Fetch Dashboard Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Dashboard Summary": {
+      "main": [
+        [
+          {
+            "node": "Format Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false,
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
