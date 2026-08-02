@@ -81,6 +81,20 @@ class Settings(BaseSettings):
     OTEL_SERVICE_NAME: str = "agencyos-api"
     OTEL_ENDPOINT: str = ""  # e.g. http://otel-collector:4318/v1/traces
 
+    # --- LLM provider layer (app/llm) ---
+    OPENAI_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
+    LLM_PROVIDER: str = "openai"
+    LLM_DEFAULT_MODEL: str = "gpt-4o-mini"
+    LLM_BASE_URL: str = ""
+    LLM_TIMEOUT_SECONDS: int = 60
+    LLM_MAX_TOKENS: int = 4096
+    LLM_DEFAULT_TEMPERATURE: float = 0.7
+
+    # --- n8n automation ---
+    N8N_BASE_URL: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS_ORIGINS into a list of allowed origins."""

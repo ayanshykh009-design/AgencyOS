@@ -16,6 +16,7 @@ from app.api.v1.endpoints import (
     leads,
     outreach,
     provider_usage,
+    research,
     users,
     webhooks,
 )
@@ -40,6 +41,7 @@ api_router.include_router(imports.router, prefix="/imports", tags=["imports"])
 api_router.include_router(provider_usage.router, prefix="/usage", tags=["usage"])
 api_router.include_router(activity.router, prefix="/activity", tags=["activity"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
+api_router.include_router(research.router, prefix="/research", tags=["research"])
 
 # External system ingestion (n8n / contact forms) — no user session.
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])

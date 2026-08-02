@@ -39,7 +39,7 @@ class ActivityService:
             entity_type=entity_type,
             entity_id=entity_id,
             description=description,
-            metadata=metadata or {},
+            metadata_=metadata or {},
             occurred_at=utcnow(),
         )
         self._logs.add(entry)

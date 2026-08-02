@@ -17,3 +17,10 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 ignore = ["B008"]  # FastAPI idiom: Query/File/Form/Depends in argument defaults
+
+# Provider SDK wrappers call into third-party LLM SDKs (anthropic, google-genai)
+# whose streaming event and types unions mypy cannot narrow. Relax only those
+# two error codes for the provider modules; all application code stays strict.
+[[tool.mypy.overrides]]
+module = "app.llm.providers.*"
+disable_error_code = ["union-attr", "attr-defined"]
