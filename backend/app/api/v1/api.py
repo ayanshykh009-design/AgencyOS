@@ -7,6 +7,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     activity,
+    ai,
     auth,
     conversations,
     dashboard,
@@ -42,6 +43,9 @@ api_router.include_router(provider_usage.router, prefix="/usage", tags=["usage"]
 api_router.include_router(activity.router, prefix="/activity", tags=["activity"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(research.router, prefix="/research", tags=["research"])
+
+# AI automation & per-org AI settings.
+api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 
 # External system ingestion (n8n / contact forms) — no user session.
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])

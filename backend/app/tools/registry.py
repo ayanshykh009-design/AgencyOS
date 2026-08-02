@@ -39,7 +39,7 @@ class ToolContext:
     """Runtime dependencies injected into tools at construction time."""
 
     session: Any = None
-    organization_id: str | None = None
+    organization_id: Any = None
     llm_service: Any = None
     http_client: Any = None
 

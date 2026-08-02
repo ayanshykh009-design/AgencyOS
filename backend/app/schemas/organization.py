@@ -1,4 +1,5 @@
 """Organization API schemas."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -47,3 +48,25 @@ class OrganizationRead(OrganizationBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class AISettings(BaseModel):
+    """Per-organization AI defaults (stored under ``settings.ai``)."""
+
+    provider: str | None = Field(default=None, min_length=1, max_length=50)
+    model: str | None = Field(default=None, min_length=1, max_length=100)
+
+
+class OrganizationAISettingsRead(BaseModel):
+    """Resolved AI settings: what's actually in effect for the org."""
+
+    provider: str
+    model: str
+    overridden: bool
+
+
+class OrganizationAISettingsUpdate(BaseModel):
+    """Patch payload for per-org AI defaults."""
+
+    provider: str | None = Field(default=None, min_length=1, max_length=50)
+    model: str | None = Field(default=None, min_length=1, max_length=100)

@@ -5,6 +5,7 @@ domain results to routers. Services own the transaction boundary.
 """
 
 from app.services.activity_service import ActivityService
+from app.services.ai_service import AIService
 from app.services.auth_service import AuthService
 from app.services.base import commit_with_retry, utcnow
 from app.services.conversation_service import ConversationService
@@ -20,6 +21,7 @@ from app.services.user_service import UserService
 
 __all__ = [
     "ActivityService",
+    "AIService",
     "AuthService",
     "ConversationService",
     "DashboardService",
