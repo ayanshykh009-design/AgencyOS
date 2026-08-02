@@ -5,16 +5,16 @@ Operating System. Built on the Next.js App Router.
 
 ## Structure
 
-| Path                  | Purpose                                                          |
-| --------------------- | ---------------------------------------------------------------- |
-| `src/app/`            | Route pages (App Router). Route groups: `(auth)`, `(dashboard)`. |
-| `src/components/`     | Reusable UI: `ui/` (primitives) and `layouts/` (shells).         |
-| `src/lib/`            | Non-React utilities: API client, constants, helpers.             |
-| `src/hooks/`          | Custom React hooks (data fetching, UI state).                    |
-| `src/services/`       | Backend/API integration modules.                                 |
-| `src/stores/`         | Client state (e.g. Zustand) — global UI/session state.           |
-| `src/types/`          | Shared TypeScript domain types.                                  |
-| `public/`             | Static assets served as-is.                                      |
+| Path              | Purpose                                                          |
+| ----------------- | ---------------------------------------------------------------- |
+| `src/app/`        | Route pages (App Router). Route groups: `(auth)`, `(dashboard)`. |
+| `src/components/` | Reusable UI: `ui/` (primitives) and `layouts/` (shells).         |
+| `src/lib/`        | Non-React utilities: API client, constants, helpers.             |
+| `src/hooks/`      | Custom React hooks (data fetching, UI state).                    |
+| `src/services/`   | Backend/API integration modules.                                 |
+| `src/stores/`     | Client state (e.g. Zustand) — global UI/session state.           |
+| `src/types/`      | Shared TypeScript domain types.                                  |
+| `public/`         | Static assets served as-is.                                      |
 
 ## Development
 

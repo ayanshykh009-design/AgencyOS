@@ -1,9 +1,9 @@
 // Backend integration modules.
-// Each domain gets its own service here (auth.ts, campaigns.ts, prospects.ts),
-// calling src/lib/api-client.ts. Keep pages/components free of raw fetch calls.
-
-// Example module shape:
-// export async function getCampaigns(): Promise<Campaign[]> {
-//   return apiFetch<Campaign[]>("/campaigns");
-// }
-export {};
+// Each domain lives in its own service module here (auth.ts, dashboard.ts,
+// leads.ts). Pages and components must route data through these services via
+// src/lib/api-client.ts, never raw fetch calls.
+export { login, logout, fetchCurrentUser } from "./auth";
+export { getDashboardSummary } from "./dashboard";
+export { listLeads, getLead } from "./leads";
+export type { LoginInput } from "./auth";
+export type { LeadQuery } from "./leads";
