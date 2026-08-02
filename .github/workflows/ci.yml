@@ -43,6 +43,9 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
+      - name: Typecheck (mypy)
+        run: mypy app
+
       - name: Test (pytest, incl. SQL-migration integration tests)
         run: pytest
         env:

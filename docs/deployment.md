@@ -31,7 +31,9 @@ docker compose down
 
 ## Production compose (`docker-compose.prod.yml`)
 
-Self-hosted reference deployment using multi-stage, non-root images:
+Self-hosted reference deployment using multi-stage, non-root images with
+container healthchecks (backend liveness probe + frontend HTTP check) so
+orchestrators can restart unhealthy units:
 
 ```bash
 cp .env.example .env.production   # fill in every value
@@ -54,7 +56,7 @@ Before pointing real traffic at it:
 
 The pipeline (`.github/workflows/ci.yml`) runs on every push/PR:
 
-1. **Backend:** `ruff check .` + `pytest`
+1. **Backend:** `ruff check .` + `mypy app` + `pytest`
 2. **Frontend:** `prettier --check` + `eslint` + `tsc --noEmit` + `vitest`
 3. **Compose:** validates both `docker-compose.yml` and `docker-compose.prod.yml`
 
