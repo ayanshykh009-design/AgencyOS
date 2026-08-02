@@ -17,6 +17,23 @@ class ProviderUsageRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    async def get_daily(
+        self,
+        organization_id: uuid.UUID,
+        *,
+        provider: str,
+        feature: str,
+        usage_date: date,
+    ) -> ProviderUsage | None:
+        stmt = select(ProviderUsage).where(
+            ProviderUsage.organization_id == organization_id,
+            ProviderUsage.provider == provider,
+            ProviderUsage.feature == feature,
+            ProviderUsage.usage_date == usage_date,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def list(
         self,
         organization_id: uuid.UUID,

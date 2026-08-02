@@ -2,16 +2,25 @@
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.errors import AppError
 from app.models.enums import ImportStatus
 from app.models.import_job import ImportJob
 from app.models.import_row_error import ImportRowError
 from app.repositories.import_job import ImportJobRepository, ImportRowErrorRepository
 from app.services.base import commit_with_retry, utcnow
+
+_MAX_CSV_BYTES = 50 * 1024 * 1024  # keep in sync with the endpoint limit
+
+
+def _upload_path(job_id: uuid.UUID) -> Path:
+    """Return the on-disk path for a job's uploaded CSV."""
+    return Path(settings.UPLOAD_DIR) / f"{job_id}.csv"
 
 
 class ImportService:
@@ -76,6 +85,23 @@ class ImportService:
         self._jobs.add(job)
         await commit_with_retry(self._session)
         return job
+
+    async def persist_upload(self, job_id: uuid.UUID, content: bytes) -> None:
+        """Write an uploaded CSV to disk for the background worker."""
+        if len(content) > _MAX_CSV_BYTES:
+            raise AppError(
+                code="import.file_too_large",
+                message="Uploaded CSV exceeds the size limit",
+                status_code=413,
+            )
+        path = _upload_path(job_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+
+    @staticmethod
+    def upload_path(job_id: uuid.UUID) -> Path:
+        """Expose the on-disk path for a job's CSV (worker uses it)."""
+        return _upload_path(job_id)
 
     async def cancel(self, organization_id: uuid.UUID, job_id: uuid.UUID) -> ImportJob:
         job = await self._jobs.get_or_404(organization_id, job_id)

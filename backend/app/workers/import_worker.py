@@ -203,7 +203,7 @@ def _parse_row(raw: dict[str, str]) -> tuple[dict[str, Any], str | None]:
         value = raw.get(field)
         if value:
             parsed[field] = value
-    email = (raw.get("email") or "").lower()
+    email = (raw.get("email") or "").strip().lower()
     if email:
         if "@" not in email or "." not in email.split("@")[-1]:
             return {}, "email must be valid"

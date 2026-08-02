@@ -8,15 +8,17 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
-from app.models.enums import LeadStatus
+from app.models.activity_log import ActivityLog
+from app.models.enums import ActivityEventType, LeadStatus
 from app.models.lead import Lead
+from app.repositories.activity_log import ActivityLogRepository
 from app.repositories.lead import LeadRepository
 from app.services.base import commit_with_retry, utcnow
 
 # Statuses that also emit an activity event when reached.
-_STATUS_EVENTS: dict[LeadStatus, str] = {
-    LeadStatus.WON: "lead_won",
-    LeadStatus.LOST: "lead_lost",
+_STATUS_EVENTS: dict[LeadStatus, ActivityEventType] = {
+    LeadStatus.WON: ActivityEventType.LEAD_WON,
+    LeadStatus.LOST: ActivityEventType.LEAD_LOST,
 }
 
 
@@ -26,6 +28,7 @@ class LeadService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._leads = LeadRepository(session)
+        self._logs = ActivityLogRepository(session)
 
     # -- reads ----------------------------------------------------------
 
@@ -117,6 +120,17 @@ class LeadService:
         for field in allowed:
             if field in data:
                 setattr(lead, field, data[field])
+        event = _STATUS_EVENTS.get(lead.status)
+        if event is not None:
+            self._logs.add(
+                ActivityLog(
+                    organization_id=organization_id,
+                    lead_id=lead.id,
+                    event_type=event,
+                    description=f"Lead marked {lead.status.value}",
+                    occurred_at=utcnow(),
+                )
+            )
         try:
             await commit_with_retry(self._session)
         except IntegrityError as exc:

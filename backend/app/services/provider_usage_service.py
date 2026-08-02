@@ -31,7 +31,7 @@ class ProviderUsageService:
         output_tokens: int = 0,
         cost_usd: float = 0,
         metadata: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> ProviderUsage:
         await self._usage.upsert_daily(
             organization_id,
             provider=provider,
@@ -44,6 +44,11 @@ class ProviderUsageService:
             metadata=metadata,
         )
         await commit_with_retry(self._session)
+        record = await self._usage.get_daily(
+            organization_id, provider=provider, feature=feature, usage_date=usage_date
+        )
+        assert record is not None
+        return record
 
     async def list(
         self,
