@@ -1,17 +1,35 @@
 """Unit tests: enum value sets must match the database enum definitions."""
 from app.models.enums import (
     ActivityEventType,
+    AssignmentMethod,
+    AssignmentStrategy,
     ConversationSender,
     ImportStatus,
+    InviteStatus,
     LeadStatus,
     OutreachChannel,
     OutreachStatus,
+    RecurrenceFrequency,
+    StageLifecycle,
+    TaskPriority,
+    TaskStatus,
     UserRole,
 )
 
 
 def test_user_role_values() -> None:
-    assert set(UserRole) == {"owner", "admin", "member", "viewer"}
+    assert set(UserRole) == {
+        "owner",
+        "admin",
+        "manager",
+        "member",
+        "sales_agent",
+        "viewer",
+    }
+
+
+def test_invite_status_values() -> None:
+    assert set(InviteStatus) == {"pending", "accepted", "revoked", "expired"}
 
 
 def test_lead_status_values() -> None:
@@ -67,6 +85,19 @@ def test_activity_event_type_values() -> None:
         "proposal_sent",
         "lead_won",
         "lead_lost",
+        "user_invited",
+        "invite_accepted",
+        "invite_revoked",
+        "user_role_changed",
+        "user_status_changed",
+        "lead_assigned",
+        "task_created",
+        "task_updated",
+        "task_completed",
+        "task_deleted",
+        "note_created",
+        "note_updated",
+        "note_deleted",
     }
 
 
@@ -74,15 +105,46 @@ def test_conversation_sender_values() -> None:
     assert set(ConversationSender) == {"lead", "agent", "system"}
 
 
+def test_assignment_strategy_values() -> None:
+    assert set(AssignmentStrategy) == {"manual", "round_robin", "rules"}
+
+
+def test_assignment_method_values() -> None:
+    assert set(AssignmentMethod) == {"manual", "round_robin", "rules", "bulk", "unassigned"}
+
+
+def test_stage_lifecycle_values() -> None:
+    assert set(StageLifecycle) == {"open", "won", "lost"}
+
+
+def test_task_status_values() -> None:
+    assert set(TaskStatus) == {"todo", "in_progress", "completed", "cancelled"}
+
+
+def test_task_priority_values() -> None:
+    assert set(TaskPriority) == {"low", "medium", "high", "urgent"}
+
+
+def test_recurrence_frequency_values() -> None:
+    assert set(RecurrenceFrequency) == {"daily", "weekly", "monthly"}
+
+
 def test_all_enums_are_str_enums() -> None:
     for enum_cls in (
         UserRole,
+        InviteStatus,
         LeadStatus,
         OutreachChannel,
         OutreachStatus,
         ImportStatus,
         ActivityEventType,
         ConversationSender,
+        AssignmentStrategy,
+        AssignmentMethod,
+        StageLifecycle,
+        TaskStatus,
+        TaskPriority,
+        RecurrenceFrequency,
     ):
         assert all(isinstance(member.value, str) for member in enum_cls)
         # Round-trip: constructing from the raw label must yield the member.

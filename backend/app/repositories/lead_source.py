@@ -18,7 +18,12 @@ class LeadSourceRepository:
         self._session = session
 
     async def get(self, organization_id: uuid.UUID, source_id: uuid.UUID) -> LeadSource | None:
-        return await self._session.get(LeadSource, source_id)
+        stmt = select(LeadSource).where(
+            LeadSource.id == source_id,
+            LeadSource.organization_id == organization_id
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_or_404(
         self, organization_id: uuid.UUID, source_id: uuid.UUID

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
@@ -15,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, mo
 from app.models.enums import LeadStatus
 
 _SCORE_MAX = 100
+_DEAL_VALUE_MAX = Decimal("99999999999999.99")
 
 
 def _normalize_phone(raw: str | None) -> str | None:
@@ -51,6 +53,7 @@ class LeadBase(BaseModel):
     notes: str | None = None
     status: LeadStatus = LeadStatus.NEW
     score: int = Field(default=0, ge=0, le=_SCORE_MAX)
+    deal_value: Decimal | None = Field(default=None, ge=0, le=_DEAL_VALUE_MAX)
 
     @field_validator("email")
     @classmethod
@@ -84,6 +87,7 @@ class LeadCreate(LeadBase):
     organization_id: UUID
     lead_source_id: UUID | None = None
     owner_user_id: UUID | None = None
+    stage_id: UUID | None = None
 
 
 class LeadUpdate(BaseModel):
@@ -104,6 +108,9 @@ class LeadUpdate(BaseModel):
     score: int | None = Field(default=None, ge=0, le=_SCORE_MAX)
     lead_source_id: UUID | None = None
     owner_user_id: UUID | None = None
+    stage_id: UUID | None = None
+    close_reason_id: UUID | None = None
+    deal_value: Decimal | None = Field(default=None, ge=0, le=_DEAL_VALUE_MAX)
 
     @field_validator("email")
     @classmethod
@@ -122,6 +129,11 @@ class LeadRead(LeadBase):
     organization_id: UUID
     lead_source_id: UUID | None = None
     owner_user_id: UUID | None = None
+    stage_id: UUID | None = None
+    close_reason_id: UUID | None = None
+    deal_value: Decimal | None = None
+    won_at: datetime | None = None
+    lost_at: datetime | None = None
     email_normalized: str | None = None
     phone_normalized: str | None = None
     website_domain: str | None = None

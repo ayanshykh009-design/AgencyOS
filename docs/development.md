@@ -50,6 +50,28 @@ cd frontend && npm run format           # prettier write
 8. Frontend service + page → `frontend/src/services/`, `frontend/src/app/`.
 9. Update docs → `docs/api/endpoints/` and the relevant guides.
 
+## Frontend structure
+
+Pages live under `frontend/src/app/(dashboard)/` and always route data through
+`frontend/src/services/*` (never raw `fetch`). Each page renders loading,
+error, and empty states and uses the primitives in `frontend/src/components/ui/`.
+
+| Page | Route | Purpose |
+| ---- | ----- | ------- |
+| Dashboard | `/dashboard` | Metrics incl. tasks + deal-flow widgets |
+| Leads | `/leads`, `/leads/[id]` | List/filter/export, profile, notes, tasks |
+| Pipeline | `/pipeline` | Kanban board with drag-and-drop stage moves |
+| Tasks | `/tasks` | Filterable task list with create/complete/delete |
+| Search | `/search` | Unified search across leads, tasks, notes |
+| Audit log | `/audit` | Admin-only activity trail (owner/admin) |
+| Team | `/team` | Invites, roles, member activation (owner/admin) |
+| Assignment | `/assignment` | Auto-assignment rules + unassigned sweep |
+
+UI affordances are gated with `can()` from `frontend/src/lib/permissions.ts`,
+which mirrors the backend permission matrix; the backend remains the source of
+truth for enforcement. New pages must add matching service modules with vitest
+coverage under `frontend/src/services/__tests__/`.
+
 ## Production discipline
 
 - Use the production Dockerfiles (`docker/*/Dockerfile.prod`) to validate that

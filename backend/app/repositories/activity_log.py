@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.activity_log import ActivityLog
 from app.models.enums import ActivityEventType
@@ -19,7 +21,7 @@ class ActivityLogRepository:
     def add(self, entry: ActivityLog) -> None:
         self._session.add(entry)
 
-    async def list(
+    async def list_entries(
         self,
         organization_id: uuid.UUID,
         *,
@@ -38,6 +40,44 @@ class ActivityLogRepository:
             stmt = stmt.where(ActivityLog.user_id == user_id)
         if event_type is not None:
             stmt = stmt.where(ActivityLog.event_type == event_type)
+        stmt = stmt.order_by(ActivityLog.occurred_at.desc()).limit(limit).offset(offset)
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def audit_list(
+        self,
+        organization_id: uuid.UUID,
+        *,
+        entity_type: str | None = None,
+        entity_id: uuid.UUID | None = None,
+        lead_id: uuid.UUID | None = None,
+        user_id: uuid.UUID | None = None,
+        event_type: ActivityEventType | None = None,
+        occurred_after: datetime | None = None,
+        occurred_before: datetime | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[ActivityLog]:
+        """Audit-oriented list with the acting user eagerly loaded."""
+        stmt = (
+            select(ActivityLog)
+            .options(selectinload(ActivityLog.user))
+            .where(ActivityLog.organization_id == organization_id)
+        )
+        if entity_type is not None:
+            stmt = stmt.where(ActivityLog.entity_type == entity_type)
+        if entity_id is not None:
+            stmt = stmt.where(ActivityLog.entity_id == entity_id)
+        if lead_id is not None:
+            stmt = stmt.where(ActivityLog.lead_id == lead_id)
+        if user_id is not None:
+            stmt = stmt.where(ActivityLog.user_id == user_id)
+        if event_type is not None:
+            stmt = stmt.where(ActivityLog.event_type == event_type)
+        if occurred_after is not None:
+            stmt = stmt.where(ActivityLog.occurred_at >= occurred_after)
+        if occurred_before is not None:
+            stmt = stmt.where(ActivityLog.occurred_at <= occurred_before)
         stmt = stmt.order_by(ActivityLog.occurred_at.desc()).limit(limit).offset(offset)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())

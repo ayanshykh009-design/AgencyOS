@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     DATABASE_MAX_OVERFLOW: int = 20
     DATABASE_POOL_TIMEOUT: int = 30
 
+    # --- Frontend (used to build invite/share links) ---
+    FRONTEND_URL: str = "http://localhost:3000"
+
     # --- Supabase (managed PostgreSQL) ---
     SUPABASE_URL: str = ""
     # TODO: unused by feature code today (server-side access uses the service

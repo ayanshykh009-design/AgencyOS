@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from decimal import Decimal
+from typing import Any, cast
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import CursorResult, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -175,6 +176,147 @@ class LeadRepository:
         )
         result = await self._session.execute(stmt)
         return {status: int(count) for status, count in result.all()}
+
+    async def list_unassigned(
+        self, organization_id: uuid.UUID, *, limit: int = 500
+    ) -> list[Lead]:
+        """Return non-deleted leads without an owner (for assignment sweeps)."""
+        stmt = (
+            select(Lead)
+            .where(
+                Lead.organization_id == organization_id,
+                Lead.deleted_at.is_(None),
+                Lead.owner_user_id.is_(None),
+            )
+            .order_by(Lead.created_at)
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def list_by_stages(
+        self,
+        organization_id: uuid.UUID,
+        stage_ids: list[uuid.UUID],
+        *,
+        limit_per_stage: int = 50,
+    ) -> dict[uuid.UUID, list[Lead]]:
+        """Return non-deleted leads grouped by stage (newest first), capped."""
+        out: dict[uuid.UUID, list[Lead]] = {sid: [] for sid in stage_ids}
+        if not stage_ids:
+            return out
+        stmt = (
+            select(Lead)
+            .where(
+                Lead.organization_id == organization_id,
+                Lead.deleted_at.is_(None),
+                Lead.stage_id.in_(stage_ids),
+            )
+            .order_by(Lead.updated_at.desc())
+        )
+        result = await self._session.execute(stmt)
+        for lead in result.scalars().all():
+            if lead.stage_id is None:
+                continue
+            bucket = out.get(lead.stage_id)
+            if bucket is not None and len(bucket) < limit_per_stage:
+                bucket.append(lead)
+        return out
+
+    async def count_by_stage(self, organization_id: uuid.UUID) -> dict[uuid.UUID, int]:
+        """Lead counts per stage (non-deleted only)."""
+        stmt = (
+            select(Lead.stage_id, func.count(Lead.id))
+            .where(
+                Lead.organization_id == organization_id,
+                Lead.deleted_at.is_(None),
+                Lead.stage_id.is_not(None),
+            )
+            .group_by(Lead.stage_id)
+        )
+        result = await self._session.execute(stmt)
+        return {stage_id: int(count) for stage_id, count in result.all()}
+
+    async def count_in_stage(
+        self, organization_id: uuid.UUID, stage_id: uuid.UUID
+    ) -> int:
+        """Count non-deleted leads currently in a stage."""
+        stmt = (
+            select(func.count(Lead.id))
+            .where(
+                Lead.organization_id == organization_id,
+                Lead.deleted_at.is_(None),
+                Lead.stage_id == stage_id,
+            )
+            .select_from(Lead)
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar_one())
+
+    async def count_using_close_reason(
+        self, organization_id: uuid.UUID, close_reason_id: uuid.UUID
+    ) -> int:
+        """Count non-deleted leads referencing a close reason."""
+        stmt = (
+            select(func.count(Lead.id))
+            .where(
+                Lead.organization_id == organization_id,
+                Lead.deleted_at.is_(None),
+                Lead.close_reason_id == close_reason_id,
+            )
+            .select_from(Lead)
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar_one())
+
+    async def sum_deal_value(
+        self,
+        organization_id: uuid.UUID,
+        *,
+        status: LeadStatus | None = None,
+    ) -> Decimal:
+        """Sum of ``deal_value`` for non-deleted leads (optionally by status)."""
+        stmt = select(func.coalesce(func.sum(Lead.deal_value), 0)).where(
+            Lead.organization_id == organization_id,
+            Lead.deleted_at.is_(None),
+        )
+        if status is not None:
+            stmt = stmt.where(Lead.status == status)
+        result = await self._session.execute(stmt)
+        return Decimal(str(result.scalar_one()))
+
+    async def count_unassigned(self, organization_id: uuid.UUID) -> int:
+        """Count non-deleted leads without an owner."""
+        stmt = (
+            select(func.count(Lead.id))
+            .where(
+                Lead.organization_id == organization_id,
+                Lead.deleted_at.is_(None),
+                Lead.owner_user_id.is_(None),
+            )
+            .select_from(Lead)
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar_one())
+
+    async def bulk_move_stage(
+        self,
+        organization_id: uuid.UUID,
+        from_stage_id: uuid.UUID,
+        to_stage_id: uuid.UUID,
+    ) -> int:
+        """Move every non-deleted lead out of a stage; returns the count."""
+        stmt = (
+            update(Lead)
+            .where(
+                Lead.organization_id == organization_id,
+                Lead.deleted_at.is_(None),
+                Lead.stage_id == from_stage_id,
+            )
+            .values(stage_id=to_stage_id)
+        )
+        result = await self._session.execute(stmt)
+        return cast(CursorResult, result).rowcount or 0
 
     async def soft_delete(
         self, organization_id: uuid.UUID, lead_id: uuid.UUID, *, now

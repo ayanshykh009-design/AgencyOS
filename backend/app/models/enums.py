@@ -8,12 +8,28 @@ from enum import StrEnum
 
 
 class UserRole(StrEnum):
-    """Access level of a user within their organization."""
+    """Access level of a user within their organization.
+
+    Ordered from least to most privileged: VIEWER < MEMBER ~ SALES_AGENT <
+    MANAGER < ADMIN < OWNER. Keep this ordering in sync with the role
+    hierarchy in ``app/core/permissions.py``.
+    """
 
     OWNER = "owner"
     ADMIN = "admin"
+    MANAGER = "manager"
     MEMBER = "member"
+    SALES_AGENT = "sales_agent"
     VIEWER = "viewer"
+
+
+class InviteStatus(StrEnum):
+    """Lifecycle of a team invite."""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
 
 
 class LeadStatus(StrEnum):
@@ -76,6 +92,19 @@ class ActivityEventType(StrEnum):
     PROPOSAL_SENT = "proposal_sent"
     LEAD_WON = "lead_won"
     LEAD_LOST = "lead_lost"
+    USER_INVITED = "user_invited"
+    INVITE_ACCEPTED = "invite_accepted"
+    INVITE_REVOKED = "invite_revoked"
+    USER_ROLE_CHANGED = "user_role_changed"
+    USER_STATUS_CHANGED = "user_status_changed"
+    LEAD_ASSIGNED = "lead_assigned"
+    TASK_CREATED = "task_created"
+    TASK_UPDATED = "task_updated"
+    TASK_COMPLETED = "task_completed"
+    TASK_DELETED = "task_deleted"
+    NOTE_CREATED = "note_created"
+    NOTE_UPDATED = "note_updated"
+    NOTE_DELETED = "note_deleted"
 
 
 class ConversationSender(StrEnum):
@@ -84,3 +113,55 @@ class ConversationSender(StrEnum):
     LEAD = "lead"
     AGENT = "agent"
     SYSTEM = "system"
+
+
+class StageLifecycle(StrEnum):
+    """Coarse bucket of a pipeline stage: open (active), won, or lost."""
+
+    OPEN = "open"
+    WON = "won"
+    LOST = "lost"
+
+
+class AssignmentStrategy(StrEnum):
+    """How leads are auto-assigned to team members."""
+
+    MANUAL = "manual"
+    ROUND_ROBIN = "round_robin"
+    RULES = "rules"
+
+
+class AssignmentMethod(StrEnum):
+    """How a specific lead assignment was made."""
+
+    MANUAL = "manual"
+    ROUND_ROBIN = "round_robin"
+    RULES = "rules"
+    BULK = "bulk"
+    UNASSIGNED = "unassigned"
+
+
+class TaskStatus(StrEnum):
+    """Lifecycle of a task."""
+
+    TODO = "todo"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class TaskPriority(StrEnum):
+    """Urgency of a task."""
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    URGENT = "urgent"
+
+
+class RecurrenceFrequency(StrEnum):
+    """Cadence for repeating tasks (advanced on completion)."""
+
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MONTHLY = "monthly"

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,7 +47,7 @@ class ActivityService:
         await commit_with_retry(self._session)
         return entry
 
-    async def list(
+    async def list_entries(
         self,
         organization_id: uuid.UUID,
         *,
@@ -56,11 +57,39 @@ class ActivityService:
         limit: int = 50,
         offset: int = 0,
     ) -> list[ActivityLog]:
-        return await self._logs.list(
+        return await self._logs.list_entries(
             organization_id,
             lead_id=lead_id,
             user_id=user_id,
             event_type=event_type,
+            limit=limit,
+            offset=offset,
+        )
+
+    async def audit_trail(
+        self,
+        organization_id: uuid.UUID,
+        *,
+        entity_type: str | None = None,
+        entity_id: uuid.UUID | None = None,
+        lead_id: uuid.UUID | None = None,
+        user_id: uuid.UUID | None = None,
+        event_type: ActivityEventType | None = None,
+        occurred_after: datetime | None = None,
+        occurred_before: datetime | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[ActivityLog]:
+        """Return audit entries with actor details resolved."""
+        return await self._logs.audit_list(
+            organization_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            lead_id=lead_id,
+            user_id=user_id,
+            event_type=event_type,
+            occurred_after=occurred_after,
+            occurred_before=occurred_before,
             limit=limit,
             offset=offset,
         )

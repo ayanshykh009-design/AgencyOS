@@ -4,11 +4,12 @@ NOTE: intentionally does NOT use ``from __future__ import annotations``.
 slowapi's ``functools.wraps`` copies string annotations and FastAPI then
 resolves them against slowapi's globals, producing unresolved ForwardRefs.
 """
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.permissions import Permission, require_permission
 from app.core.rate_limit import limiter
 from app.schemas.ai import (
     BrainRunRequest,
@@ -49,6 +50,7 @@ async def get_ai_settings(
     "/settings",
     response_model=OrganizationAISettingsRead,
     summary="Update the organization's AI defaults",
+    dependencies=[Depends(require_permission(Permission.AI_MANAGE))],
 )
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def update_ai_settings(
@@ -87,6 +89,7 @@ async def list_tools(
     "/run",
     response_model=BrainRunResponse,
     summary="Run the AI brain for a goal on a lead",
+    dependencies=[Depends(require_permission(Permission.LEAD_WRITE))],
 )
 @limiter.limit(settings.RATE_LIMIT_AI)
 async def run_brain(
@@ -122,6 +125,7 @@ async def run_brain(
     "/dispatch",
     response_model=DispatchResponse,
     summary="Dispatch a draft to the n8n automation platform",
+    dependencies=[Depends(require_permission(Permission.LEAD_WRITE))],
 )
 @limiter.limit(settings.RATE_LIMIT_AI)
 async def dispatch(

@@ -142,4 +142,12 @@ All endpoints require a bearer JWT (`Authorization: Bearer <token>`); missing or
 invalid tokens receive `401 auth.missing_token` / `auth.invalid_token`. Scope is
 always the authenticated user's organization.
 
+| Endpoint              | Required permission |
+| --------------------- | ------------------- |
+| `GET /ai/tools`       | any authenticated   |
+| `GET /ai/settings`    | any authenticated   |
+| `PATCH /ai/settings`  | `ai_manage`         |
+| `POST /ai/run`        | `lead_write`        |
+| `POST /ai/dispatch`   | `lead_write`        |
+
 Errors use the standard envelope: `{"error": {"code", "message", "details"?}}`.

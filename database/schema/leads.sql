@@ -18,6 +18,11 @@ CREATE TABLE IF NOT EXISTS public.leads (
   whatsapp           text,
   website            text,
   notes              text,
+  stage_id           uuid REFERENCES public.pipeline_stages (id) ON DELETE SET NULL,
+  close_reason_id    uuid REFERENCES public.close_reasons (id) ON DELETE SET NULL,
+  deal_value         numeric(14, 2) CHECK (deal_value IS NULL OR deal_value >= 0),
+  won_at             timestamptz,
+  lost_at            timestamptz,
   email_normalized   text GENERATED ALWAYS AS (lower(btrim(email))) STORED,
   phone_normalized   text GENERATED ALWAYS AS (coalesce(normalize_phone(phone), normalize_phone(whatsapp))) STORED,
   website_domain     text GENERATED ALWAYS AS (normalize_domain(website)) STORED,
@@ -42,6 +47,9 @@ CREATE INDEX IF NOT EXISTS idx_leads_org_status ON public.leads (organization_id
 CREATE INDEX IF NOT EXISTS idx_leads_org_owner ON public.leads (organization_id, owner_user_id);
 CREATE INDEX IF NOT EXISTS idx_leads_org_source ON public.leads (organization_id, lead_source_id);
 CREATE INDEX IF NOT EXISTS idx_leads_org_updated ON public.leads (organization_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_leads_org_stage ON public.leads (organization_id, stage_id);
+CREATE INDEX IF NOT EXISTS idx_leads_org_close_reason
+  ON public.leads (organization_id, close_reason_id);
 CREATE INDEX IF NOT EXISTS idx_leads_org_active ON public.leads (organization_id)
   WHERE deleted_at IS NULL;
 

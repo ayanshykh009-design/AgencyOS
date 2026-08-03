@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Computed, Enum, ForeignKey, Index, Integer, Text, text
+from sqlalchemy import Computed, Enum, ForeignKey, Index, Integer, Numeric, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -19,12 +20,17 @@ from app.models.enums import LeadStatus
 
 if TYPE_CHECKING:
     from app.models.activity_log import ActivityLog
+    from app.models.assignment import LeadAssignmentLog
+    from app.models.close_reason import CloseReason
     from app.models.conversation import Conversation
     from app.models.follow_up import FollowUp
     from app.models.lead_research import LeadResearch
     from app.models.lead_source import LeadSource
     from app.models.manual_outreach_queue import ManualOutreachQueue
+    from app.models.note import Note
     from app.models.outreach_attempt import OutreachAttempt
+    from app.models.pipeline_stage import PipelineStage
+    from app.models.task import Task
     from app.models.user import User
 
 
@@ -83,6 +89,17 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     website: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
 
+    # Pipeline placement (Kanban column) and win/loss bookkeeping.
+    stage_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("pipeline_stages.id", ondelete="SET NULL"), index=True
+    )
+    close_reason_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("close_reasons.id", ondelete="SET NULL"), index=True
+    )
+    deal_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    won_at: Mapped[datetime | None] = mapped_column()
+    lost_at: Mapped[datetime | None] = mapped_column()
+
     # Generated, read-only dedup keys (mirror PostgreSQL GENERATED columns).
     email_normalized: Mapped[str | None] = mapped_column(
         Computed("lower(btrim(email))"), nullable=True
@@ -98,6 +115,8 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     lead_source: Mapped[LeadSource | None] = relationship(back_populates="leads")
     owner: Mapped[User | None] = relationship()
+    stage: Mapped[PipelineStage | None] = relationship(back_populates="leads")
+    close_reason: Mapped[CloseReason | None] = relationship()
     research: Mapped[LeadResearch | None] = relationship(back_populates="lead", uselist=False)
     outreach_attempts: Mapped[list[OutreachAttempt]] = relationship(back_populates="lead")
     follow_ups: Mapped[list[FollowUp]] = relationship(back_populates="lead")
@@ -106,6 +125,11 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     conversations: Mapped[list[Conversation]] = relationship(back_populates="lead")
     activity_logs: Mapped[list[ActivityLog]] = relationship(back_populates="lead")
+    assignment_logs: Mapped[list[LeadAssignmentLog]] = relationship(
+        back_populates="lead"
+    )
+    tasks: Mapped[list[Task]] = relationship(back_populates="lead")
+    lead_notes: Mapped[list[Note]] = relationship(back_populates="lead")
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<Lead id={self.id} email={self.email!r}>"

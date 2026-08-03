@@ -3,12 +3,14 @@
 // (no data fetching, no business logic).
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "solid" | "ghost";
+  variant?: "solid" | "ghost" | "outline" | "danger";
 }
 
 const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, string> = {
   solid: "bg-black text-white hover:bg-gray-800",
   ghost: "bg-transparent text-gray-600 hover:bg-gray-100",
+  outline: "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
+  danger: "bg-red-600 text-white hover:bg-red-700",
 };
 
 export function Button({ variant = "solid", className, ...props }: ButtonProps) {

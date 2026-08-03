@@ -6,6 +6,7 @@ services.
 """
 from app.models.activity_log import ActivityLog
 from app.models.base import Base
+from app.models.close_reason import CloseReason
 from app.models.conversation import Conversation
 from app.models.conversation_message import ConversationMessage
 from app.models.follow_up import FollowUp
@@ -15,16 +16,20 @@ from app.models.lead import Lead
 from app.models.lead_research import LeadResearch
 from app.models.lead_source import LeadSource
 from app.models.manual_outreach_queue import ManualOutreachQueue
+from app.models.note import Note
 from app.models.organization import Organization
 from app.models.outreach_attempt import OutreachAttempt
 from app.models.outreach_message import OutreachMessage
+from app.models.pipeline_stage import PipelineStage
 from app.models.provider_usage import ProviderUsage
 from app.models.refresh_token import RefreshToken
+from app.models.task import Task
 from app.models.user import User
 
 __all__ = [
     "ActivityLog",
     "Base",
+    "CloseReason",
     "Conversation",
     "ConversationMessage",
     "FollowUp",
@@ -34,10 +39,13 @@ __all__ = [
     "LeadResearch",
     "LeadSource",
     "ManualOutreachQueue",
+    "Note",
     "Organization",
     "OutreachAttempt",
     "OutreachMessage",
+    "PipelineStage",
     "ProviderUsage",
     "RefreshToken",
+    "Task",
     "User",
 ]

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiRequestError } from "@/lib/api-client";
+import { can } from "@/lib/permissions";
 import { getAISettings, updateAISettings } from "@/services/ai";
 import type { OrganizationAISettings } from "@/types";
 
@@ -27,8 +28,10 @@ export default function AISettingsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const canManage = !!session && can(session.user.role, "ai_manage");
+
   useEffect(() => {
-    if (!session) return;
+    if (!canManage) return;
     let cancelled = false;
     getAISettings()
       .then((aiSettings) => {
@@ -44,7 +47,7 @@ export default function AISettingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [canManage, session]);
 
   async function onSave() {
     setBusy(true);
@@ -81,6 +84,10 @@ export default function AISettingsPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (!canManage) {
+    return <p>You do not have permission to manage AI settings. Contact an administrator.</p>;
   }
 
   return (

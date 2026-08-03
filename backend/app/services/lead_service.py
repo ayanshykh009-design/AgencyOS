@@ -1,4 +1,9 @@
-"""Lead service: dedup-aware creation, search, lifecycle transitions."""
+"""Lead service: dedup-aware creation, search, lifecycle transitions.
+
+Pipeline transitions (status/stage/close reason) are delegated to
+``PipelineService.reconcile`` so win/loss bookkeeping and activity events
+have a single source of truth.
+"""
 from __future__ import annotations
 
 import uuid
@@ -8,18 +13,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
-from app.models.activity_log import ActivityLog
-from app.models.enums import ActivityEventType, LeadStatus
+from app.models.enums import LeadStatus
 from app.models.lead import Lead
-from app.repositories.activity_log import ActivityLogRepository
 from app.repositories.lead import LeadRepository
+from app.services.assignment_service import AssignmentService
 from app.services.base import commit_with_retry, utcnow
-
-# Statuses that also emit an activity event when reached.
-_STATUS_EVENTS: dict[LeadStatus, ActivityEventType] = {
-    LeadStatus.WON: ActivityEventType.LEAD_WON,
-    LeadStatus.LOST: ActivityEventType.LEAD_LOST,
-}
+from app.services.pipeline_service import PipelineService
 
 
 class LeadService:
@@ -28,7 +27,6 @@ class LeadService:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
         self._leads = LeadRepository(session)
-        self._logs = ActivityLogRepository(session)
 
     # -- reads ----------------------------------------------------------
 
@@ -77,7 +75,9 @@ class LeadService:
 
     # -- writes ---------------------------------------------------------
 
-    async def create(self, organization_id: uuid.UUID, data: dict[str, Any]) -> Lead:
+    async def create(
+        self, organization_id: uuid.UUID, data: dict[str, Any]
+    ) -> Lead:
         lead = Lead(
             organization_id=organization_id,
             lead_source_id=data.get("lead_source_id"),
@@ -95,6 +95,7 @@ class LeadService:
             whatsapp=data.get("whatsapp"),
             website=data.get("website"),
             notes=data.get("notes"),
+            deal_value=data.get("deal_value"),
         )
         self._leads.add(lead)
         try:
@@ -102,6 +103,18 @@ class LeadService:
         except IntegrityError as exc:
             await self._session.rollback()
             await self._leads.handle_integrity_error(exc)
+        # Reconcile stage/status/timestamps, then auto-assign per org rule.
+        await PipelineService(self._session).reconcile(
+            organization_id,
+            lead,
+            status=data.get("status"),
+            stage_id=data.get("stage_id"),
+            emit_events=False,
+        )
+        if lead.owner_user_id is None:
+            await AssignmentService(self._session).auto_assign(
+                organization_id, lead
+            )
         await commit_with_retry(self._session)
         return lead
 
@@ -116,20 +129,19 @@ class LeadService:
             "first_name", "last_name", "company", "position", "location",
             "linkedin_url", "email", "phone", "whatsapp", "website", "notes",
             "status", "score", "lead_source_id", "owner_user_id",
+            "stage_id", "deal_value",
         }
         for field in allowed:
             if field in data:
                 setattr(lead, field, data[field])
-        event = _STATUS_EVENTS.get(lead.status)
-        if event is not None:
-            self._logs.add(
-                ActivityLog(
-                    organization_id=organization_id,
-                    lead_id=lead.id,
-                    event_type=event,
-                    description=f"Lead marked {lead.status.value}",
-                    occurred_at=utcnow(),
-                )
+        if any(key in data for key in ("status", "stage_id", "close_reason_id")):
+            await PipelineService(self._session).reconcile(
+                organization_id,
+                lead,
+                status=data.get("status"),
+                stage_id=data.get("stage_id"),
+                close_reason_id=data.get("close_reason_id"),
+                emit_events=True,
             )
         try:
             await commit_with_retry(self._session)

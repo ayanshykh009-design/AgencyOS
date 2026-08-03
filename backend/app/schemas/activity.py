@@ -46,3 +46,7 @@ class ActivityLogRead(BaseModel):
     )
     occurred_at: datetime
     created_at: datetime
+
+    # Actor metadata resolved for audit views (None when unavailable).
+    actor_user_id: UUID | None = None
+    actor_name: str | None = None

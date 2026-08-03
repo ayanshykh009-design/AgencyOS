@@ -16,7 +16,6 @@ from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
 from app.models.conversation import Conversation
 from app.models.enums import (
-    ActivityEventType,
     ConversationSender,
     ImportStatus,
     LeadStatus,
@@ -396,12 +395,18 @@ async def test_logout_revokes_all_tokens() -> None:
 
 
 @pytest.mark.asyncio
-async def test_lead_create_sets_defaults() -> None:
+async def test_lead_create_sets_defaults(monkeypatch) -> None:
     session = FakeSession()
     service = LeadService(session)
     service._leads = MagicMock()
-    service._logs = MagicMock()
     service._leads.add = MagicMock()
+
+    auto = MagicMock()
+    auto.auto_assign = AsyncMock()
+    monkeypatch.setattr("app.services.lead_service.AssignmentService", lambda s: auto)
+    pipeline = MagicMock()
+    pipeline.reconcile = AsyncMock()
+    monkeypatch.setattr("app.services.lead_service.PipelineService", lambda s: pipeline)
 
     lead = await service.create(
         ORG_ID,
@@ -411,6 +416,8 @@ async def test_lead_create_sets_defaults() -> None:
     assert lead.status is LeadStatus.NEW
     assert lead.score == 0
     assert lead.email == "prospect@example.com"
+    pipeline.reconcile.assert_awaited_once()
+    auto.auto_assign.assert_awaited_once()
     assert session.committed is True
 
 
@@ -441,61 +448,69 @@ async def test_lead_soft_delete_success() -> None:
 
 
 @pytest.mark.asyncio
-async def test_lead_update_to_won_emits_activity() -> None:
+async def test_lead_update_to_won_delegates_reconcile(monkeypatch) -> None:
     session = FakeSession()
     service = LeadService(session)
     service._leads = MagicMock()
-    service._logs = MagicMock()
-    service._logs.add = MagicMock(side_effect=session.add)
     lead = Lead(organization_id=ORG_ID, email="won@example.com", status=LeadStatus.NEW)
     lead.id = uuid.uuid4()
     service._leads.get_or_404 = AsyncMock(return_value=lead)
+    pipeline = MagicMock()
+    pipeline.reconcile = AsyncMock()
+    monkeypatch.setattr("app.services.lead_service.PipelineService", lambda s: pipeline)
 
     await service.update(ORG_ID, LEAD_ID, {"status": LeadStatus.WON})
 
     assert lead.status is LeadStatus.WON
-    from app.models.activity_log import ActivityLog
-
-    entry = next(obj for obj in session.added if isinstance(obj, ActivityLog))
-    assert entry.event_type is ActivityEventType.LEAD_WON
-    assert entry.lead_id == lead.id
+    pipeline.reconcile.assert_awaited_once()
+    _args, kwargs = pipeline.reconcile.await_args
+    assert kwargs["status"] is LeadStatus.WON
+    assert kwargs["stage_id"] is None
+    assert kwargs["emit_events"] is True
     assert session.committed is True
 
 
 @pytest.mark.asyncio
-async def test_lead_update_to_new_emits_no_activity() -> None:
+async def test_lead_update_open_status_skips_transition_event(monkeypatch) -> None:
     session = FakeSession()
     service = LeadService(session)
     service._leads = MagicMock()
-    service._logs = MagicMock()
     lead = Lead(organization_id=ORG_ID, email="x@example.com", status=LeadStatus.CONTACTED)
     service._leads.get_or_404 = AsyncMock(return_value=lead)
+    pipeline = MagicMock()
+    pipeline.reconcile = AsyncMock()
+    monkeypatch.setattr("app.services.lead_service.PipelineService", lambda s: pipeline)
 
     await service.update(ORG_ID, LEAD_ID, {"status": LeadStatus.CONTACTED, "score": 5})
 
-    from app.models.activity_log import ActivityLog
-
-    assert not any(isinstance(obj, ActivityLog) for obj in session.added)
+    pipeline.reconcile.assert_awaited_once()
+    _args, kwargs = pipeline.reconcile.await_args
+    assert kwargs["status"] is LeadStatus.CONTACTED
+    assert kwargs["emit_events"] is True
     assert lead.score == 5
+    assert session.committed is True
 
 
 @pytest.mark.asyncio
-async def test_lead_update_to_lost_emits_activity() -> None:
+async def test_lead_update_to_lost_delegates_reconcile(monkeypatch) -> None:
     session = FakeSession()
     service = LeadService(session)
     service._leads = MagicMock()
-    service._logs = MagicMock()
-    service._logs.add = MagicMock(side_effect=session.add)
     lead = Lead(organization_id=ORG_ID, email="lost@example.com", status=LeadStatus.NEW)
     lead.id = uuid.uuid4()
     service._leads.get_or_404 = AsyncMock(return_value=lead)
+    pipeline = MagicMock()
+    pipeline.reconcile = AsyncMock()
+    monkeypatch.setattr("app.services.lead_service.PipelineService", lambda s: pipeline)
 
     await service.update(ORG_ID, LEAD_ID, {"status": LeadStatus.LOST})
 
-    from app.models.activity_log import ActivityLog
-
-    entry = next(obj for obj in session.added if isinstance(obj, ActivityLog))
-    assert entry.event_type is ActivityEventType.LEAD_LOST
+    assert lead.status is LeadStatus.LOST
+    pipeline.reconcile.assert_awaited_once()
+    _args, kwargs = pipeline.reconcile.await_args
+    assert kwargs["status"] is LeadStatus.LOST
+    assert kwargs["emit_events"] is True
+    assert session.committed is True
 
 
 # ---------------------------------------------------------------------------

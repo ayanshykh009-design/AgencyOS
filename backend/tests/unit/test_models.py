@@ -19,15 +19,17 @@ from app.models import (
     LeadResearch,
     LeadSource,
     ManualOutreachQueue,
+    Note,
     Organization,
     OutreachAttempt,
     OutreachMessage,
     ProviderUsage,
+    Task,
     User,
 )
 from app.schemas.user import UserRead
 
-# All 15 core tables from the V1 database plan.
+# All core tables from the V1 database plan (plus phase additions).
 ALL_MODELS = (
     Organization,
     User,
@@ -38,12 +40,14 @@ ALL_MODELS = (
     OutreachAttempt,
     FollowUp,
     ManualOutreachQueue,
+    Note,
     Conversation,
     ConversationMessage,
     ActivityLog,
     ImportJob,
     ImportRowError,
     ProviderUsage,
+    Task,
 )
 
 
@@ -74,12 +78,14 @@ def test_uuid_primary_key(model: type) -> None:
         OutreachAttempt,
         FollowUp,
         ManualOutreachQueue,
+        Note,
         Conversation,
         ConversationMessage,
         ActivityLog,
         ImportJob,
         ImportRowError,
         ProviderUsage,
+        Task,
     ],
 )
 def test_tenant_scoped_with_org_fk(model: type) -> None:
@@ -101,9 +107,11 @@ def test_updated_at_on_mutable_tables() -> None:
         OutreachAttempt,
         FollowUp,
         ManualOutreachQueue,
+        Note,
         Conversation,
         ImportJob,
         ProviderUsage,
+        Task,
     }
     for model in mutable:
         assert "updated_at" in Base.metadata.tables[model.__tablename__].c

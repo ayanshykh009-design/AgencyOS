@@ -5,16 +5,13 @@ import uuid
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.api.deps import CurrentUser, DbSession, require_role
-from app.models.enums import UserRole
+from app.api.deps import CurrentUser, DbSession
+from app.core.permissions import Permission, require_permission
 from app.schemas.common import Page
 from app.schemas.user import UserCreate, UserRead, UserUpdate
 from app.services.user_service import UserService
 
 router = APIRouter()
-
-# Only owners/admins may mutate users; any authenticated user may list.
-_admin_only = require_role(UserRole.OWNER, UserRole.ADMIN)
 
 
 @router.get(
@@ -55,14 +52,14 @@ async def get_user(
     response_model=UserRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a user",
-    dependencies=[Depends(_admin_only)],
+    dependencies=[Depends(require_permission(Permission.TEAM_MANAGE))],
 )
 async def create_user(
     body: UserCreate, db: DbSession, current_user: CurrentUser
 ) -> UserRead:
     service = UserService(db)
     data = body.model_dump()
-    user = await service.create(current_user.organization_id, data)
+    user = await service.create(current_user.organization_id, current_user, data)
     return UserRead.model_validate(user)
 
 
@@ -70,7 +67,7 @@ async def create_user(
     "/{user_id}",
     response_model=UserRead,
     summary="Update a user",
-    dependencies=[Depends(_admin_only)],
+    dependencies=[Depends(require_permission(Permission.TEAM_MANAGE))],
 )
 async def update_user(
     user_id: uuid.UUID,
@@ -81,6 +78,7 @@ async def update_user(
     service = UserService(db)
     user = await service.update(
         current_user.organization_id,
+        current_user,
         user_id,
         body.model_dump(exclude_unset=True),
     )

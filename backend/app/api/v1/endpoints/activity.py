@@ -28,7 +28,7 @@ async def list_activity(
     offset: int = Query(default=0, ge=0),
 ) -> list[ActivityLogRead]:
     service = ActivityService(db)
-    entries = await service.list(
+    entries = await service.list_entries(
         current_user.organization_id,
         lead_id=lead_id,
         user_id=user_id,

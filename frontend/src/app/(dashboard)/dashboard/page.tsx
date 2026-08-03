@@ -96,6 +96,29 @@ export default function DashboardPage() {
       </section>
 
       <section>
+        <h2 className="text-lg font-semibold">Tasks</h2>
+        <div className="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
+          <MetricCard label="Open tasks" value={summary.tasks.open.toString()} />
+          <MetricCard label="Overdue" value={summary.tasks.overdue.toString()} />
+          <MetricCard label="Due today" value={summary.tasks.due_today.toString()} />
+          <MetricCard label="Completed (30d)" value={summary.tasks.completed_30d.toString()} />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold">Deal flow</h2>
+        <div className="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
+          <MetricCard label="Won deals" value={summary.pipeline.won_deals.toString()} />
+          <MetricCard label="Open deals" value={summary.pipeline.open_deals.toString()} />
+          <MetricCard label="Won revenue" value={formatUsd(summary.pipeline.won_revenue)} />
+          <MetricCard
+            label="Unassigned leads"
+            value={summary.pipeline.unassigned_leads.toString()}
+          />
+        </div>
+      </section>
+
+      <section>
         <h2 className="text-lg font-semibold">Recent activity</h2>
         {summary.activity.recent.length === 0 ? (
           <p className="mt-3 text-gray-500">No activity yet.</p>
