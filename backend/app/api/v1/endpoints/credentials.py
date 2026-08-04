@@ -130,3 +130,19 @@ async def delete_credential(
 ):
     service = CredentialService(db)
     await service.delete(current_user.organization_id, credential_id)
+
+
+@router.post(
+    "/{credential_id}/rotate",
+    response_model=CredentialRead,
+    summary="Rotate a credential (re-encrypt with the current key version)",
+    dependencies=[_write],
+)
+async def rotate_credential(
+    credential_id: uuid.UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> CredentialRead:
+    service = CredentialService(db)
+    credential = await service.rotate(current_user.organization_id, credential_id)
+    return CredentialRead.model_validate(credential)

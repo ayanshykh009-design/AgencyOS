@@ -21,6 +21,19 @@ and whose workflow is `active`, queuing one execution per matching trigger.
 `consumed` in the response reflects the fan-out result. Event reads never block;
 consumption is recorded on the event row.
 
+### Production guards
+
+- **Payload size:** a payload whose serialized size exceeds
+  `EVENT_MAX_PAYLOAD_BYTES` (default 262144) is rejected with `400
+  event.payload_too_large` before any DB write. The payload is copied into
+  every queued execution's input, so this caps per-event write amplification.
+- **Fan-out bound:** at most `EVENT_FANOUT_MAX_TRIGGERS` (default 100)
+  executions are queued per event. A trigger set larger than the limit is
+  truncated (oldest-created first); the publish still succeeds and the event is
+  marked consumed. Truncation increments the `event_fanout_truncated` counter
+  and logs a warning — a persistent non-zero value means an event_type matches
+  far more triggers than intended.
+
 ## GET /api/v1/workflow-events
 
 List events, newest first. Paginated with `limit` (1–200, default 50) and

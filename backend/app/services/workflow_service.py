@@ -16,6 +16,10 @@ from app.repositories.workflow import WorkflowRepository
 from app.schemas.workflow import WorkflowCreate, WorkflowUpdate
 from app.schemas.workflow_trigger import WorkflowTriggerCreate, WorkflowTriggerUpdate
 from app.services.base import commit_with_retry, utcnow
+from app.services.builtin_execution import (
+    BuiltinExecutionError,
+    validate_builtin_definition,
+)
 from app.services.workflow_trigger_service import WorkflowTriggerService
 
 if TYPE_CHECKING:
@@ -67,6 +71,20 @@ class WorkflowService:
     ) -> Workflow:
         return await self._repo.get_or_404(organization_id, workflow_id)
 
+    @staticmethod
+    def _validate_builtin(definition: dict, execution_mode: str) -> None:
+        """Fail-fast on malformed builtin definitions at write time."""
+        if execution_mode != "builtin":
+            return
+        try:
+            validate_builtin_definition(definition)
+        except BuiltinExecutionError as exc:
+            raise AppError(
+                code="workflow.builtin_definition_invalid",
+                message=str(exc),
+                status_code=400,
+            ) from exc
+
     async def create(
         self, data: WorkflowCreate, *, created_by_user_id: uuid.UUID
     ) -> Workflow:
@@ -76,6 +94,8 @@ class WorkflowService:
                 message="organization_id is required",
                 status_code=400,
             )
+
+        self._validate_builtin(data.definition, data.execution_mode)
 
         workflow = Workflow(
             organization_id=data.organization_id,
@@ -135,6 +155,8 @@ class WorkflowService:
             workflow.config = data.config
         if data.status is not None:
             workflow.status = data.status
+
+        self._validate_builtin(workflow.definition, workflow.execution_mode)
 
         workflow.version += 1
         self._logs.add(

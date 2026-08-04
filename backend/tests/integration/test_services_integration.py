@@ -28,13 +28,30 @@ from sqlalchemy.pool import NullPool  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.errors import AppError  # noqa: E402
 from app.models.activity_log import ActivityLog  # noqa: E402
-from app.models.enums import ImportStatus, LeadStatus  # noqa: E402
+from app.models.enums import (  # noqa: E402
+    CredentialType,
+    ExecutionStatus,
+    ImportStatus,
+    LeadStatus,
+    WorkflowTriggerType,
+)
 from app.models.import_job import ImportJob  # noqa: E402
 from app.models.user import User  # noqa: E402
 from app.schemas.auth import LoginRequest, RegisterRequest  # noqa: E402
+from app.schemas.credential import CredentialCreate  # noqa: E402
+from app.schemas.workflow import WorkflowCreate  # noqa: E402
+from app.schemas.workflow_execution import WorkflowExecutionCreate  # noqa: E402
+from app.schemas.workflow_trigger import WorkflowTriggerCreate  # noqa: E402
 from app.services.auth_service import AuthService  # noqa: E402
+from app.services.base import utcnow  # noqa: E402
+from app.services.credential_service import CredentialService  # noqa: E402
 from app.services.import_service import ImportService  # noqa: E402
 from app.services.lead_service import LeadService  # noqa: E402
+from app.services.schedule_dispatcher import ScheduleDispatcher  # noqa: E402
+from app.services.workflow_execution_service import WorkflowExecutionService  # noqa: E402
+from app.services.workflow_service import WorkflowService  # noqa: E402
+from app.services.workflow_trigger_service import WorkflowTriggerService  # noqa: E402
+from app.workers.execution_worker import ExecutionWorker  # noqa: E402
 from app.workers.import_worker import ImportWorker  # noqa: E402
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "database" / "migrations"
@@ -281,6 +298,220 @@ async def test_import_worker_rejects_invalid_rows(db, monkeypatch) -> None:
         errors = await ImportService(session).list_errors(org_id, job_id)
         assert len(errors) == 1
         assert errors[0].error_code == "import.invalid_row"
+
+
+async def test_schedule_dispatcher_reserves_and_queues_once(db) -> None:
+    user_id, _, _ = await _register_org(db)
+    org_id = await _org_id_for_user(db, user_id)
+
+    async with db() as session:
+        workflow = await WorkflowService(session).create(
+            WorkflowCreate(
+                organization_id=org_id,
+                name="Daily sync",
+                execution_mode="builtin",
+            ),
+            created_by_user_id=uuid.UUID(user_id),
+        )
+        await WorkflowService(session).activate(org_id, workflow.id)
+        trigger = await WorkflowTriggerService(session).create(
+            WorkflowTriggerCreate(
+                organization_id=org_id,
+                workflow_id=workflow.id,
+                name="Morning run",
+                trigger_type=WorkflowTriggerType.SCHEDULE,
+                schedule_cron="*/5 * * * *",
+                enabled=True,
+            )
+        )
+
+    async with db() as session:
+        stats = await ScheduleDispatcher(session).dispatch_due(now=utcnow())
+        assert stats["queued"] == 1
+        assert stats["failed"] == 0
+        assert stats["conflicts"] == 0
+
+    async with db() as session:
+        executions = await WorkflowExecutionService(session).list_executions(org_id)
+        assert len(executions) == 1
+        assert executions[0].trigger_id == trigger.id
+        assert executions[0].status is ExecutionStatus.QUEUED
+
+        stored = await WorkflowTriggerService(session).get_trigger(org_id, trigger.id)
+        assert stored.last_fired_at is not None
+
+        # Same tick must never dispatch twice (idempotent across sweeps).
+        stats = await ScheduleDispatcher(session).dispatch_due(now=utcnow())
+        assert stats["queued"] == 0
+        assert stats["skipped"] == 1
+        executions = await WorkflowExecutionService(session).list_executions(org_id)
+        assert len(executions) == 1
+
+
+async def test_schedule_dispatcher_skips_inactive_workflow(db) -> None:
+    user_id, _, _ = await _register_org(db)
+    org_id = await _org_id_for_user(db, user_id)
+
+    async with db() as session:
+        workflow = await WorkflowService(session).create(
+            WorkflowCreate(
+                organization_id=org_id,
+                name="Draft only",
+                execution_mode="builtin",
+            ),
+            created_by_user_id=uuid.UUID(user_id),
+        )
+        # Trigger on a DRAFT workflow: must be invisible to the dispatcher.
+        await WorkflowTriggerService(session).create(
+            WorkflowTriggerCreate(
+                organization_id=org_id,
+                workflow_id=workflow.id,
+                name="Never fires",
+                trigger_type=WorkflowTriggerType.SCHEDULE,
+                schedule_cron="*/5 * * * *",
+                enabled=True,
+            )
+        )
+
+    async with db() as session:
+        stats = await ScheduleDispatcher(session).dispatch_due(now=utcnow())
+        assert stats["queued"] == 0
+        assert stats["scanned"] == 0
+
+
+async def test_credential_rotate_reencrypts_under_new_key(db, monkeypatch) -> None:
+    user_id, _, _ = await _register_org(db)
+    org_id = await _org_id_for_user(db, user_id)
+
+    monkeypatch.setattr(settings, "CREDENTIALS_ENC_KEY", "integration-old-key")
+    monkeypatch.setattr(settings, "CREDENTIAL_KEY_VERSION", "1")
+
+    async with db() as session:
+        service = CredentialService(session)
+        credential = await service.create(
+            CredentialCreate(
+                organization_id=org_id,
+                name="n8n key",
+                credential_type=CredentialType.N8N_API_KEY,
+                encrypted_value="integration-secret",
+                value_preview="inte",
+            ),
+            created_by_user_id=uuid.UUID(user_id),
+        )
+        stored_id = credential.id
+        assert credential.key_version == "1"
+        assert credential.encrypted_value.startswith("v1:")
+        assert await service.get_secret(org_id, credential.id) == "integration-secret"
+
+    # Rotate the master key: the old key becomes the dual-read previous key.
+    monkeypatch.setattr(settings, "CREDENTIALS_ENC_KEY", "integration-new-key")
+    monkeypatch.setattr(settings, "CREDENTIALS_ENC_KEY_PREVIOUS", "integration-old-key")
+    monkeypatch.setattr(settings, "CREDENTIAL_KEY_VERSION", "2")
+
+    async with db() as session:
+        service = CredentialService(session)
+        # Still readable through the previous key before rekey.
+        assert await service.get_secret(org_id, stored_id) == "integration-secret"
+        rotated = await service.rotate(org_id, stored_id)
+        assert rotated.key_version == "2"
+        assert rotated.encrypted_value.startswith("v2:")
+        assert rotated.last_rotated_at is not None
+        # Now decrypts under the new current key.
+        assert await service.get_secret(org_id, stored_id) == "integration-secret"
+
+
+async def test_builtin_workflow_executes_in_process(db, monkeypatch) -> None:
+    user_id, _, _ = await _register_org(db)
+    org_id = await _org_id_for_user(db, user_id)
+
+    async with db() as session:
+        workflow = await WorkflowService(session).create(
+            WorkflowCreate(
+                organization_id=org_id,
+                name="Segment lead",
+                execution_mode="builtin",
+                definition={
+                    "steps": [
+                        {"type": "copy", "from": "input.lead", "to": "lead"},
+                        {
+                            "type": "condition",
+                            "if": {"path": "lead.score", "op": "gte", "value": 50},
+                            "then": [
+                                {"type": "set", "key": "segment", "value": "hot"}
+                            ],
+                            "else": [
+                                {"type": "set", "key": "segment", "value": "cold"}
+                            ],
+                        },
+                    ],
+                    "output_key": "segment",
+                },
+            ),
+            created_by_user_id=uuid.UUID(user_id),
+        )
+        await WorkflowService(session).activate(org_id, workflow.id)
+        workflow_id = workflow.id
+
+        execution = await WorkflowExecutionService(session).queue(
+            WorkflowExecutionCreate(
+                organization_id=org_id,
+                workflow_id=workflow_id,
+                input={"lead": {"score": 70}},
+            )
+        )
+        execution_id = execution.id
+
+    # Run the worker's queue phase against the real DB.
+    monkeypatch.setattr("app.workers.execution_worker.async_session_factory", db)
+    processed = await ExecutionWorker.process_queued(batch_size=10)
+    assert processed == 1
+
+    async with db() as session:
+        stored = await WorkflowExecutionService(session).get_execution(org_id, execution_id)
+        assert stored.status is ExecutionStatus.SUCCEEDED
+        assert stored.output == {"segment": "hot"}
+
+
+async def test_builtin_workflow_failure_retries_like_other_adapters(db, monkeypatch) -> None:
+    user_id, _, _ = await _register_org(db)
+    org_id = await _org_id_for_user(db, user_id)
+
+    async with db() as session:
+        workflow = await WorkflowService(session).create(
+            WorkflowCreate(
+                organization_id=org_id,
+                name="Broken builtin",
+                execution_mode="builtin",
+                definition={
+                    "steps": [
+                        {"type": "error_if", "message": "no email",
+                         "if": {"path": "input.lead.email", "op": "missing"}}
+                    ]
+                },
+            ),
+            created_by_user_id=uuid.UUID(user_id),
+        )
+        await WorkflowService(session).activate(org_id, workflow.id)
+        execution = await WorkflowExecutionService(session).queue(
+            WorkflowExecutionCreate(
+                organization_id=org_id,
+                workflow_id=workflow.id,
+                input={"lead": {"score": 70}},
+                max_attempts=1,
+            )
+        )
+        execution_id = execution.id
+
+    monkeypatch.setattr("app.workers.execution_worker.async_session_factory", db)
+    await ExecutionWorker.process_queued(batch_size=10)
+
+    async with db() as session:
+        stored = await WorkflowExecutionService(session).get_execution(org_id, execution_id)
+        assert stored.status is ExecutionStatus.FAILED
+        assert stored.error == {
+            "error": "adapter_error",
+            "message": "no email",
+        }
 
 
 async def _org_id_for_user(db, user_id: str) -> uuid.UUID:

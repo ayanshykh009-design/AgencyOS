@@ -22,3 +22,20 @@ def test_unknown_route_returns_structured_404(client) -> None:
     body = res.json()
     assert body["error"]["code"] == "not_found"
     assert body["error"]["message"]
+
+
+def test_csp_header_applied_by_default(client) -> None:
+    res = client.get("/api/v1/health/live")
+    assert res.status_code == 200
+    csp = res.headers["content-security-policy"]
+    assert "default-src 'self'" in csp
+    assert "frame-ancestors 'self'" in csp
+
+
+def test_csp_header_suppressed_when_disabled(client, monkeypatch) -> None:
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "ENABLE_CSP", False)
+    res = client.get("/api/v1/health/live")
+    assert res.status_code == 200
+    assert "content-security-policy" not in res.headers

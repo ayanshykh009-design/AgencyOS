@@ -1,7 +1,7 @@
 // Lead detail: profile, contact info, assignment, notes, and tasks.
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, use, useState } from "react";
 
 import { LeadFormModal } from "@/components/leads/lead-form-modal";
 import { LeadNotesPanel } from "@/components/leads/lead-notes-panel";
@@ -33,9 +33,9 @@ function statusTone(status: Lead["status"]): "green" | "red" | "blue" | "amber" 
   }
 }
 
-export default function LeadDetailPage({ params }: { params: { id: string } }) {
+export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = useAuth();
-  const leadId = params.id;
+  const { id: leadId } = use(params);
   const [lead, setLead] = useState<Lead | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);

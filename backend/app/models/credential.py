@@ -43,9 +43,41 @@ class Credential(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
     last_used_at: Mapped[datetime | None] = mapped_column()
+    # Envelope-encryption key version. "0" marks rows stored before key
+    # versioning existed (plaintext or legacy envelope) — the rekey worker
+    # upgrades them to the current version.
+    key_version: Mapped[str] = mapped_column(
+        Text, nullable=False, default="0", server_default="0"
+    )
+    last_rotated_at: Mapped[datetime | None] = mapped_column()
 
     created_by: Mapped[User] = relationship()
     organization: Mapped[Organization] = relationship(back_populates="credentials")
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<Credential id={self.id} name={self.name!r} type={self.credential_type}>"
+
+
+class CredentialKeyVersion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Registry/audit of credential encryption key versions.
+
+    The rekey worker upserts the current (and, during rotation, previous) key
+    version with a stable fingerprint, and retires the previous version once
+    no credential rows reference it anymore.
+    """
+
+    __tablename__ = "credential_key_versions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('active', 'retired')",
+            name="chk_credential_key_versions_status",
+        ),
+    )
+
+    version: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    key_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
+    retired_at: Mapped[datetime | None] = mapped_column()
+
+    def __repr__(self) -> str:  # pragma: no cover - debug helper
+        return f"<CredentialKeyVersion version={self.version!r} status={self.status!r}>"

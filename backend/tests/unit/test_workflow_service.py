@@ -90,6 +90,72 @@ async def test_create_name_conflict_maps_to_409() -> None:
     assert exc_info.value.code == "workflow.name_conflict"
 
 
+async def test_create_rejects_invalid_builtin_definition() -> None:
+    service = _service()
+    data = WorkflowCreate(
+        organization_id=ORG_ID,
+        name="Builtin",
+        execution_mode="builtin",
+        definition={"steps": [{"type": "exec"}]},
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        await service.create(data, created_by_user_id=USER_ID)
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.code == "workflow.builtin_definition_invalid"
+    service._repo.flush.assert_not_awaited()
+
+
+async def test_create_accepts_valid_builtin_definition() -> None:
+    service = _service()
+    service._repo.add.side_effect = lambda instance: None
+    data = WorkflowCreate(
+        organization_id=ORG_ID,
+        name="Builtin",
+        execution_mode="builtin",
+        definition={
+            "steps": [{"type": "set", "key": "greeting", "value": "Hi {{ input.name }}"}]
+        },
+    )
+
+    await service.create(data, created_by_user_id=USER_ID)
+
+    assert service._session.commits == 1
+
+
+async def test_update_rejects_invalid_builtin_definition() -> None:
+    service = _service()
+    workflow = MagicMock()
+    workflow.execution_mode = "builtin"
+    workflow.definition = {"steps": [{"type": "unknown_step"}]}
+    service._repo.get_or_404 = AsyncMock(return_value=workflow)
+
+    with pytest.raises(AppError) as exc_info:
+        await service.update(
+            ORG_ID, WORKFLOW_ID, WorkflowUpdate(name="tweak")
+        )
+
+    assert exc_info.value.code == "workflow.builtin_definition_invalid"
+
+
+async def test_update_validates_after_switching_mode_to_builtin() -> None:
+    service = _service()
+    workflow = MagicMock()
+    workflow.execution_mode = "n8n"
+    workflow.definition = {"steps": [{"type": "exec"}]}
+    service._repo.get_or_404 = AsyncMock(return_value=workflow)
+
+    with pytest.raises(AppError) as exc_info:
+        await service.update(
+            ORG_ID,
+            WORKFLOW_ID,
+            WorkflowUpdate(execution_mode="builtin"),
+        )
+
+    assert exc_info.value.code == "workflow.builtin_definition_invalid"
+
+
 async def test_get_or_404_delegates_to_repo() -> None:
     service = _service()
     workflow = MagicMock()

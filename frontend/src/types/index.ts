@@ -505,6 +505,7 @@ export interface WorkflowTrigger {
   trigger_type: WorkflowTriggerType;
   event_type: string | null;
   schedule_cron: string | null;
+  last_fired_at: string | null;
   config: Record<string, unknown>;
   enabled: boolean;
   created_at: string;
@@ -601,6 +602,10 @@ export interface Credential {
   expires_at: string | null;
   created_by_user_id: string;
   last_used_at: string | null;
+  /** Version label of the key that encrypted the stored value. */
+  key_version: string;
+  /** When the stored value was last re-encrypted (rotation). */
+  last_rotated_at: string | null;
   created_at: string;
   updated_at: string;
 }

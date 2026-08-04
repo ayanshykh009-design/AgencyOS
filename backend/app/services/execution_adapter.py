@@ -2,7 +2,7 @@
 
 Phase 5A ships two adapters:
 - N8nAdapter: dispatches to an n8n workflow via webhook.
-- BuiltinAdapter: placeholder for future in-process execution.
+- BuiltinAdapter: runs a declarative step definition in-process (Phase 5B).
 
 The adapter is selected based on the workflow's ``execution_mode`` field.
 """
@@ -13,6 +13,11 @@ import uuid
 from abc import ABC, abstractmethod
 from typing import Any
 
+from app.core.metrics import get_counter
+from app.services.builtin_execution import (
+    BuiltinExecutionError,
+    run_builtin_definition,
+)
 from app.services.n8n_client import N8nClient
 
 logger = logging.getLogger("agencyos.automation.adapter")
@@ -28,6 +33,7 @@ class ExecutionAdapter(ABC):
         execution_id: uuid.UUID,
         input_data: dict[str, Any],
         config: dict[str, Any],
+        definition: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Execute the workflow and return the result payload."""
         ...
@@ -45,6 +51,7 @@ class N8nAdapter(ExecutionAdapter):
         execution_id: uuid.UUID,
         input_data: dict[str, Any],
         config: dict[str, Any],
+        definition: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         webhook_path = config.get("webhook_path", f"/webhook/workflow-{workflow_id}")
         payload = {
@@ -59,7 +66,13 @@ class N8nAdapter(ExecutionAdapter):
 
 
 class BuiltinAdapter(ExecutionAdapter):
-    """In-process workflow execution (Phase 5B+ placeholder)."""
+    """In-process execution via the declarative step engine.
+
+    Runs ``definition`` against ``input_data`` deterministically and returns
+    the produced result payload. Failures surface as exceptions so the
+    execution worker's existing retry/timeout machinery applies unchanged;
+    the engine itself leaves no state behind, keeping retries restart-safe.
+    """
 
     async def execute(
         self,
@@ -67,12 +80,48 @@ class BuiltinAdapter(ExecutionAdapter):
         execution_id: uuid.UUID,
         input_data: dict[str, Any],
         config: dict[str, Any],
+        definition: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        logger.warning(
-            "BuiltinAdapter.execute called for workflow %s — not yet implemented",
+        definition = definition or {}
+        get_counter(
+            "builtin_execution_started",
+            description="Builtin workflow executions started",
+        ).add()
+        logger.info(
+            "builtin execution start: execution=%s workflow=%s",
+            execution_id,
             workflow_id,
         )
-        return {"status": "skipped", "reason": "builtin execution not yet supported"}
+        try:
+            result = run_builtin_definition(definition, input_data)
+        except BuiltinExecutionError as exc:
+            get_counter(
+                "builtin_execution_failed",
+                description="Builtin workflow executions that failed",
+            ).add()
+            logger.warning(
+                "builtin execution failed: execution=%s error=%s",
+                execution_id,
+                exc,
+            )
+            raise
+        except Exception:
+            get_counter(
+                "builtin_execution_failed",
+                description="Builtin workflow executions that failed",
+            ).add()
+            logger.exception("builtin execution errored: execution=%s", execution_id)
+            raise
+        get_counter(
+            "builtin_execution_succeeded",
+            description="Builtin workflow executions that succeeded",
+        ).add()
+        logger.info(
+            "builtin execution success: execution=%s workflow=%s",
+            execution_id,
+            workflow_id,
+        )
+        return result
 
 
 def get_adapter(execution_mode: str) -> ExecutionAdapter:

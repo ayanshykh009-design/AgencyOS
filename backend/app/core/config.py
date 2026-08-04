@@ -64,7 +64,11 @@ class Settings(BaseSettings):
     # Comma-separated allowed host headers (Host header allow-list).
     TRUSTED_HOSTS: str = "localhost,127.0.0.1"
     SECURITY_HEADERS: bool = True
-    ENABLE_CSP: bool = False
+    # Content-Security-Policy is restrictive by default; keep it on.
+    ENABLE_CSP: bool = True
+    # Comma-separated extra connect-src origins for the CSP policy
+    # (e.g. Supabase, n8n, an LLM gateway). Validated at startup.
+    CSP_CONNECT_ORIGINS: str = ""
 
     # --- Logging ---
     LOG_LEVEL: str = "INFO"
@@ -115,8 +119,46 @@ class Settings(BaseSettings):
     # it timed out (guards against adapters that hang without raising).
     EXECUTION_TIMEOUT_SECONDS: int = 300
 
-    # --- Credentials encryption ---
+    # --- Builtin (in-process) execution engine ---
+    # Max steps executed across a whole definition (incl. nested branches).
+    BUILTIN_MAX_STEPS: int = 50
+    # Max nesting depth of condition steps (defense against deep recursion).
+    BUILTIN_MAX_CONDITION_DEPTH: int = 3
+    # Max length of a single template string evaluated at runtime.
+    BUILTIN_MAX_TEMPLATE_LENGTH: int = 4000
+    # Max serialized size of the execution result payload (bytes).
+    BUILTIN_MAX_RESULT_SIZE_BYTES: int = 524288
+
+    # --- Workflow event fan-out guards ---
+    # Max executions a single published event may queue (bounds fan-out; a
+    # misconfigured event_type with thousands of triggers is truncated).
+    EVENT_FANOUT_MAX_TRIGGERS: int = 100
+    # Max serialized size (bytes) of an event payload. The payload is copied
+    # into every queued execution's input, so it is capped at publish time.
+    EVENT_MAX_PAYLOAD_BYTES: int = 262144
+
+    # --- Schedule dispatcher (worker phase; isolated from the execution queue) ---
+    SCHEDULE_DISPATCHER_ENABLED: bool = True
+    # Cadence (seconds) between schedule-dispatch sweeps. Queue phases run at
+    # EXECUTION_POLL_INTERVAL_SECONDS and are never delayed by this phase.
+    SCHEDULE_POLL_INTERVAL_SECONDS: int = 15
+    # Max schedule triggers evaluated per sweep (bounds DB + CPU work).
+    SCHEDULE_BATCH_LIMIT: int = 100
+
+    # --- Credentials encryption (envelope + key versioning) ---
+    # Current master key used to encrypt new credential values.
     CREDENTIALS_ENC_KEY: str = ""
+    # Retiring master key during rotation (dual-read until rekey completes).
+    # Its version label is CREDENTIAL_KEY_VERSION - 1.
+    CREDENTIALS_ENC_KEY_PREVIOUS: str = ""
+    # Version label of CREDENTIALS_ENC_KEY (positive integer; bump on rotation).
+    CREDENTIAL_KEY_VERSION: str = "1"
+    # Rekey worker: re-encrypts stale credentials with the current key.
+    CREDENTIAL_REKEY_ENABLED: bool = False
+    # Max rows re-encrypted per sweep (bounds DB + CPU work).
+    CREDENTIAL_REKEY_BATCH: int = 100
+    # Cadence (seconds) between rekey sweeps.
+    CREDENTIAL_REKEY_INTERVAL_SECONDS: int = 3600
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -137,10 +179,44 @@ class Settings(BaseSettings):
     def _validate_enc_key(self) -> None:
         if self.APP_ENV == "production" and not self.CREDENTIALS_ENC_KEY:
             raise RuntimeError("CREDENTIALS_ENC_KEY must be set in production")
+        if not self.CREDENTIAL_KEY_VERSION.isdigit() or int(self.CREDENTIAL_KEY_VERSION) < 1:
+            raise RuntimeError("CREDENTIAL_KEY_VERSION must be a positive integer")
+        if self.CREDENTIALS_ENC_KEY_PREVIOUS and int(self.CREDENTIAL_KEY_VERSION) < 2:
+            raise RuntimeError(
+                "CREDENTIALS_ENC_KEY_PREVIOUS requires CREDENTIAL_KEY_VERSION >= 2"
+            )
+        if self.CREDENTIAL_REKEY_BATCH < 1:
+            raise RuntimeError("CREDENTIAL_REKEY_BATCH must be >= 1")
+        if self.CREDENTIAL_REKEY_INTERVAL_SECONDS < 1:
+            raise RuntimeError("CREDENTIAL_REKEY_INTERVAL_SECONDS must be >= 1")
+        if self.BUILTIN_MAX_STEPS < 1:
+            raise RuntimeError("BUILTIN_MAX_STEPS must be >= 1")
+        if self.BUILTIN_MAX_CONDITION_DEPTH < 1:
+            raise RuntimeError("BUILTIN_MAX_CONDITION_DEPTH must be >= 1")
+        if self.BUILTIN_MAX_TEMPLATE_LENGTH < 1:
+            raise RuntimeError("BUILTIN_MAX_TEMPLATE_LENGTH must be >= 1")
+        if self.BUILTIN_MAX_RESULT_SIZE_BYTES < 1:
+            raise RuntimeError("BUILTIN_MAX_RESULT_SIZE_BYTES must be >= 1")
+        if self.EVENT_FANOUT_MAX_TRIGGERS < 1:
+            raise RuntimeError("EVENT_FANOUT_MAX_TRIGGERS must be >= 1")
+        if self.EVENT_MAX_PAYLOAD_BYTES < 1:
+            raise RuntimeError("EVENT_MAX_PAYLOAD_BYTES must be >= 1")
+
+    def _validate_csp(self) -> None:
+        # Lazy import: csp.py reads this module's settings singleton, so it
+        # cannot be imported at module load time without a cycle.
+        from app.core.csp import validate_csp_origins
+
+        try:
+            validate_csp_origins(self.CSP_CONNECT_ORIGINS)
+        except ValueError as exc:
+            raise RuntimeError(f"CSP configuration error: {exc}") from exc
 
     def validate_runtime(self) -> None:
         """Environment-agnostic startup validation (called on every boot)."""
         self._validate_redis_url()
+        self._validate_enc_key()
+        self._validate_csp()
 
     def validate_for_production(self) -> None:
         """Fail fast on dangerous configuration when APP_ENV=production."""
@@ -152,8 +228,11 @@ class Settings(BaseSettings):
             raise RuntimeError("SECRET_KEY must be overridden in production")
         if not self.DATABASE_URL.startswith(("postgresql", "postgres")):
             raise RuntimeError("DATABASE_URL must be set in production")
+        if not self.ENABLE_CSP:
+            raise RuntimeError("ENABLE_CSP must be enabled in production")
         self._validate_redis_url()
         self._validate_enc_key()
+        self._validate_csp()
 
 
 @lru_cache

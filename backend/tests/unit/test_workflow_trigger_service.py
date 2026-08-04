@@ -118,6 +118,39 @@ async def test_update_requires_schedule_cron_for_schedule_triggers() -> None:
     assert exc_info.value.code == "trigger.schedule_cron_required"
 
 
+async def test_create_rejects_invalid_schedule_cron() -> None:
+    service = _service()
+
+    with pytest.raises(AppError) as exc_info:
+        await service.create(
+            WorkflowTriggerCreate(
+                organization_id=ORG_ID,
+                workflow_id=WORKFLOW_ID,
+                name="Bad cron",
+                trigger_type=WorkflowTriggerType.SCHEDULE,
+                schedule_cron="99 99 * * *",
+                enabled=True,
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.code == "trigger.schedule_cron_invalid"
+
+
+async def test_update_rejects_invalid_schedule_cron() -> None:
+    service = _service()
+    trigger = MagicMock()
+    trigger.trigger_type = WorkflowTriggerType.SCHEDULE
+    trigger.event_type = None
+    trigger.schedule_cron = "not-a-cron"
+    service._repo.get_or_404 = AsyncMock(return_value=trigger)
+
+    with pytest.raises(AppError) as exc_info:
+        await service.update(ORG_ID, TRIGGER_ID, WorkflowTriggerUpdate(enabled=True))
+
+    assert exc_info.value.code == "trigger.schedule_cron_invalid"
+
+
 async def test_update_applies_fields() -> None:
     service = _service()
     trigger = MagicMock()

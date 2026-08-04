@@ -44,6 +44,8 @@ class CredentialRead(CredentialBase):
     organization_id: uuid.UUID
     created_by_user_id: uuid.UUID
     last_used_at: datetime | None = None
+    key_version: str
+    last_rotated_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

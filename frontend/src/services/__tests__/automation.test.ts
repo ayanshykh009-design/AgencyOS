@@ -5,6 +5,7 @@ import {
   createCredential,
   deleteCredential,
   listCredentials,
+  rotateCredential,
   updateCredential,
 } from "@/services/credentials";
 import { listWorkflowEvents, publishWorkflowEvent } from "@/services/workflow-events";
@@ -32,6 +33,8 @@ const CREDENTIAL: Credential = {
   expires_at: null,
   created_by_user_id: USER.id,
   last_used_at: null,
+  key_version: "1",
+  last_rotated_at: null,
   created_at: "2026-08-01T00:00:00Z",
   updated_at: "2026-08-01T00:00:00Z",
 };
@@ -111,6 +114,19 @@ describe("credentials service", () => {
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe("DELETE");
+  });
+
+  it("rotateCredential POSTs to the rotate route", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ ...CREDENTIAL, key_version: "2", last_rotated_at: "2026-08-02T00:00:00Z" })
+    );
+
+    const rotated = await rotateCredential(CREDENTIAL.id);
+
+    expect(rotated.key_version).toBe("2");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain(`/credentials/${CREDENTIAL.id}/rotate`);
+    expect(init.method).toBe("POST");
   });
 });
 

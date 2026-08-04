@@ -40,8 +40,9 @@ must be performed at deploy time with real credentials/domains.
 ### Networking
 - ⬜ Terminate TLS at a reverse proxy in front of `backend:8000` /
   `frontend:3000`.
-- ⬜ Set `ENABLE_CSP=true` after validating the exact content policy against
-  the UI (documented in `docs/security.md`).
+- ⬜ Verify the CSP header (on by default) against the UI; widen
+  `CSP_CONNECT_ORIGINS` for any origin the browser must reach
+  (documented in `docs/security.md`).
 - ⬜ Bake the real `NEXT_PUBLIC_API_URL` at frontend build time
   (`NEXT_PUBLIC_*` vars are not available at runtime in the standalone server).
 

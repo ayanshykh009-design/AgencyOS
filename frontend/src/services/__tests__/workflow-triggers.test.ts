@@ -30,6 +30,7 @@ const TRIGGER: WorkflowTrigger = {
   trigger_type: "event",
   event_type: "lead_created",
   schedule_cron: null,
+  last_fired_at: null,
   config: {},
   enabled: true,
   created_at: "2026-08-01T00:00:00Z",

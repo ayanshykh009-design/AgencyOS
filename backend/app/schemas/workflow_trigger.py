@@ -40,6 +40,7 @@ class WorkflowTriggerRead(WorkflowTriggerBase):
     id: uuid.UUID
     organization_id: uuid.UUID
     workflow_id: uuid.UUID
+    last_fired_at: datetime | None
     created_at: datetime
     updated_at: datetime
 

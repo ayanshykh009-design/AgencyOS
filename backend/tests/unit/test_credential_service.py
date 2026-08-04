@@ -6,7 +6,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.core.config import settings
 from app.core.errors import AppError
+from app.core.kms import get_kms_provider, reset_provider
 from app.models.enums import CredentialType
 from app.schemas.credential import CredentialCreate, CredentialUpdate
 from app.services.credential_service import CredentialService
@@ -14,6 +16,14 @@ from app.services.credential_service import CredentialService
 ORG_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000201")
 CREDENTIAL_ID = uuid.UUID("00000000-0000-0000-0000-000000000901")
+
+
+@pytest.fixture(autouse=True)
+def _enc_key(monkeypatch):
+    monkeypatch.setattr(settings, "CREDENTIALS_ENC_KEY", "unit-test-key")
+    monkeypatch.setattr(settings, "CREDENTIAL_KEY_VERSION", "1")
+    yield
+    reset_provider()
 
 
 class FakeSession:
@@ -77,8 +87,23 @@ async def test_create_builds_credential() -> None:
 
     instance = created[0]
     assert instance.organization_id == ORG_ID
-    assert instance.encrypted_value == "enc:abc123"
+    assert instance.encrypted_value != "enc:abc123"
+    assert instance.encrypted_value.startswith("v1:")
+    assert instance.key_version == "1"
     assert instance.created_by_user_id == USER_ID
+
+
+async def test_create_encrypts_value_at_rest() -> None:
+    service = _service()
+    service._repo.get_by_name = AsyncMock(return_value=None)
+    created: list[object] = []
+    service._repo.add.side_effect = lambda instance: created.append(instance)
+
+    await service.create(_create(), created_by_user_id=USER_ID)
+
+    stored = created[0].encrypted_value
+    provider = get_kms_provider()
+    assert provider.decrypt_secret(stored, key_version="1") == "enc:abc123"
 
 
 async def test_create_commits_transaction() -> None:
@@ -143,3 +168,100 @@ async def test_update_last_used_uses_utcnow() -> None:
     assert result is True
     service._repo.update_last_used.assert_awaited_once()
     assert service._repo.update_last_used.await_args.args[0] == CREDENTIAL_ID
+
+
+async def test_get_secret_returns_decrypted_value() -> None:
+    service = _service()
+    provider = get_kms_provider()
+    credential = MagicMock()
+    credential.encrypted_value = provider.encrypt_secret("super-secret")
+    credential.key_version = "1"
+    service._repo.get_or_404 = AsyncMock(return_value=credential)
+
+    secret = await service.get_secret(ORG_ID, CREDENTIAL_ID)
+
+    assert secret == "super-secret"
+    service._repo.get_or_404.assert_awaited_once_with(ORG_ID, CREDENTIAL_ID)
+
+
+async def test_get_secret_upgrades_legacy_plaintext() -> None:
+    service = _service()
+    credential = MagicMock()
+    credential.encrypted_value = "raw-plaintext-secret"
+    credential.key_version = "0"
+    service._repo.get_or_404 = AsyncMock(return_value=credential)
+
+    assert await service.get_secret(ORG_ID, CREDENTIAL_ID) == "raw-plaintext-secret"
+
+
+async def test_rotate_reencrypts_with_current_key() -> None:
+    service = _service()
+    credential = MagicMock()
+    credential.encrypted_value = "legacy-plaintext"
+    credential.key_version = "0"
+    credential.last_rotated_at = None
+    service._repo.get_or_404 = AsyncMock(return_value=credential)
+
+    result = await service.rotate(ORG_ID, CREDENTIAL_ID)
+
+    provider = get_kms_provider()
+    assert result.encrypted_value.startswith("v1:")
+    assert provider.decrypt_secret(result.encrypted_value, key_version="1") == "legacy-plaintext"
+    assert result.key_version == "1"
+    assert result.last_rotated_at is not None
+    assert service._session.commits == 1
+
+
+async def test_rotate_bumps_version_during_rotation(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "CREDENTIALS_ENC_KEY", "old-key")
+    service = _service()
+    provider = get_kms_provider()
+    credential = MagicMock()
+    credential.encrypted_value = provider.encrypt_secret("secret")  # v1
+    credential.key_version = "1"
+    credential.last_rotated_at = None
+    service._repo.get_or_404 = AsyncMock(return_value=credential)
+
+    monkeypatch.setattr(settings, "CREDENTIALS_ENC_KEY", "new-key")
+    monkeypatch.setattr(settings, "CREDENTIALS_ENC_KEY_PREVIOUS", "old-key")
+    monkeypatch.setattr(settings, "CREDENTIAL_KEY_VERSION", "2")
+
+    result = await service.rotate(ORG_ID, CREDENTIAL_ID)
+
+    assert result.key_version == "2"
+    assert result.encrypted_value.startswith("v2:")
+    assert provider.decrypt_secret(result.encrypted_value) == "secret"
+
+
+async def test_list_stale_key_delegates() -> None:
+    service = _service()
+    service._repo.list_stale_key = AsyncMock(return_value=[])
+
+    result = await service.list_stale_key("2", 25)
+
+    assert result == []
+    service._repo.list_stale_key.assert_awaited_once_with("2", 25)
+
+
+async def test_count_stale_key_delegates() -> None:
+    service = _service()
+    service._repo.count_stale_key = AsyncMock(return_value=3)
+
+    assert await service.count_stale_key("2") == 3
+
+
+async def test_upsert_key_version_delegates() -> None:
+    service = _service()
+    service._repo.upsert_key_version = AsyncMock()
+
+    await service.upsert_key_version("2", "abcd" * 16)
+
+    service._repo.upsert_key_version.assert_awaited_once_with("2", "abcd" * 16)
+
+
+async def test_retire_key_version_delegates() -> None:
+    service = _service()
+    service._repo.retire_key_version = AsyncMock(return_value=True)
+
+    assert await service.retire_key_version("1") is True
+    service._repo.retire_key_version.assert_awaited_once_with("1")

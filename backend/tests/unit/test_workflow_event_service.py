@@ -4,11 +4,20 @@ from __future__ import annotations
 import uuid
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+from app.core.errors import AppError
+from app.core.metrics import read_counter, reset
 from app.schemas.workflow_event import WorkflowEventCreate
 from app.services.workflow_event_service import WorkflowEventService
 
 ORG_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 EVENT_ID = uuid.UUID("00000000-0000-0000-0000-000000000801")
+
+
+@pytest.fixture(autouse=True)
+def _reset_metrics() -> None:
+    reset()
 
 
 class FakeSession:
@@ -52,6 +61,20 @@ def _event() -> WorkflowEventCreate:
     return WorkflowEventCreate(
         organization_id=ORG_ID, event_type="lead_created", payload={"lead_id": "x"}
     )
+
+
+def _trigger() -> MagicMock:
+    trigger = MagicMock(id=uuid.uuid4(), workflow_id=uuid.uuid4())
+    trigger.config = {}
+    trigger.enabled = True
+    return trigger
+
+
+async def _queue_executions(service: WorkflowEventService) -> None:
+    async def _fake_queue(data: object, **kwargs: object) -> object:
+        return MagicMock(id=uuid.uuid4())
+
+    service._execution_service.queue = AsyncMock(side_effect=_fake_queue)
 
 
 async def test_publish_with_matching_triggers_queues_executions_and_consumes() -> None:
@@ -144,3 +167,125 @@ async def test_mark_consumed_scoped_to_org() -> None:
     call_args = service._event_repo.mark_consumed.await_args.args
     assert call_args[0] == ORG_ID
     assert call_args[1] == event_ids
+
+
+# --- Production guards -------------------------------------------------------
+
+
+async def test_publish_rejects_oversized_payload() -> None:
+    service = _service()
+    event = _event()
+    event.payload = {"blob": "x" * 500}
+    service._trigger_repo.get_by_event_type = AsyncMock(return_value=[])
+
+    with pytest.raises(AppError) as exc_info:
+        await service.publish(event, max_payload_bytes=100)
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.code == "event.payload_too_large"
+    service._trigger_repo.get_by_event_type.assert_not_awaited()
+    assert read_counter("event_publish_total") == 0
+
+
+async def test_publish_bounds_fanout_to_trigger_limit() -> None:
+    service = _service()
+    service._trigger_repo.get_by_event_type = AsyncMock(
+        return_value=[_trigger() for _ in range(15)]
+    )
+    await _queue_executions(service)
+
+    await service.publish(_event(), max_fanout=10)
+
+    assert service._execution_service.queue.await_count == 10
+    assert read_counter("event_fanout_truncated") == 1
+    assert read_counter("event_executions_queued") == 10
+
+
+async def test_publish_does_not_truncate_at_or_below_limit() -> None:
+    service = _service()
+    service._trigger_repo.get_by_event_type = AsyncMock(
+        return_value=[_trigger() for _ in range(10)]
+    )
+    await _queue_executions(service)
+
+    await service.publish(_event(), max_fanout=10)
+
+    assert service._execution_service.queue.await_count == 10
+    assert read_counter("event_fanout_truncated") == 0
+
+
+async def test_publish_skips_disabled_triggers_within_limit() -> None:
+    service = _service()
+    triggers = [_trigger() for _ in range(3)]
+    triggers[1].enabled = False
+    service._trigger_repo.get_by_event_type = AsyncMock(return_value=triggers)
+    await _queue_executions(service)
+
+    await service.publish(_event(), max_fanout=10)
+
+    assert service._execution_service.queue.await_count == 2
+    assert read_counter("event_fanout_truncated") == 0
+
+
+async def test_publish_queries_triggers_with_guarded_limit() -> None:
+    service = _service()
+    service._trigger_repo.get_by_event_type = AsyncMock(return_value=[])
+
+    await service.publish(_event(), max_fanout=25)
+
+    service._trigger_repo.get_by_event_type.assert_awaited_once_with(
+        ORG_ID, "lead_created", limit=26
+    )
+
+
+# --- Fan-out load test -------------------------------------------------------
+
+
+async def test_fan_out_load_single_event_to_many_triggers() -> None:
+    """Publish one event against a large trigger set (capacity check).
+
+    Asserts the publish path stays linear in the trigger count: exactly one
+    trigger query and one queue call per trigger, with every queued execution
+    carrying the event payload. This bounds the CPU/IO a single publish does.
+    """
+    trigger_count = 500
+    service = _service()
+    service._trigger_repo.get_by_event_type = AsyncMock(
+        return_value=[_trigger() for _ in range(trigger_count)]
+    )
+    captured: list[object] = []
+
+    async def _fake_queue(data: object, **kwargs: object) -> object:
+        captured.append(data)
+        return MagicMock(id=uuid.uuid4())
+
+    service._execution_service.queue = AsyncMock(side_effect=_fake_queue)
+
+    await service.publish(_event(), max_fanout=trigger_count)
+
+    assert service._trigger_repo.get_by_event_type.await_count == 1
+    assert service._execution_service.queue.await_count == trigger_count
+    assert read_counter("event_executions_queued") == trigger_count
+    assert read_counter("event_fanout_truncated") == 0
+    assert all(c.input["event"] == {"lead_id": "x"} for c in captured)
+
+
+async def test_fan_out_load_default_guard_caps_oversized_fan_out() -> None:
+    """The configured default guard caps fan-out regardless of trigger count.
+
+    With the default ``EVENT_FANOUT_MAX_TRIGGERS`` (100) and a far larger
+    trigger set, publish truncates to the limit instead of queueing every
+    trigger, so a misconfigured event_type can never flood the queue.
+    """
+    trigger_count = 500
+    service = _service()
+    service._trigger_repo.get_by_event_type = AsyncMock(
+        return_value=[_trigger() for _ in range(trigger_count)]
+    )
+    await _queue_executions(service)
+
+    await service.publish(_event())
+
+    assert service._execution_service.queue.await_count <= 100
+    assert read_counter("event_fanout_truncated") == 1
+    assert read_counter("event_executions_queued") <= 100

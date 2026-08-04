@@ -1,7 +1,7 @@
 // Workflow detail: status, definition, triggers, and recent executions.
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, use, useState } from "react";
 
 import {
   Badge,
@@ -53,9 +53,9 @@ import {
 import { listWorkflowExecutions } from "@/services/workflow-executions";
 import type { Workflow, WorkflowExecution, WorkflowTrigger, WorkflowTriggerType } from "@/types";
 
-export default function WorkflowDetailPage({ params }: { params: { id: string } }) {
+export default function WorkflowDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = useAuth();
-  const workflowId = params.id;
+  const { id: workflowId } = use(params);
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
   const [triggers, setTriggers] = useState<WorkflowTrigger[]>([]);
   const [executions, setExecutions] = useState<WorkflowExecution[]>([]);

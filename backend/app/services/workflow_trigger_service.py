@@ -12,6 +12,7 @@ from app.models.workflow_trigger import WorkflowTrigger
 from app.repositories.workflow_trigger import WorkflowTriggerRepository
 from app.schemas.workflow_trigger import WorkflowTriggerCreate, WorkflowTriggerUpdate
 from app.services.base import commit_with_retry
+from app.services.schedule_cron import validate_cron
 
 
 class WorkflowTriggerService:
@@ -63,6 +64,28 @@ class WorkflowTriggerService:
     def _coerce_trigger_type(value: str | None) -> WorkflowTriggerType | None:
         return WorkflowTriggerType(value) if value else None
 
+    @staticmethod
+    def _validate_schedule_cron(
+        trigger_type: WorkflowTriggerType, schedule_cron: str | None
+    ) -> None:
+        """Validate schedule-trigger cron expressions (fail fast at write time)."""
+        if trigger_type != WorkflowTriggerType.SCHEDULE:
+            return
+        if not schedule_cron:
+            raise AppError(
+                code="trigger.schedule_cron_required",
+                message="schedule_cron is required for schedule triggers",
+                status_code=400,
+            )
+        try:
+            validate_cron(schedule_cron)
+        except ValueError as exc:
+            raise AppError(
+                code="trigger.schedule_cron_invalid",
+                message=f"Invalid cron expression: {exc}",
+                status_code=400,
+            ) from exc
+
     async def get_trigger(
         self, organization_id: uuid.UUID, trigger_id: uuid.UUID
     ) -> WorkflowTrigger:
@@ -76,6 +99,7 @@ class WorkflowTriggerService:
                 status_code=400,
             )
 
+        self._validate_schedule_cron(data.trigger_type, data.schedule_cron)
         if data.trigger_type == WorkflowTriggerType.EVENT and not data.event_type:
             raise AppError(
                 code="trigger.event_type_required",
@@ -136,6 +160,7 @@ class WorkflowTriggerService:
         if data.enabled is not None:
             trigger.enabled = data.enabled
 
+        self._validate_schedule_cron(trigger.trigger_type, trigger.schedule_cron)
         if trigger.trigger_type == WorkflowTriggerType.EVENT and not trigger.event_type:
             raise AppError(
                 code="trigger.event_type_required",

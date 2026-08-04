@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS public.workflow_triggers (
   trigger_type         public.workflow_trigger_type NOT NULL,
   event_type           text,
   schedule_cron        text,
+  last_fired_at        timestamptz,
   config               jsonb NOT NULL DEFAULT '{}',
   enabled              boolean NOT NULL DEFAULT true,
   created_at           timestamptz NOT NULL DEFAULT now(),
@@ -40,6 +41,9 @@ CREATE TABLE IF NOT EXISTS public.workflow_triggers (
 
 CREATE INDEX idx_workflow_triggers_org_workflow ON public.workflow_triggers (organization_id, workflow_id);
 CREATE INDEX idx_workflow_triggers_event_type ON public.workflow_triggers (event_type) WHERE event_type IS NOT NULL;
+CREATE INDEX idx_workflow_triggers_schedule_due
+  ON public.workflow_triggers (last_fired_at)
+  WHERE trigger_type = 'schedule' AND enabled;
 
 CREATE TRIGGER trg_workflow_triggers_updated_at
   BEFORE UPDATE ON public.workflow_triggers
@@ -110,15 +114,36 @@ CREATE TABLE IF NOT EXISTS public.credentials (
   expires_at           timestamptz,
   created_by_user_id   uuid NOT NULL REFERENCES public.users (id) ON DELETE RESTRICT,
   last_used_at         timestamptz,
+  key_version          text NOT NULL DEFAULT '0',
+  last_rotated_at      timestamptz,
   created_at           timestamptz NOT NULL DEFAULT now(),
   updated_at           timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_credentials_org_type ON public.credentials (organization_id, credential_type);
 CREATE UNIQUE INDEX uq_credentials_org_name ON public.credentials (organization_id, name);
+CREATE INDEX idx_credentials_key_version ON public.credentials (key_version);
 
 CREATE TRIGGER trg_credentials_updated_at
   BEFORE UPDATE ON public.credentials
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 ALTER TABLE public.credentials ENABLE ROW LEVEL SECURITY;
+
+-- credential_key_versions: registry/audit of credential encryption key versions
+CREATE TABLE IF NOT EXISTS public.credential_key_versions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  version text NOT NULL UNIQUE,
+  key_fingerprint text NOT NULL,
+  status text NOT NULL DEFAULT 'active'
+    CHECK (status IN ('active', 'retired')),
+  retired_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TRIGGER trg_credential_key_versions_updated_at
+  BEFORE UPDATE ON public.credential_key_versions
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+ALTER TABLE public.credential_key_versions ENABLE ROW LEVEL SECURITY;

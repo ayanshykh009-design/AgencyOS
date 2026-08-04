@@ -38,6 +38,14 @@ Return the full snapshot in one call.
 The `tasks` and `pipeline` sections are additive (backward compatible): clients
 that ignore unknown keys continue to work.
 
+### Performance
+
+The whole snapshot is computed by a single SQL statement
+(`backend/app/repositories/dashboard.py`): all counters are folded into one
+round trip via WITH (CTE) blocks over 8 tables, and the recent-activity feed is
+collapsed into a JSON array inside the same query. The response shape is
+unchanged from the previous multi-query implementation.
+
 ## Authentication
 
 `Authorization: Bearer <token>`. Errors use the standard envelope.

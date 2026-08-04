@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.core.metrics import get_counter, reset
+from app.services.builtin_execution import BuiltinExecutionError
 from app.services.execution_adapter import (
     BuiltinAdapter,
     ExecutionAdapter,
@@ -15,6 +17,11 @@ from app.services.execution_adapter import (
 
 WORKFLOW_ID = uuid.UUID("00000000-0000-0000-0000-000000000501")
 EXECUTION_ID = uuid.UUID("00000000-0000-0000-0000-000000000601")
+
+
+@pytest.fixture(autouse=True)
+def _reset_metrics() -> None:
+    reset()
 
 
 def test_get_adapter_returns_expected_classes() -> None:
@@ -45,6 +52,7 @@ async def test_n8n_adapter_posts_to_webhook(monkeypatch) -> None:
         execution_id=EXECUTION_ID,
         input_data={"lead_id": "x"},
         config={},
+        definition={"steps": []},
     )
 
     assert result == {"output": "ok"}
@@ -68,12 +76,46 @@ async def test_n8n_adapter_uses_custom_webhook_path() -> None:
     assert client.trigger_webhook.await_args.args[0] == "/webhook/custom"
 
 
-async def test_builtin_adapter_returns_skipped() -> None:
+async def test_builtin_adapter_runs_definition() -> None:
     adapter = BuiltinAdapter()
     result = await adapter.execute(
         workflow_id=WORKFLOW_ID,
         execution_id=EXECUTION_ID,
-        input_data={},
+        input_data={"lead": {"first_name": "Ada"}},
+        config={},
+        definition={
+            "steps": [
+                {"type": "set", "key": "greeting", "value": "Hi {{ input.lead.first_name }}"}
+            ],
+            "output_key": "greeting",
+        },
+    )
+    assert result == {"greeting": "Hi Ada"}
+    assert get_counter("builtin_execution_started").value == 1
+    assert get_counter("builtin_execution_succeeded").value == 1
+    assert get_counter("builtin_execution_failed").value == 0
+
+
+async def test_builtin_adapter_empty_definition_returns_context() -> None:
+    adapter = BuiltinAdapter()
+    result = await adapter.execute(
+        workflow_id=WORKFLOW_ID,
+        execution_id=EXECUTION_ID,
+        input_data={"lead": {"id": "x"}},
         config={},
     )
-    assert result == {"status": "skipped", "reason": "builtin execution not yet supported"}
+    assert result == {"input": {"lead": {"id": "x"}}}
+
+
+async def test_builtin_adapter_propagates_step_errors_and_counts_failed() -> None:
+    adapter = BuiltinAdapter()
+    with pytest.raises(BuiltinExecutionError):
+        await adapter.execute(
+            workflow_id=WORKFLOW_ID,
+            execution_id=EXECUTION_ID,
+            input_data={},
+            config={},
+            definition={"steps": [{"type": "copy", "from": "input.nope", "to": "x"}]},
+        )
+    assert get_counter("builtin_execution_failed").value == 1
+    assert get_counter("builtin_execution_succeeded").value == 0

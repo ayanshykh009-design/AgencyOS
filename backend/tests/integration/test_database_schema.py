@@ -271,3 +271,112 @@ def test_updated_at_trigger_refreshes(migrated_db) -> None:
         after = cur.fetchone()[0]
         assert after > before
     migrated_db.commit()
+
+
+def test_migration_0014_schedule_last_fired_additive_idempotent(migrated_db) -> None:
+    """0014 adds last_fired_at additively; re-applying is a no-op, zero data loss."""
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'workflow_triggers' "
+            "AND column_name = 'last_fired_at')"
+        )
+        assert cur.fetchone()[0] is True
+        cur.execute(
+            "SELECT indexname FROM pg_indexes WHERE schemaname = 'public' "
+            "AND tablename = 'workflow_triggers' "
+            "AND indexname = 'idx_workflow_triggers_schedule_due'"
+        )
+        assert cur.fetchone() is not None
+
+    org_id = str(uuid.uuid4())
+    _insert_org(migrated_db, org_id)
+    migration_0014 = (MIGRATIONS_DIR / "0014_schedule_last_fired.sql").read_text(
+        encoding="utf-8"
+    )
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.users (organization_id, email, full_name, role) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (org_id, "owner@example.com", "Owner", "owner"),
+        )
+        user_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.workflows "
+            "(organization_id, name, status, execution_mode, created_by_user_id) "
+            "VALUES (%s, %s, 'active', 'builtin', %s) RETURNING id",
+            (org_id, "Daily sync", user_id),
+        )
+        workflow_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.workflow_triggers "
+            "(organization_id, workflow_id, name, trigger_type, schedule_cron, enabled) "
+            "VALUES (%s, %s, %s, 'schedule', '0 9 * * *', true) RETURNING id, last_fired_at",
+            (org_id, workflow_id, "Morning run"),
+        )
+        trigger_id, last_fired_at = cur.fetchone()
+        assert last_fired_at is None
+
+        # Re-applying 0014 must be a safe no-op and must not touch the row.
+        cur.execute(migration_0014)
+        cur.execute(
+            "SELECT name, last_fired_at FROM public.workflow_triggers WHERE id = %s",
+            (trigger_id,),
+        )
+        assert cur.fetchone() == ("Morning run", None)
+    migrated_db.commit()
+
+
+def test_migration_0015_credential_key_versions_additive_idempotent(migrated_db) -> None:
+    """0015 adds key_version/last_rotated_at + registry; re-applying is a no-op."""
+    with migrated_db.cursor() as cur:
+        for column in ("key_version", "last_rotated_at"):
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'credentials' "
+                "AND column_name = %s)",
+                (column,),
+            )
+            assert cur.fetchone()[0] is True
+        cur.execute(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+            "WHERE table_schema = 'public' AND table_name = 'credential_key_versions')"
+        )
+        assert cur.fetchone()[0] is True
+        cur.execute(
+            "SELECT indexname FROM pg_indexes WHERE schemaname = 'public' "
+            "AND tablename = 'credentials' "
+            "AND indexname = 'idx_credentials_key_version'"
+        )
+        assert cur.fetchone() is not None
+
+    org_id = str(uuid.uuid4())
+    _insert_org(migrated_db, org_id)
+    migration_0015 = (MIGRATIONS_DIR / "0015_credential_key_versions.sql").read_text(
+        encoding="utf-8"
+    )
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.users (organization_id, email, full_name, role) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (org_id, "cred-owner@example.com", "Owner", "owner"),
+        )
+        user_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.credentials "
+            "(organization_id, name, credential_type, encrypted_value, value_preview, "
+            "created_by_user_id) "
+            "VALUES (%s, %s, 'n8n_api_key', %s, %s, %s) RETURNING id, key_version",
+            (org_id, "n8n prod", "enc:legacy", "abcd", user_id),
+        )
+        credential_id, key_version = cur.fetchone()
+        assert key_version == "0"
+
+        # Re-applying 0015 must be a safe no-op and must not touch the row.
+        cur.execute(migration_0015)
+        cur.execute(
+            "SELECT name, key_version, encrypted_value FROM public.credentials WHERE id = %s",
+            (credential_id,),
+        )
+        assert cur.fetchone() == ("n8n prod", "0", "enc:legacy")
+    migrated_db.commit()

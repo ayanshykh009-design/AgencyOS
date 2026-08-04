@@ -26,7 +26,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { ApiRequestError } from "@/lib/api-client";
 import { CREDENTIAL_TYPE_LABELS, formatDateTime } from "@/lib/format";
 import { can } from "@/lib/permissions";
-import { createCredential, deleteCredential, listCredentials } from "@/services/credentials";
+import {
+  createCredential,
+  deleteCredential,
+  listCredentials,
+  rotateCredential,
+} from "@/services/credentials";
 import type { Credential, CredentialType } from "@/types";
 
 export default function CredentialsPage() {
@@ -111,6 +116,19 @@ export default function CredentialsPage() {
       .finally(() => setBusy(false));
   };
 
+  const handleRotate = (credential: Credential) => {
+    setBusy(true);
+    rotateCredential(credential.id)
+      .then(() => {
+        setError(null);
+        load();
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof ApiRequestError ? err.message : "Failed to rotate credential");
+      })
+      .finally(() => setBusy(false));
+  };
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -151,11 +169,23 @@ export default function CredentialsPage() {
                 <TD className="font-mono text-xs text-gray-500">{credential.value_preview}</TD>
                 <TD className="text-xs text-gray-400">{formatDateTime(credential.created_at)}</TD>
                 <TD className="text-right">
-                  {canDelete ? (
-                    <Button variant="danger" onClick={() => setDeleteTarget(credential)}>
-                      Delete
-                    </Button>
-                  ) : null}
+                  <div className="flex items-center justify-end gap-2">
+                    {canWrite ? (
+                      <Button
+                        variant="outline"
+                        onClick={() => handleRotate(credential)}
+                        disabled={busy}
+                        title="Re-encrypt with the current key version"
+                      >
+                        Rotate
+                      </Button>
+                    ) : null}
+                    {canDelete ? (
+                      <Button variant="danger" onClick={() => setDeleteTarget(credential)}>
+                        Delete
+                      </Button>
+                    ) : null}
+                  </div>
                 </TD>
               </TRow>
             ))}

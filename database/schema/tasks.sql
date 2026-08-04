@@ -28,6 +28,14 @@ CREATE INDEX IF NOT EXISTS idx_tasks_org_lead ON public.tasks (organization_id, 
 CREATE INDEX IF NOT EXISTS idx_tasks_org_assignee ON public.tasks (organization_id, assignee_user_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_org_reminder ON public.tasks (organization_id, reminder_at);
 
+-- Search acceleration (migration 0016): pg_trgm GIN indexes for the
+-- substring (ILIKE '%query%') searches used by TaskRepository.search_tasks.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_tasks_title_trgm
+  ON public.tasks USING gin (title gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_tasks_description_trgm
+  ON public.tasks USING gin (description gin_trgm_ops);
+
 DROP TRIGGER IF EXISTS trg_tasks_updated_at ON public.tasks;
 CREATE TRIGGER trg_tasks_updated_at
   BEFORE UPDATE ON public.tasks

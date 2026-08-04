@@ -12,6 +12,7 @@ from starlette.requests import Request
 
 from app.core.config import settings
 from app.core.contextvars import request_id_var
+from app.core.csp import build_csp_policy
 
 logger = logging.getLogger("agencyos.access")
 
@@ -44,8 +45,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         if settings.ENABLE_CSP:
-            # Restrictive by default; tighten/relax per-route as the UI evolves.
-            response.headers["Content-Security-Policy"] = "default-src 'self'"
+            # Restrictive by default; connect-src widens only for explicitly
+            # configured origins (see app/core/csp.py).
+            response.headers["Content-Security-Policy"] = build_csp_policy()
         return response
 
 

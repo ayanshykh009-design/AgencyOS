@@ -55,6 +55,7 @@ def test_credentials_require_auth(client) -> None:
     _expect_401(client, "post", "/api/v1/credentials", json={})
     _expect_401(client, "get", f"/api/v1/credentials/{CREDENTIAL_ID}")
     _expect_401(client, "delete", f"/api/v1/credentials/{CREDENTIAL_ID}")
+    _expect_401(client, "post", f"/api/v1/credentials/{CREDENTIAL_ID}/rotate")
 
 
 def test_credentials_never_return_encrypted_value_contract() -> None:

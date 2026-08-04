@@ -38,7 +38,22 @@ Create a trigger. Returns 201.
 | ----- | ------- |
 | `400` `trigger.event_type_required` | `event` type without `event_type` |
 | `400` `trigger.schedule_cron_required` | `schedule` type without `schedule_cron` |
+| `400` `trigger.schedule_cron_invalid` | `schedule` type with an invalid 5-field cron expression |
 | `400` `workflow_trigger.organization_required` | Missing `organization_id` (server sets it; defensive) |
+
+### Schedule triggers
+
+`trigger_type: "schedule"` triggers are evaluated in UTC (minute precision) by
+the schedule dispatcher worker phase (`ExecutionWorker.schedule_tick`), which
+scans due triggers, atomically claims each tick via `last_fired_at`, and queues
+a workflow execution. The `schedule_cron` field accepts a standard 5-field
+expression (`minute hour dom month dow`) with `*`, `?`, ranges, steps, lists,
+month/day names, and `7` as a Sunday alias. Impossible dates (e.g. `0 0 31 2 *`)
+never fire.
+
+The read schema exposes `last_fired_at` (ISO-8601 UTC or `null`), the time the
+most recent tick was claimed. A tick is only claimed once even across worker
+restarts, retries, or multiple worker instances.
 
 ## GET /api/v1/workflow-triggers/{trigger_id}
 

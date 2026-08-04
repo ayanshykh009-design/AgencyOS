@@ -18,6 +18,7 @@ that are wired into the foundation — treat them as a contract, not a suggestio
 | ------------------------------ | ------------------------------------------------------------------- |
 | Request-ID tracing             | `backend/app/core/middleware.py` (echoed on every response)         |
 | Security headers               | `backend/app/core/middleware.py` + `frontend/next.config.mjs`       |
+| CSP (restrictive, on by default) | `backend/app/core/csp.py` (builder + startup validation)           |
 | Host allow-listing             | `TrustedHostMiddleware` via `TRUSTED_HOSTS`                          |
 | CORS allow-list                | `CORS_ORIGINS` (never `*` with credentials)                          |
 | Rate limiting                  | `backend/app/core/rate_limit.py` (Redis for multi-instance)          |
@@ -33,8 +34,10 @@ that are wired into the foundation — treat them as a contract, not a suggestio
 
 1. **Secrets:** store `SECRET_KEY`, `N8N_ENCRYPTION_KEY`, Supabase service-role
    key, SMTP/API keys in a secret manager; inject as env vars at deploy time.
-2. **TLS:** terminate HTTPS at a reverse proxy; set `ENABLE_CSP=true` once the
-   exact content policy is validated against the UI.
+2. **TLS:** terminate HTTPS at a reverse proxy. CSP is on by default
+   (`default-src 'self'` + hardening directives); only widen `connect-src` via
+   `CSP_CONNECT_ORIGINS` for origins the UI actually reaches. Production config
+   validation refuses to boot with `ENABLE_CSP=false`.
 3. **CORS/trusted hosts:** set the real production origins and host headers.
 4. **Rate limits:** choose per-endpoint limits based on expected traffic;
    connect Redis for multi-instance enforcement.

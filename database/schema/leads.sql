@@ -53,6 +53,20 @@ CREATE INDEX IF NOT EXISTS idx_leads_org_close_reason
 CREATE INDEX IF NOT EXISTS idx_leads_org_active ON public.leads (organization_id)
   WHERE deleted_at IS NULL;
 
+-- Search acceleration (migration 0016): pg_trgm GIN indexes for the
+-- substring (ILIKE '%query%') searches used by LeadRepository.search / count.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_leads_first_name_trgm
+  ON public.leads USING gin (first_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_leads_last_name_trgm
+  ON public.leads USING gin (last_name gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_leads_company_trgm
+  ON public.leads USING gin (company gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_leads_email_trgm
+  ON public.leads USING gin (email gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_leads_position_trgm
+  ON public.leads USING gin (position gin_trgm_ops);
+
 DROP TRIGGER IF EXISTS trg_leads_updated_at ON public.leads;
 CREATE TRIGGER trg_leads_updated_at
   BEFORE UPDATE ON public.leads

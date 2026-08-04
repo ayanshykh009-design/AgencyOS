@@ -48,3 +48,8 @@ export async function updateCredential(
 export async function deleteCredential(credentialId: string): Promise<void> {
   await apiFetch<void>(`/credentials/${credentialId}`, { method: "DELETE" });
 }
+
+/** Re-encrypt a credential with the current key version (rotation). */
+export async function rotateCredential(credentialId: string): Promise<Credential> {
+  return apiFetch<Credential>(`/credentials/${credentialId}/rotate`, { method: "POST" });
+}

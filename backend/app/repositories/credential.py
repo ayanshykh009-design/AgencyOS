@@ -1,6 +1,7 @@
-"""Credential repository (org-scoped CRUD)."""
+"""Credential repository (org-scoped CRUD + key-version registry)."""
 from __future__ import annotations
 
+import builtins
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
@@ -9,7 +10,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.credential import Credential
+from app.models.credential import Credential, CredentialKeyVersion
 from app.models.enums import CredentialType
 
 if TYPE_CHECKING:
@@ -116,3 +117,55 @@ class CredentialRepository:
         )
         result = cast(CursorResult, await self._session.execute(stmt))
         return bool(result.rowcount)
+
+    async def list_stale_key(
+        self, current_version: str, limit: int
+    ) -> builtins.list[Credential]:
+        """Credentials encrypted under an older key version (rekey candidates).
+
+        Oldest-updated first so a rotation completes rows that stalled earlier.
+        """
+        stmt = (
+            select(Credential)
+            .where(Credential.key_version != current_version)
+            .order_by(Credential.updated_at)
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def count_stale_key(self, current_version: str) -> int:
+        """Count credentials that still need re-encryption under ``current``."""
+        stmt = (
+            select(func.count(Credential.id))
+            .select_from(Credential)
+            .where(Credential.key_version != current_version)
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar_one())
+
+    async def get_key_version(self, version: str) -> CredentialKeyVersion | None:
+        stmt = select(CredentialKeyVersion).where(
+            CredentialKeyVersion.version == version
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def upsert_key_version(self, version: str, fingerprint: str) -> None:
+        """Insert (or refresh the fingerprint of) a key-version registry row."""
+        row = await self.get_key_version(version)
+        if row is None:
+            self._session.add(
+                CredentialKeyVersion(version=version, key_fingerprint=fingerprint)
+            )
+        else:
+            row.key_fingerprint = fingerprint
+
+    async def retire_key_version(self, version: str) -> bool:
+        """Mark a key version as retired (safe once no rows reference it)."""
+        row = await self.get_key_version(version)
+        if row is None or row.status == "retired":
+            return False
+        row.status = "retired"
+        row.retired_at = datetime.now(UTC)
+        return True

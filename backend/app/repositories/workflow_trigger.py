@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING
+from datetime import datetime
+from typing import TYPE_CHECKING, cast
 
-from sqlalchemy import func, select
+from sqlalchemy import CursorResult, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import WorkflowTriggerType
+from app.models.enums import WorkflowStatus, WorkflowTriggerType
+from app.models.workflow import Workflow
 from app.models.workflow_trigger import WorkflowTrigger
 
 if TYPE_CHECKING:
@@ -118,17 +120,76 @@ class WorkflowTriggerRepository:
         await self._session.refresh(trigger)
 
     async def get_by_event_type(
-        self, organization_id: uuid.UUID, event_type: str
+        self,
+        organization_id: uuid.UUID,
+        event_type: str,
+        *,
+        limit: int | None = None,
     ) -> WorkflowTriggerList:
-        """Return enabled event triggers matching an event type."""
+        """Return enabled event triggers matching an event type.
+
+        ``limit`` bounds the result (oldest-created first); the fan-out guard
+        in the event service relies on this to stop a single event from
+        queueing unbounded executions. When ``limit`` is None the query is
+        unbounded (direct callers).
+        """
         stmt = select(WorkflowTrigger).where(
             WorkflowTrigger.organization_id == organization_id,
             WorkflowTrigger.trigger_type == "event",
             WorkflowTrigger.event_type == event_type,
             WorkflowTrigger.enabled,
         )
+        if limit is not None:
+            stmt = stmt.order_by(WorkflowTrigger.created_at.asc()).limit(limit)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def list_enabled_schedules(self, limit: int) -> WorkflowTriggerList:
+        """Return enabled schedule triggers on active workflows (worker sweep).
+
+        Ordered oldest/never-fired first so a backlog of due triggers is caught
+        up fairly and the partial index on ``last_fired_at`` can serve the scan.
+        """
+        stmt = (
+            select(WorkflowTrigger)
+            .join(Workflow, Workflow.id == WorkflowTrigger.workflow_id)
+            .where(
+                WorkflowTrigger.trigger_type == WorkflowTriggerType.SCHEDULE,
+                WorkflowTrigger.enabled.is_(True),
+                Workflow.status == WorkflowStatus.ACTIVE,
+            )
+            .order_by(
+                WorkflowTrigger.last_fired_at.asc().nulls_first(),
+                WorkflowTrigger.created_at.asc(),
+            )
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def reserve_last_fired(
+        self, trigger_id: uuid.UUID, previous_fire: datetime, now: datetime
+    ) -> bool:
+        """Atomically claim the current cron tick for a trigger.
+
+        Only one worker instance wins for a given tick (optimistic guard):
+        the UPDATE matches only when the trigger has never fired or last fired
+        strictly before the tick's fire time, so a tick can never dispatch
+        twice, even under retries, multiple workers, or process restarts.
+        """
+        stmt = (
+            update(WorkflowTrigger)
+            .where(
+                WorkflowTrigger.id == trigger_id,
+                or_(
+                    WorkflowTrigger.last_fired_at.is_(None),
+                    WorkflowTrigger.last_fired_at < previous_fire,
+                ),
+            )
+            .values(last_fired_at=now)
+        )
+        result = await self._session.execute(stmt)
+        return cast(CursorResult, result).rowcount == 1
 
     async def list_by_workflow(
         self, organization_id: uuid.UUID, workflow_id: uuid.UUID

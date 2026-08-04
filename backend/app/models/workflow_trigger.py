@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Text
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -31,6 +32,11 @@ class WorkflowTrigger(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "event_type",
             postgresql_where="event_type IS NOT NULL",
         ),
+        Index(
+            "idx_workflow_triggers_schedule_due",
+            "last_fired_at",
+            postgresql_where="trigger_type = 'schedule' AND enabled",
+        ),
     )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(
@@ -51,6 +57,9 @@ class WorkflowTrigger(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     event_type: Mapped[str | None] = mapped_column(Text)
     schedule_cron: Mapped[str | None] = mapped_column(Text)
+    # Last dispatch timestamp (UTC). NULL until the first successful dispatch;
+    # used for idempotent cron-tick dedup across worker instances/restarts.
+    last_fired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     config: Mapped[dict] = mapped_column(
         JSONB, default=dict, server_default="{}", nullable=False
     )

@@ -5,11 +5,12 @@ The worker sweeps the global execution queue on a polling loop:
 - requeues due RETRYING executions,
 - drains QUEUED executions through the adapter selected by the workflow's
   ``execution_mode``,
-- marks stale RUNNING executions as ``timed_out``.
+- marks stale RUNNING executions as ``timed_out``,
+- dispatches due schedule triggers on its own (slower) cadence.
 
 It owns a session per phase and is safe to run on multiple instances (state
 transitions are optimistic — only one runner moves an execution out of
-QUEUED/RETRYING/RUNNING).
+QUEUED/RETRYING/RUNNING, and only one runner claims a schedule tick).
 
 Runs as a standalone loop (``python -m app.workers.execution_worker``) or as a
 single sweep from a scheduler.
@@ -18,12 +19,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 
 from app.core.config import settings
 from app.core.database import async_session_factory
 from app.models.enums import WorkflowStatus
 from app.repositories.workflow import WorkflowRepository
 from app.services.execution_adapter import get_adapter
+from app.services.schedule_dispatcher import ScheduleDispatcher
 from app.services.workflow_execution_service import WorkflowExecutionService
 
 logger = logging.getLogger("agencyos.automation.worker")
@@ -74,6 +77,7 @@ class ExecutionWorker:
                         execution_id=execution.id,
                         input_data=execution.input,
                         config=workflow.config,
+                        definition=workflow.definition,
                     )
                 except Exception as exc:
                     logger.exception(
@@ -108,8 +112,22 @@ class ExecutionWorker:
             return len(executions)
 
     @classmethod
+    async def schedule_tick(cls) -> int:
+        """Dispatch due schedule triggers (isolated from the queue phases).
+
+        Runs on its own cadence and owns its own session/transaction, so a
+        failure here can never block or slow retries, queue draining, or
+        timeout processing.
+        """
+        if not settings.SCHEDULE_DISPATCHER_ENABLED:
+            return 0
+        async with async_session_factory() as session:
+            stats = await ScheduleDispatcher(session).dispatch_due()
+        return stats["queued"]
+
+    @classmethod
     async def sweep(cls) -> dict[str, int]:
-        """Run one full pass: retries + queued + timeouts."""
+        """Run one full pass: retries + queued + timeouts (not schedules)."""
         retried = await cls.process_retries()
         processed = await cls.process_queued()
         timed_out = await cls.timeout_stuck()
@@ -117,19 +135,45 @@ class ExecutionWorker:
 
     @classmethod
     async def run_loop(cls) -> None:
-        """Poll forever: the standalone worker entrypoint."""
+        """Poll forever: the standalone worker entrypoint.
+
+        Queue phases run on every iteration at ``EXECUTION_POLL_INTERVAL_SECONDS``;
+        the schedule phase additionally runs only when its own cadence has
+        elapsed, and its failures are contained so the queue is never delayed.
+        Restart-safety relies on persisted DB state only (``last_fired_at`` +
+        atomic reservations), so a crash mid-sweep leaves no orphan work.
+        """
         logger.info(
-            "execution worker starting (poll %ss)",
+            "execution worker starting (queue poll %ss, schedule poll %ss)",
             settings.EXECUTION_POLL_INTERVAL_SECONDS,
+            settings.SCHEDULE_POLL_INTERVAL_SECONDS,
         )
-        while True:
-            try:
-                stats = await cls.sweep()
-                if any(stats.values()):
-                    logger.info("execution worker sweep: %s", stats)
-            except Exception:
-                logger.exception("execution worker sweep failed")
-            await asyncio.sleep(settings.EXECUTION_POLL_INTERVAL_SECONDS)
+        last_schedule_sweep = 0.0
+        try:
+            while True:
+                try:
+                    stats = await cls.sweep()
+                    if any(stats.values()):
+                        logger.info("execution worker sweep: %s", stats)
+                except Exception:
+                    logger.exception("execution worker sweep failed")
+
+                if settings.SCHEDULE_DISPATCHER_ENABLED and (
+                    time.monotonic() - last_schedule_sweep
+                    >= settings.SCHEDULE_POLL_INTERVAL_SECONDS
+                ):
+                    last_schedule_sweep = time.monotonic()
+                    try:
+                        queued = await cls.schedule_tick()
+                        if queued:
+                            logger.info("schedule dispatcher queued %s execution(s)", queued)
+                    except Exception:
+                        logger.exception("schedule dispatcher tick failed")
+
+                await asyncio.sleep(settings.EXECUTION_POLL_INTERVAL_SECONDS)
+        except (KeyboardInterrupt, SystemExit):
+            logger.info("execution worker stopped")
+            raise
 
 
 def _worker_entrypoint() -> None:

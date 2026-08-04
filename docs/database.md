@@ -33,8 +33,10 @@ model, the Pydantic schemas, and this doc in the same change.
 - **Naming:** `snake_case`; singular table names (`lead`, `user`), plural
   reserved for the physical tables where the plan names them so
   (`organizations`, `users`, `leads`, `follow_ups`, `conversations`).
-- **No secrets in schema:** no password / API-key / token columns exist.
-  Credentials live in Supabase Auth and env vars (`app/core/config.py`).
+- **No secrets in plaintext:** API keys/tokens never appear in plaintext
+  columns. `credentials.encrypted_value` holds envelope-encrypted secrets
+  (`v<key_version>:<base64(nonce || ct)>`, see `app/core/crypto.py`); other
+  auth material lives in Supabase Auth and env vars (`app/core/config.py`).
 - **Tenancy:** every tenant-scoped table has `organization_id` →
   `organizations(id)` with `ON DELETE CASCADE`; RLS scopes all access by it.
 
