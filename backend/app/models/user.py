@@ -12,7 +12,10 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import UserRole
 
 if TYPE_CHECKING:
+    from app.models.credential import Credential
     from app.models.organization import Organization
+    from app.models.workflow import Workflow
+    from app.models.workflow_execution import WorkflowExecution
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -43,6 +46,11 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     last_login_at: Mapped[datetime | None] = mapped_column()
 
     organization: Mapped[Organization] = relationship(back_populates="users")
+    created_workflows: Mapped[list[Workflow]] = relationship(back_populates="created_by")
+    requested_executions: Mapped[list[WorkflowExecution]] = relationship(
+        back_populates="requested_by"
+    )
+    created_credentials: Mapped[list[Credential]] = relationship(back_populates="created_by")
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<User id={self.id} email={self.email!r}>"

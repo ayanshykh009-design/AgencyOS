@@ -13,6 +13,11 @@ export const ROUTES = {
   assignment: "/assignment",
   ai: "/ai",
   aiSettings: "/ai/settings",
+  workflows: "/workflows",
+  workflowDetail: (workflowId: string) => `/workflows/${workflowId}`,
+  triggers: "/triggers",
+  executions: "/executions",
+  credentials: "/credentials",
 } as const;
 
 export const STORAGE_KEYS = {

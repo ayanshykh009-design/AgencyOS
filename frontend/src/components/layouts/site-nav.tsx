@@ -35,6 +35,15 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     ],
   },
   {
+    label: "Automation",
+    items: [
+      { href: ROUTES.workflows, label: "Workflows", permission: "automation_read" },
+      { href: ROUTES.triggers, label: "Triggers", permission: "automation_read" },
+      { href: ROUTES.executions, label: "Executions", permission: "automation_read" },
+      { href: ROUTES.credentials, label: "Credentials", permission: "credential_read" },
+    ],
+  },
+  {
     label: "Manage",
     items: [
       { href: ROUTES.team, label: "Team", permission: "invite_manage" },

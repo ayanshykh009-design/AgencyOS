@@ -4,6 +4,8 @@ from app.models.enums import (
     AssignmentMethod,
     AssignmentStrategy,
     ConversationSender,
+    CredentialType,
+    ExecutionStatus,
     ImportStatus,
     InviteStatus,
     LeadStatus,
@@ -14,6 +16,8 @@ from app.models.enums import (
     TaskPriority,
     TaskStatus,
     UserRole,
+    WorkflowStatus,
+    WorkflowTriggerType,
 )
 
 
@@ -98,6 +102,24 @@ def test_activity_event_type_values() -> None:
         "note_created",
         "note_updated",
         "note_deleted",
+        "workflow_created",
+        "workflow_updated",
+        "workflow_activated",
+        "workflow_paused",
+        "workflow_archived",
+        "workflow_deleted",
+        "execution_queued",
+        "execution_started",
+        "execution_completed",
+        "execution_failed",
+        "execution_retried",
+        "execution_cancelled",
+        "credential_created",
+        "credential_updated",
+        "credential_deleted",
+        "trigger_created",
+        "trigger_updated",
+        "trigger_deleted",
     }
 
 
@@ -129,6 +151,30 @@ def test_recurrence_frequency_values() -> None:
     assert set(RecurrenceFrequency) == {"daily", "weekly", "monthly"}
 
 
+def test_workflow_status_values() -> None:
+    assert set(WorkflowStatus) == {"draft", "active", "paused", "archived"}
+
+
+def test_workflow_trigger_type_values() -> None:
+    assert set(WorkflowTriggerType) == {"manual", "event", "schedule"}
+
+
+def test_execution_status_values() -> None:
+    assert set(ExecutionStatus) == {
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "retrying",
+        "cancelled",
+        "timed_out",
+    }
+
+
+def test_credential_type_values() -> None:
+    assert set(CredentialType) == {"n8n_api_key", "api_key", "basic_auth"}
+
+
 def test_all_enums_are_str_enums() -> None:
     for enum_cls in (
         UserRole,
@@ -145,6 +191,10 @@ def test_all_enums_are_str_enums() -> None:
         TaskStatus,
         TaskPriority,
         RecurrenceFrequency,
+        WorkflowStatus,
+        WorkflowTriggerType,
+        ExecutionStatus,
+        CredentialType,
     ):
         assert all(isinstance(member.value, str) for member in enum_cls)
         # Round-trip: constructing from the raw label must yield the member.

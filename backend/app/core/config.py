@@ -105,6 +105,19 @@ class Settings(BaseSettings):
     # --- n8n automation ---
     N8N_BASE_URL: str = ""
 
+    # --- Workflow execution worker ---
+    EXECUTION_WORKER_ENABLED: bool = True
+    # Max queued executions drained in a single sweep (bounded per poll).
+    EXECUTION_BATCH_SIZE: int = 10
+    # Sweep cadence: seconds between polls of the queued/retry buckets.
+    EXECUTION_POLL_INTERVAL_SECONDS: int = 5
+    # Seconds a queued execution may spend in RUNNING before the worker marks
+    # it timed out (guards against adapters that hang without raising).
+    EXECUTION_TIMEOUT_SECONDS: int = 300
+
+    # --- Credentials encryption ---
+    CREDENTIALS_ENC_KEY: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS_ORIGINS into a list of allowed origins."""
@@ -121,6 +134,10 @@ class Settings(BaseSettings):
         if not self.REDIS_URL.startswith(("redis://", "rediss://")):
             raise RuntimeError("REDIS_URL must use the redis:// or rediss:// scheme")
 
+    def _validate_enc_key(self) -> None:
+        if self.APP_ENV == "production" and not self.CREDENTIALS_ENC_KEY:
+            raise RuntimeError("CREDENTIALS_ENC_KEY must be set in production")
+
     def validate_runtime(self) -> None:
         """Environment-agnostic startup validation (called on every boot)."""
         self._validate_redis_url()
@@ -136,6 +153,7 @@ class Settings(BaseSettings):
         if not self.DATABASE_URL.startswith(("postgresql", "postgres")):
             raise RuntimeError("DATABASE_URL must be set in production")
         self._validate_redis_url()
+        self._validate_enc_key()
 
 
 @lru_cache

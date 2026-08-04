@@ -10,7 +10,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.credential import Credential
     from app.models.user import User
+    from app.models.workflow import Workflow
+    from app.models.workflow_event import WorkflowEvent
+    from app.models.workflow_execution import WorkflowExecution
+    from app.models.workflow_trigger import WorkflowTrigger
 
 
 class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -34,6 +39,13 @@ class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     users: Mapped[list[User]] = relationship(back_populates="organization")
+    workflows: Mapped[list[Workflow]] = relationship(back_populates="organization")
+    workflow_triggers: Mapped[list[WorkflowTrigger]] = relationship(back_populates="organization")
+    workflow_executions: Mapped[list[WorkflowExecution]] = relationship(
+        back_populates="organization"
+    )
+    workflow_events: Mapped[list[WorkflowEvent]] = relationship(back_populates="organization")
+    credentials: Mapped[list[Credential]] = relationship(back_populates="organization")
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<Organization id={self.id} slug={self.slug!r}>"

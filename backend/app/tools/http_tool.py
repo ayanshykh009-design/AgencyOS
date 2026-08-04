@@ -58,7 +58,7 @@ _DESCRIPTION = (
 
 
 def _is_public_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    if ip.version == 4:
+    if isinstance(ip, ipaddress.IPv4Address):
         return not any(ip in network for network in _BLOCKED_IPV4)
     if ip.ipv4_mapped is not None:
         return _is_public_ip(ip.ipv4_mapped)

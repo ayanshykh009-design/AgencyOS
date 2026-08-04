@@ -9,6 +9,7 @@ from app.models.base import Base
 from app.models.close_reason import CloseReason
 from app.models.conversation import Conversation
 from app.models.conversation_message import ConversationMessage
+from app.models.credential import Credential
 from app.models.follow_up import FollowUp
 from app.models.import_job import ImportJob
 from app.models.import_row_error import ImportRowError
@@ -25,6 +26,10 @@ from app.models.provider_usage import ProviderUsage
 from app.models.refresh_token import RefreshToken
 from app.models.task import Task
 from app.models.user import User
+from app.models.workflow import Workflow
+from app.models.workflow_event import WorkflowEvent
+from app.models.workflow_execution import WorkflowExecution
+from app.models.workflow_trigger import WorkflowTrigger
 
 __all__ = [
     "ActivityLog",
@@ -32,6 +37,7 @@ __all__ = [
     "CloseReason",
     "Conversation",
     "ConversationMessage",
+    "Credential",
     "FollowUp",
     "ImportJob",
     "ImportRowError",
@@ -48,4 +54,8 @@ __all__ = [
     "RefreshToken",
     "Task",
     "User",
+    "Workflow",
+    "WorkflowEvent",
+    "WorkflowExecution",
+    "WorkflowTrigger",
 ]

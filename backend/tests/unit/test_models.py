@@ -12,6 +12,7 @@ from app.models import (
     Base,
     Conversation,
     ConversationMessage,
+    Credential,
     FollowUp,
     ImportJob,
     ImportRowError,
@@ -26,6 +27,10 @@ from app.models import (
     ProviderUsage,
     Task,
     User,
+    Workflow,
+    WorkflowEvent,
+    WorkflowExecution,
+    WorkflowTrigger,
 )
 from app.schemas.user import UserRead
 
@@ -48,6 +53,11 @@ ALL_MODELS = (
     ImportRowError,
     ProviderUsage,
     Task,
+    Workflow,
+    WorkflowTrigger,
+    WorkflowExecution,
+    WorkflowEvent,
+    Credential,
 )
 
 
@@ -86,6 +96,11 @@ def test_uuid_primary_key(model: type) -> None:
         ImportRowError,
         ProviderUsage,
         Task,
+        Workflow,
+        WorkflowTrigger,
+        WorkflowExecution,
+        WorkflowEvent,
+        Credential,
     ],
 )
 def test_tenant_scoped_with_org_fk(model: type) -> None:
@@ -112,10 +127,14 @@ def test_updated_at_on_mutable_tables() -> None:
         ImportJob,
         ProviderUsage,
         Task,
+        Workflow,
+        WorkflowTrigger,
+        WorkflowExecution,
+        Credential,
     }
     for model in mutable:
         assert "updated_at" in Base.metadata.tables[model.__tablename__].c
-    append_only = {ConversationMessage, ActivityLog, ImportRowError}
+    append_only = {ConversationMessage, ActivityLog, ImportRowError, WorkflowEvent}
     for model in append_only:
         assert "updated_at" not in Base.metadata.tables[model.__tablename__].c
 
@@ -190,11 +209,17 @@ def test_no_secrets_columns() -> None:
     # intentionally absent from every API response schema (UserRead excludes it);
     # the raw value can never be recovered, so the column itself is safe.
     hashed_secret_columns = {"password_hash"}
+    # credentials.credential_type is a classification LABEL (n8n_api_key,
+    # api_key, basic_auth), not the secret itself; the encrypted value lives in
+    # credentials.encrypted_value and is never returned by an API schema.
+    classification_label_columns = {"credential_type"}
     for table in Base.metadata.tables.values():
         for col in table.c:
             if col.name in token_count_columns:
                 continue
             if col.name in hashed_secret_columns:
+                continue
+            if col.name in classification_label_columns:
                 continue
             assert not any(hint in col.name for hint in secret_hints), (
                 f"column {table.name}.{col.name} looks like a secret"

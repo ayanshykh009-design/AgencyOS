@@ -11,6 +11,7 @@ from app.repositories.conversation import (
     ConversationMessageRepository,
     ConversationRepository,
 )
+from app.repositories.credential import CredentialRepository
 from app.repositories.import_job import ImportJobRepository, ImportRowErrorRepository
 from app.repositories.lead import LeadRepository
 from app.repositories.lead_source import LeadSourceRepository
@@ -24,11 +25,16 @@ from app.repositories.outreach import (
 from app.repositories.provider_usage import ProviderUsageRepository
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
+from app.repositories.workflow import WorkflowRepository
+from app.repositories.workflow_event import WorkflowEventRepository
+from app.repositories.workflow_execution import WorkflowExecutionRepository
+from app.repositories.workflow_trigger import WorkflowTriggerRepository
 
 __all__ = [
     "ActivityLogRepository",
     "ConversationMessageRepository",
     "ConversationRepository",
+    "CredentialRepository",
     "FollowUpRepository",
     "ImportJobRepository",
     "ImportRowErrorRepository",
@@ -42,4 +48,8 @@ __all__ = [
     "RefreshTokenRepository",
     "TenantRepository",
     "UserRepository",
+    "WorkflowRepository",
+    "WorkflowEventRepository",
+    "WorkflowExecutionRepository",
+    "WorkflowTriggerRepository",
 ]

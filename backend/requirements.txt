@@ -22,8 +22,10 @@ redis[hiredis]>=5.0
 
 # --- Security ---
 # PyJWT replaces the unmaintained python-jose; pwdlib(Argon2) replaces passlib.
+# cryptography for Fernet/AES-GCM credential encryption.
 PyJWT>=2.9
 pwdlib[argon2]>=0.2
+cryptography>=42
 python-multipart>=0.0.9
 email-validator>=2.2
 

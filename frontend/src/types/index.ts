@@ -452,3 +452,171 @@ export interface AssignmentRuleWriteInput {
   enabled: boolean;
   target_user_ids: string[];
 }
+
+// ---------------------------------------------------------------------------
+// Phase 5A: Automation (workflows, triggers, executions, events, credentials)
+// ---------------------------------------------------------------------------
+
+export type WorkflowStatus = "draft" | "active" | "paused" | "archived";
+export type WorkflowTriggerType = "manual" | "event" | "schedule";
+export type ExecutionStatus =
+  "queued" | "running" | "succeeded" | "failed" | "retrying" | "cancelled" | "timed_out";
+export type CredentialType = "n8n_api_key" | "api_key" | "basic_auth";
+
+/** A workflow definition (backend WorkflowRead). */
+export interface Workflow {
+  id: string;
+  organization_id: string;
+  name: string;
+  description: string | null;
+  definition: Record<string, unknown>;
+  status: WorkflowStatus;
+  version: number;
+  execution_mode: "n8n" | "builtin";
+  config: Record<string, unknown>;
+  created_by_user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkflowCreateInput {
+  name: string;
+  description?: string;
+  definition?: Record<string, unknown>;
+  execution_mode?: "n8n" | "builtin";
+  config?: Record<string, unknown>;
+}
+
+export interface WorkflowUpdateInput {
+  name?: string;
+  description?: string | null;
+  definition?: Record<string, unknown>;
+  status?: WorkflowStatus;
+  execution_mode?: "n8n" | "builtin";
+  config?: Record<string, unknown>;
+}
+
+/** A workflow trigger (backend WorkflowTriggerRead). */
+export interface WorkflowTrigger {
+  id: string;
+  organization_id: string;
+  workflow_id: string;
+  name: string;
+  trigger_type: WorkflowTriggerType;
+  event_type: string | null;
+  schedule_cron: string | null;
+  config: Record<string, unknown>;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkflowTriggerCreateInput {
+  workflow_id: string;
+  name: string;
+  trigger_type: WorkflowTriggerType;
+  event_type?: string;
+  schedule_cron?: string;
+  config?: Record<string, unknown>;
+  enabled?: boolean;
+}
+
+export interface WorkflowTriggerUpdateInput {
+  name?: string;
+  trigger_type?: WorkflowTriggerType;
+  event_type?: string | null;
+  schedule_cron?: string | null;
+  config?: Record<string, unknown>;
+  enabled?: boolean;
+}
+
+/** A workflow execution record (backend WorkflowExecutionRead). */
+export interface WorkflowExecution {
+  id: string;
+  organization_id: string;
+  workflow_id: string;
+  trigger_id: string | null;
+  status: ExecutionStatus;
+  attempts: number;
+  max_attempts: number;
+  retry_delay_seconds: number;
+  retry_backoff: "constant" | "exponential";
+  next_retry_at: string | null;
+  input: Record<string, unknown>;
+  output: Record<string, unknown> | null;
+  error: Record<string, unknown> | null;
+  requested_by_user_id: string | null;
+  trace_id: string | null;
+  created_at: string;
+  updated_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
+export interface WorkflowExecutionCreateInput {
+  workflow_id: string;
+  input?: Record<string, unknown>;
+  max_attempts?: number;
+  retry_delay_seconds?: number;
+  retry_backoff?: "constant" | "exponential";
+  trigger_id?: string;
+}
+
+/** Response from the queue endpoint (backend WorkflowExecutionQueue). */
+export interface WorkflowExecutionQueue {
+  execution_id: string;
+  status: ExecutionStatus;
+}
+
+/** A published workflow event (backend WorkflowEventRead). */
+export interface WorkflowEvent {
+  id: string;
+  organization_id: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  consumed: boolean;
+  consumed_at: string | null;
+  occurred_at: string;
+}
+
+export interface WorkflowEventPublishInput {
+  event_type: string;
+  payload?: Record<string, unknown>;
+}
+
+/** Response from the publish endpoint (backend WorkflowEventPublish). */
+export interface WorkflowEventPublish {
+  event_id: string;
+  consumed: boolean;
+}
+
+/** A stored credential (backend CredentialRead — never exposes the secret). */
+export interface Credential {
+  id: string;
+  organization_id: string;
+  name: string;
+  credential_type: CredentialType;
+  value_preview: string;
+  description: string | null;
+  expires_at: string | null;
+  created_by_user_id: string;
+  last_used_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CredentialCreateInput {
+  name: string;
+  credential_type: CredentialType;
+  encrypted_value: string;
+  value_preview: string;
+  description?: string;
+  expires_at?: string;
+}
+
+export interface CredentialUpdateInput {
+  name?: string;
+  credential_type?: CredentialType;
+  description?: string | null;
+  expires_at?: string | null;
+}

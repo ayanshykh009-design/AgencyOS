@@ -105,6 +105,24 @@ class ActivityEventType(StrEnum):
     NOTE_CREATED = "note_created"
     NOTE_UPDATED = "note_updated"
     NOTE_DELETED = "note_deleted"
+    WORKFLOW_CREATED = "workflow_created"
+    WORKFLOW_UPDATED = "workflow_updated"
+    WORKFLOW_ACTIVATED = "workflow_activated"
+    WORKFLOW_PAUSED = "workflow_paused"
+    WORKFLOW_ARCHIVED = "workflow_archived"
+    WORKFLOW_DELETED = "workflow_deleted"
+    EXECUTION_QUEUED = "execution_queued"
+    EXECUTION_STARTED = "execution_started"
+    EXECUTION_COMPLETED = "execution_completed"
+    EXECUTION_FAILED = "execution_failed"
+    EXECUTION_RETRIED = "execution_retried"
+    EXECUTION_CANCELLED = "execution_cancelled"
+    CREDENTIAL_CREATED = "credential_created"
+    CREDENTIAL_UPDATED = "credential_updated"
+    CREDENTIAL_DELETED = "credential_deleted"
+    TRIGGER_CREATED = "trigger_created"
+    TRIGGER_UPDATED = "trigger_updated"
+    TRIGGER_DELETED = "trigger_deleted"
 
 
 class ConversationSender(StrEnum):
@@ -165,3 +183,40 @@ class RecurrenceFrequency(StrEnum):
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
+
+
+class WorkflowStatus(StrEnum):
+    """Lifecycle of a workflow definition."""
+
+    DRAFT = "draft"
+    ACTIVE = "active"
+    PAUSED = "paused"
+    ARCHIVED = "archived"
+
+
+class WorkflowTriggerType(StrEnum):
+    """How a workflow is triggered."""
+
+    MANUAL = "manual"
+    EVENT = "event"
+    SCHEDULE = "schedule"
+
+
+class ExecutionStatus(StrEnum):
+    """Lifecycle of a workflow execution."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    RETRYING = "retrying"
+    CANCELLED = "cancelled"
+    TIMED_OUT = "timed_out"
+
+
+class CredentialType(StrEnum):
+    """Type of stored credential."""
+
+    N8N_API_KEY = "n8n_api_key"
+    API_KEY = "api_key"
+    BASIC_AUTH = "basic_auth"

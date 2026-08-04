@@ -57,3 +57,39 @@ def test_matrix_covers_every_permission() -> None:
     for permission in Permission:
         assert permission in PERMISSION_MATRIX
         assert PERMISSION_MATRIX[permission]
+
+
+def test_automation_read_grants_every_role() -> None:
+    for role in ALL_ROLES:
+        assert has_permission(role, Permission.AUTOMATION_READ)
+
+
+def test_automation_write_excludes_viewers() -> None:
+    for role in [
+        UserRole.OWNER,
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.MEMBER,
+        UserRole.SALES_AGENT,
+    ]:
+        assert has_permission(role, Permission.AUTOMATION_WRITE)
+    assert not has_permission(UserRole.VIEWER, Permission.AUTOMATION_WRITE)
+
+
+def test_automation_manage_is_admin_only() -> None:
+    for role in [UserRole.OWNER, UserRole.ADMIN]:
+        assert has_permission(role, Permission.AUTOMATION_MANAGE)
+    for role in [UserRole.MANAGER, UserRole.MEMBER, UserRole.SALES_AGENT, UserRole.VIEWER]:
+        assert not has_permission(role, Permission.AUTOMATION_MANAGE)
+
+
+def test_credential_read_grants_every_role() -> None:
+    for role in ALL_ROLES:
+        assert has_permission(role, Permission.CREDENTIAL_READ)
+
+
+def test_credential_delete_is_admin_only() -> None:
+    for role in [UserRole.OWNER, UserRole.ADMIN]:
+        assert has_permission(role, Permission.CREDENTIAL_DELETE)
+    for role in [UserRole.MANAGER, UserRole.MEMBER, UserRole.SALES_AGENT, UserRole.VIEWER]:
+        assert not has_permission(role, Permission.CREDENTIAL_DELETE)

@@ -11,6 +11,11 @@ from app.schemas.conversation import (
     ConversationRead,
     ConversationUpdate,
 )
+from app.schemas.credential import (
+    CredentialCreate,
+    CredentialRead,
+    CredentialUpdate,
+)
 from app.schemas.imports import (
     ImportJobCreate,
     ImportJobRead,
@@ -42,10 +47,37 @@ from app.schemas.outreach import (
 )
 from app.schemas.provider import ProviderUsageCreate, ProviderUsageRead, ProviderUsageUpdate
 from app.schemas.user import UserCreate, UserRead, UserUpdate
+from app.schemas.workflow import (
+    WorkflowCreate,
+    WorkflowListResponse,
+    WorkflowRead,
+    WorkflowUpdate,
+)
+from app.schemas.workflow_event import (
+    WorkflowEventCreate,
+    WorkflowEventListResponse,
+    WorkflowEventPublish,
+    WorkflowEventRead,
+)
+from app.schemas.workflow_execution import (
+    WorkflowExecutionCreate,
+    WorkflowExecutionListResponse,
+    WorkflowExecutionQueue,
+    WorkflowExecutionRead,
+)
+from app.schemas.workflow_trigger import (
+    WorkflowTriggerCreate,
+    WorkflowTriggerListResponse,
+    WorkflowTriggerRead,
+    WorkflowTriggerUpdate,
+)
 
 __all__ = [
     "ActivityLogCreate",
     "ActivityLogRead",
+    "CredentialCreate",
+    "CredentialRead",
+    "CredentialUpdate",
     "ConversationCreate",
     "ConversationMessageCreate",
     "ConversationMessageRead",
@@ -86,4 +118,20 @@ __all__ = [
     "UserCreate",
     "UserRead",
     "UserUpdate",
+    "WorkflowCreate",
+    "WorkflowListResponse",
+    "WorkflowRead",
+    "WorkflowUpdate",
+    "WorkflowTriggerCreate",
+    "WorkflowTriggerListResponse",
+    "WorkflowTriggerRead",
+    "WorkflowTriggerUpdate",
+    "WorkflowExecutionCreate",
+    "WorkflowExecutionListResponse",
+    "WorkflowExecutionQueue",
+    "WorkflowExecutionRead",
+    "WorkflowEventCreate",
+    "WorkflowEventListResponse",
+    "WorkflowEventPublish",
+    "WorkflowEventRead",
 ]

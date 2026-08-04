@@ -48,3 +48,19 @@ CREATE TYPE public.task_status AS ENUM (
 CREATE TYPE public.task_priority AS ENUM ('low', 'medium', 'high', 'urgent');
 
 CREATE TYPE public.recurrence_frequency AS ENUM ('daily', 'weekly', 'monthly');
+
+CREATE TYPE public.workflow_status AS ENUM (
+  'draft', 'active', 'paused', 'archived'
+);
+
+CREATE TYPE public.workflow_trigger_type AS ENUM (
+  'manual', 'event', 'schedule'
+);
+
+CREATE TYPE public.execution_status AS ENUM (
+  'queued', 'running', 'succeeded', 'failed', 'retrying', 'cancelled', 'timed_out'
+);
+
+CREATE TYPE public.credential_type AS ENUM (
+  'n8n_api_key', 'api_key', 'basic_auth'
+);

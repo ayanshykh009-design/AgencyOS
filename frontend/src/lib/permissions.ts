@@ -20,7 +20,13 @@ export type PermissionKey =
   | "analytics_read"
   | "team_manage"
   | "invite_manage"
-  | "audit_read";
+  | "audit_read"
+  | "automation_read"
+  | "automation_write"
+  | "automation_manage"
+  | "credential_read"
+  | "credential_write"
+  | "credential_delete";
 
 const _READ: UserRole[] = ["owner", "admin", "manager", "member", "sales_agent", "viewer"];
 const _WRITE: UserRole[] = ["owner", "admin", "manager", "member", "sales_agent"];
@@ -45,6 +51,12 @@ const PERMISSION_MATRIX: Record<PermissionKey, UserRole[]> = {
   team_manage: _ADMIN_ONLY,
   invite_manage: _ADMIN_ONLY,
   audit_read: _ADMIN_ONLY,
+  automation_read: _READ,
+  automation_write: _WRITE,
+  automation_manage: _ADMIN_ONLY,
+  credential_read: _READ,
+  credential_write: _WRITE,
+  credential_delete: _ADMIN_ONLY,
 };
 
 /** Return whether a role may perform a named capability. */

@@ -68,6 +68,19 @@ class Permission(StrEnum):
     TEAM_MANAGE = "team_manage"
     INVITE_MANAGE = "invite_manage"
     AUDIT_READ = "audit_read"
+    WORKFLOW_READ = "workflow_read"
+    WORKFLOW_WRITE = "workflow_write"
+    WORKFLOW_MANAGE = "workflow_manage"
+    EXECUTION_READ = "execution_read"
+    EXECUTION_WRITE = "execution_write"
+    EXECUTION_MANAGE = "execution_manage"
+    AUTOMATION_READ = "automation_read"
+    AUTOMATION_WRITE = "automation_write"
+    AUTOMATION_MANAGE = "automation_manage"
+    CREDENTIAL_MANAGE = "credential_manage"
+    CREDENTIAL_READ = "credential_read"
+    CREDENTIAL_WRITE = "credential_write"
+    CREDENTIAL_DELETE = "credential_delete"
 
 
 PERMISSION_MATRIX: dict[Permission, set[UserRole]] = {
@@ -88,6 +101,19 @@ PERMISSION_MATRIX: dict[Permission, set[UserRole]] = {
     Permission.TEAM_MANAGE: _ADMIN_ONLY,
     Permission.INVITE_MANAGE: _ADMIN_ONLY,
     Permission.AUDIT_READ: _ADMIN_ONLY,
+    Permission.WORKFLOW_READ: _READ,
+    Permission.WORKFLOW_WRITE: _WRITE,
+    Permission.WORKFLOW_MANAGE: _MANAGE,
+    Permission.EXECUTION_READ: _READ,
+    Permission.EXECUTION_WRITE: _WRITE,
+    Permission.EXECUTION_MANAGE: _ADMIN_ONLY,
+    Permission.AUTOMATION_READ: _READ,
+    Permission.AUTOMATION_WRITE: _WRITE,
+    Permission.AUTOMATION_MANAGE: _ADMIN_ONLY,
+    Permission.CREDENTIAL_MANAGE: _ADMIN_ONLY,
+    Permission.CREDENTIAL_READ: _READ,
+    Permission.CREDENTIAL_WRITE: _WRITE,
+    Permission.CREDENTIAL_DELETE: _ADMIN_ONLY,
 }
 
 

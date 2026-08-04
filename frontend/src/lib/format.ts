@@ -1,5 +1,13 @@
 // Shared formatting helpers for the UI (dates, currency, names).
-import type { Lead, TaskPriority, TaskStatus } from "@/types";
+import type {
+  CredentialType,
+  ExecutionStatus,
+  Lead,
+  TaskPriority,
+  TaskStatus,
+  WorkflowStatus,
+  WorkflowTriggerType,
+} from "@/types";
 
 /** Badge color tones supported by <Badge tone>. */
 export type BadgeTone = "gray" | "green" | "red" | "amber" | "blue" | "purple";
@@ -91,3 +99,63 @@ export function taskPriorityTone(priority: TaskPriority): BadgeTone {
       return "gray";
   }
 }
+
+export const WORKFLOW_STATUS_LABELS: Record<WorkflowStatus, string> = {
+  draft: "Draft",
+  active: "Active",
+  paused: "Paused",
+  archived: "Archived",
+};
+
+export function workflowStatusTone(status: WorkflowStatus): BadgeTone {
+  switch (status) {
+    case "active":
+      return "green";
+    case "paused":
+      return "amber";
+    case "archived":
+      return "gray";
+    default:
+      return "blue";
+  }
+}
+
+export const EXECUTION_STATUS_LABELS: Record<ExecutionStatus, string> = {
+  queued: "Queued",
+  running: "Running",
+  succeeded: "Succeeded",
+  failed: "Failed",
+  retrying: "Retrying",
+  cancelled: "Cancelled",
+  timed_out: "Timed out",
+};
+
+export function executionStatusTone(status: ExecutionStatus): BadgeTone {
+  switch (status) {
+    case "succeeded":
+      return "green";
+    case "running":
+      return "blue";
+    case "retrying":
+      return "amber";
+    case "failed":
+    case "timed_out":
+      return "red";
+    case "cancelled":
+      return "gray";
+    default:
+      return "purple";
+  }
+}
+
+export const TRIGGER_TYPE_LABELS: Record<WorkflowTriggerType, string> = {
+  manual: "Manual",
+  event: "Event",
+  schedule: "Schedule",
+};
+
+export const CREDENTIAL_TYPE_LABELS: Record<CredentialType, string> = {
+  n8n_api_key: "n8n API key",
+  api_key: "API key",
+  basic_auth: "Basic auth",
+};

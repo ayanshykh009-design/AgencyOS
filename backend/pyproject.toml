@@ -19,8 +19,10 @@ select = ["E", "F", "I", "B", "UP"]
 ignore = ["B008"]  # FastAPI idiom: Query/File/Form/Depends in argument defaults
 
 # Provider SDK wrappers call into third-party LLM SDKs (anthropic, google-genai)
-# whose streaming event and types unions mypy cannot narrow. Relax only those
-# two error codes for the provider modules; all application code stays strict.
+# whose streaming event and types unions mypy cannot narrow, and which are
+# optional runtime deps (lazy-imported, so absent in some dev environments).
+# Relax only those error codes for the provider modules; all application code
+# stays strict.
 [[tool.mypy.overrides]]
 module = "app.llm.providers.*"
-disable_error_code = ["union-attr", "attr-defined"]
+disable_error_code = ["union-attr", "attr-defined", "import-not-found"]

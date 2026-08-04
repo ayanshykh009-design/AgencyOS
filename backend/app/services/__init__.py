@@ -9,6 +9,7 @@ from app.services.ai_service import AIService
 from app.services.auth_service import AuthService
 from app.services.base import commit_with_retry, utcnow
 from app.services.conversation_service import ConversationService
+from app.services.credential_service import CredentialService
 from app.services.dashboard_service import DashboardService
 from app.services.import_service import ImportService
 from app.services.lead_service import LeadService
@@ -18,11 +19,16 @@ from app.services.outreach_service import OutreachService
 from app.services.provider_usage_service import ProviderUsageService
 from app.services.research_service import ResearchService
 from app.services.user_service import UserService
+from app.services.workflow_event_service import WorkflowEventService
+from app.services.workflow_execution_service import WorkflowExecutionService
+from app.services.workflow_service import WorkflowService
+from app.services.workflow_trigger_service import WorkflowTriggerService
 
 __all__ = [
     "ActivityService",
     "AIService",
     "AuthService",
+    "CredentialService",
     "ConversationService",
     "DashboardService",
     "ImportService",
@@ -33,6 +39,10 @@ __all__ = [
     "ProviderUsageService",
     "ResearchService",
     "UserService",
+    "WorkflowEventService",
+    "WorkflowExecutionService",
+    "WorkflowService",
+    "WorkflowTriggerService",
     "commit_with_retry",
     "utcnow",
 ]

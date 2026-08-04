@@ -20,6 +20,11 @@ class OrganizationRepository:
     async def get(self, organization_id: uuid.UUID) -> Organization | None:
         return await self._session.get(Organization, organization_id)
 
+    async def list_ids(self) -> list[uuid.UUID]:
+        """Return all organization ids (system-level, used by background workers)."""
+        result = await self._session.execute(select(Organization.id))
+        return list(result.scalars().all())
+
     async def get_by_slug(self, slug: str) -> Organization | None:
         stmt = select(Organization).where(Organization.slug == slug)
         result = await self._session.execute(stmt)

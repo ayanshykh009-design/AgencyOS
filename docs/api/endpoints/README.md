@@ -13,6 +13,11 @@ One file per endpoint group, e.g.:
 - `audit.md` — admin-only audit trail with actor metadata
 - `ai.md` — AI brain orchestrator
 - `webhooks.md` — external ingestion (n8n / contact forms)
+- `workflows.md` — workflow CRUD + lifecycle transitions
+- `workflow-triggers.md` — trigger definitions (manual / event / schedule)
+- `workflow-executions.md` — execution queue, history, retries
+- `workflow-events.md` — event publishing for event-driven triggers
+- `credentials.md` — org-scoped secrets for the n8n integration layer
 
 Each file documents: request/response schemas, auth requirements, error codes,
 and example payloads. Implement alongside the endpoints — docs rot fast if

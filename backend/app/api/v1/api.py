@@ -12,6 +12,7 @@ from app.api.v1.endpoints import (
     audit,
     auth,
     conversations,
+    credentials,
     dashboard,
     exports,
     health,
@@ -28,6 +29,10 @@ from app.api.v1.endpoints import (
     teams,
     users,
     webhooks,
+    workflow_events,
+    workflow_executions,
+    workflow_triggers,
+    workflows,
 )
 
 api_router = APIRouter()
@@ -50,7 +55,20 @@ api_router.include_router(notes.router, prefix="/notes", tags=["notes"])
 api_router.include_router(outreach.router, prefix="/outreach", tags=["outreach"])
 api_router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])
 
-# Automation & analytics.
+# Automation: workflows, triggers, executions, events, credentials.
+api_router.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
+api_router.include_router(
+    workflow_triggers.router, prefix="/workflow-triggers", tags=["workflow-triggers"]
+)
+api_router.include_router(
+    workflow_executions.router, prefix="/workflow-executions", tags=["workflow-executions"]
+)
+api_router.include_router(
+    workflow_events.router, prefix="/workflow-events", tags=["workflow-events"]
+)
+api_router.include_router(credentials.router, prefix="/credentials", tags=["credentials"])
+
+# Analytics & reporting.
 api_router.include_router(imports.router, prefix="/imports", tags=["imports"])
 api_router.include_router(provider_usage.router, prefix="/usage", tags=["usage"])
 api_router.include_router(activity.router, prefix="/activity", tags=["activity"])
