@@ -11,9 +11,11 @@ from app.services.base import commit_with_retry, utcnow
 from app.services.conversation_service import ConversationService
 from app.services.credential_service import CredentialService
 from app.services.dashboard_service import DashboardService
+from app.services.execution_event_service import ExecutionEventService
 from app.services.import_service import ImportService
 from app.services.lead_service import LeadService
 from app.services.lead_source_service import LeadSourceService
+from app.services.monitoring_service import WorkerHealthService
 from app.services.organization_service import OrganizationService
 from app.services.outreach_service import OutreachService
 from app.services.provider_usage_service import ProviderUsageService
@@ -31,6 +33,7 @@ __all__ = [
     "CredentialService",
     "ConversationService",
     "DashboardService",
+    "ExecutionEventService",
     "ImportService",
     "LeadService",
     "LeadSourceService",
@@ -39,6 +42,7 @@ __all__ = [
     "ProviderUsageService",
     "ResearchService",
     "UserService",
+    "WorkerHealthService",
     "WorkflowEventService",
     "WorkflowExecutionService",
     "WorkflowService",

@@ -41,6 +41,7 @@ def test_workflow_executions_require_auth(client) -> None:
     _expect_401(client, "get", "/api/v1/workflow-executions")
     _expect_401(client, "post", "/api/v1/workflow-executions", json={})
     _expect_401(client, "get", f"/api/v1/workflow-executions/{EXECUTION_ID}")
+    _expect_401(client, "get", f"/api/v1/workflow-executions/{EXECUTION_ID}/events")
     _expect_401(client, "post", f"/api/v1/workflow-executions/{EXECUTION_ID}/start")
     _expect_401(client, "post", f"/api/v1/workflow-executions/{EXECUTION_ID}/cancel")
 

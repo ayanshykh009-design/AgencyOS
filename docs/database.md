@@ -59,6 +59,22 @@ model, the Pydantic schemas, and this doc in the same change.
 | 13| `import_jobs`          | CSV import runs (import-only)             |
 | 14| `import_row_errors`    | Per-row import failures                   |
 | 15| `provider_usage`       | Daily provider token/request accounting   |
+| 16| `team_invites`         | Team invitation lifecycle                 |
+| 17| `lead_assignment_rules`| Round-robin / strategy assignment rules   |
+| 18| `lead_assignment_logs` | Immutable assignment-change trail         |
+| 19| `pipeline_stages`      | Sales pipeline stages (position-ordered)  |
+| 20| `close_reasons`        | Won/lost close reason taxonomy            |
+| 21| `tasks`                | Team tasks (lead-linked, due/reminder)    |
+| 22| `notes`                | Free-form notes per lead/org              |
+| 23| `workflows`            | Automation definitions (`active`/`paused`/`archived`) |
+| 24| `workflow_triggers`    | Manual / event / schedule trigger definitions (`schedule_cron`, `last_fired_at`) |
+| 25| `workflow_executions`  | Execution queue + state machine (`attempts`, `next_retry_at`, `cancel_requested_at`, `idempotency_key`) |
+| 26| `workflow_events`      | Published domain events (event-driven triggers) |
+| 27| `execution_events`     | Append-only per-attempt execution timeline (technical) |
+| 28| `worker_health`        | Worker instance heartbeats (liveness)     |
+| 29| `system_settings`      | Operator key/value settings (automation kill switch) |
+| 30| `credentials`          | Envelope-encrypted org secrets            |
+| 31| `credential_key_versions` | Key-rotation ledger                     |
 
 See the ERD in [diagrams/database-erd.md](diagrams/database-erd.md).
 
@@ -73,8 +89,9 @@ Defined in `database/migrations/enums/` and materialized by `0001_core_enums.sql
 | `outreach_channel`    | `email`, `whatsapp`, `contact_form`, `linkedin`, `instagram`, `facebook`       |
 | `outreach_status`     | `queued`, `sending`, `sent`, `delivered`, `failed`, `skipped`, `manually_sent`, `replied` |
 | `import_status`       | `pending`, `processing`, `completed`, `failed`, `cancelled`                   |
-| `activity_event_type` | `lead_imported`, `research_completed`, `score_generated`, `email_sent`, `whatsapp_sent`, `manual_message_completed`, `reply_received`, `meeting_booked`, `proposal_sent`, `lead_won`, `lead_lost` |
+| `activity_event_type` | `lead_imported`, `research_completed`, `score_generated`, `email_sent`, `whatsapp_sent`, `manual_message_completed`, `reply_received`, `meeting_booked`, `proposal_sent`, `lead_won`, `lead_lost`, `execution_queued`, `execution_started`, `execution_completed`, `execution_failed`, `execution_retried`, `execution_cancelled`, `workflow_activated`, `workflow_paused`, `workflow_archived`, `automation_paused`, `automation_resumed` |
 | `conversation_sender` | `lead`, `agent`, `system`                                                     |
+| `execution_event_type` | `queued`, `started`, `adapter_dispatched`, `adapter_returned`, `step_started`, `step_completed`, `step_failed`, `retrying`, `succeeded`, `failed`, `cancelled`, `timed_out`, `timeout_guard` |
 
 The backend mirrors every enum in `backend/app/models/enums.py`. Never rename
 or reorder values after release; add new ones via `ALTER TYPE ... ADD VALUE`.

@@ -10,6 +10,7 @@ from app.models.close_reason import CloseReason
 from app.models.conversation import Conversation
 from app.models.conversation_message import ConversationMessage
 from app.models.credential import Credential
+from app.models.execution_event import ExecutionEvent
 from app.models.follow_up import FollowUp
 from app.models.import_job import ImportJob
 from app.models.import_row_error import ImportRowError
@@ -24,8 +25,10 @@ from app.models.outreach_message import OutreachMessage
 from app.models.pipeline_stage import PipelineStage
 from app.models.provider_usage import ProviderUsage
 from app.models.refresh_token import RefreshToken
+from app.models.system_setting import SystemSetting
 from app.models.task import Task
 from app.models.user import User
+from app.models.worker_health import WorkerHealth
 from app.models.workflow import Workflow
 from app.models.workflow_event import WorkflowEvent
 from app.models.workflow_execution import WorkflowExecution
@@ -38,6 +41,7 @@ __all__ = [
     "Conversation",
     "ConversationMessage",
     "Credential",
+    "ExecutionEvent",
     "FollowUp",
     "ImportJob",
     "ImportRowError",
@@ -52,8 +56,10 @@ __all__ = [
     "PipelineStage",
     "ProviderUsage",
     "RefreshToken",
+    "SystemSetting",
     "Task",
     "User",
+    "WorkerHealth",
     "Workflow",
     "WorkflowEvent",
     "WorkflowExecution",

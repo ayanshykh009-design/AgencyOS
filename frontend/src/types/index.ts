@@ -625,3 +625,119 @@ export interface CredentialUpdateInput {
   description?: string | null;
   expires_at?: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 5C: Monitoring & Operations
+// ---------------------------------------------------------------------------
+
+/** Filters for heartbeat visibility queries. */
+export interface HeartbeatFilters {
+  worker_type?: string;
+  stale_within_seconds?: number;
+  limit?: number;
+}
+
+/** Response for execution timeline endpoint. */
+export interface ExecutionTimelineResponse {
+  events: ExecutionTimelineEvent[];
+}
+
+/** Single execution timeline event. */
+export interface ExecutionTimelineEvent {
+  id: string;
+  execution_id: string;
+  workflow_id: string;
+  workflow_name: string;
+  timestamp: string;
+  event_type: string;
+  status: string;
+  duration_ms: number | null;
+}
+
+/** Response for execution history endpoint. */
+export interface ExecutionHistoryResponse {
+  entries: ExecutionHistoryEntry[];
+  total: number;
+}
+
+/** Single execution history entry. */
+export interface ExecutionHistoryEntry {
+  id: string;
+  execution_id: string;
+  workflow_id: string;
+  workflow_name: string;
+  trigger_type: string;
+  status: string;
+  started_at: string;
+  finished_at: string | null;
+  duration_ms: number | null;
+  requested_by: string | null;
+}
+
+/** Response for queue status endpoint. */
+export interface QueueStatusResponse {
+  total_queued: number;
+  total_running: number;
+  total_pending: number;
+  max_pending_per_org: number;
+  organization_queues: OrganizationQueue[];
+}
+
+/** Organization queue metrics. */
+export interface OrganizationQueue {
+  organization_id: string;
+  organization_name: string;
+  queued_count: number;
+  running_count: number;
+  pending_count: number;
+}
+
+/** Response for monitoring information endpoint. */
+export interface MonitoringInformationResponse {
+  system: SystemHealth;
+  database: DatabaseHealth;
+  workers: WorkerHealthSummary;
+  queue: QueueMetrics;
+}
+
+/** System health metrics. */
+export interface SystemHealth {
+  healthy: boolean;
+  uptime: string;
+  version: string;
+  environment: string;
+  cpu_usage: number;
+  memory_usage: number;
+  disk_usage: number;
+  network_io: string;
+  max_pending_per_org: number;
+  execution_timeout: number;
+  batch_size: number;
+  poll_interval: number;
+  retention_enabled: boolean;
+  retention_days: number;
+}
+
+/** Database health metrics. */
+export interface DatabaseHealth {
+  connected: boolean;
+  pool_usage: number;
+  active_connections: number;
+  avg_query_time: number;
+}
+
+/** Worker health summary. */
+export interface WorkerHealthSummary {
+  total: number;
+  healthy: number;
+  unhealthy: number;
+  last_heartbeat: string;
+}
+
+/** Queue processing metrics. */
+export interface QueueMetrics {
+  total_queued: number;
+  running: number;
+  completed_24h: number;
+  failed_24h: number;
+}

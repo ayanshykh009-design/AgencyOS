@@ -78,7 +78,35 @@ def _dispatcher(
     )
     execution_service.queue = queue
     dispatcher._execution_service = execution_service
+
+    automation_control = MagicMock()
+    automation_control.is_enabled = AsyncMock(return_value=True)
+    dispatcher._automation_control = automation_control
     return dispatcher, session
+
+
+async def test_dispatch_is_noop_when_automation_paused() -> None:
+    dispatcher, session = _dispatcher(triggers=[_trigger()])
+    dispatcher._automation_control.is_enabled = AsyncMock(return_value=False)
+
+    stats = await dispatcher.dispatch_due(now=NOW)
+
+    assert stats == {"scanned": 0, "queued": 0, "failed": 0, "skipped": 0, "conflicts": 0}
+    dispatcher._trigger_repo.list_enabled_schedules.assert_not_awaited()
+    dispatcher._trigger_repo.reserve_last_fired.assert_not_awaited()
+    dispatcher._execution_service.queue.assert_not_called()
+    assert not hasattr(session, "committed")
+
+
+async def test_dispatch_proceeds_when_automation_enabled() -> None:
+    dispatcher, session = _dispatcher(triggers=[_trigger()])
+    dispatcher._automation_control.is_enabled = AsyncMock(return_value=True)
+
+    stats = await dispatcher.dispatch_due(now=NOW)
+
+    assert stats["queued"] == 1
+    dispatcher._trigger_repo.list_enabled_schedules.assert_awaited_once()
+    assert session.savepoint_rolled_back is False
 
 
 async def test_empty_scan_returns_zero_stats() -> None:
@@ -153,6 +181,10 @@ async def test_partial_batch_failure_preserves_earlier_queue() -> None:
     )
     trigger_repo.reserve_last_fired = AsyncMock(return_value=True)
     dispatcher._trigger_repo = trigger_repo
+
+    automation_control = MagicMock()
+    automation_control.is_enabled = AsyncMock(return_value=True)
+    dispatcher._automation_control = automation_control
 
     execution = MagicMock()
     execution.id = EXECUTION_ID

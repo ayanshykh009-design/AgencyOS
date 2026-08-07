@@ -7,13 +7,16 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.core.metrics import get_counter, reset
+from app.models.enums import ExecutionEventType
 from app.services.builtin_execution import BuiltinExecutionError
 from app.services.execution_adapter import (
     BuiltinAdapter,
     ExecutionAdapter,
     N8nAdapter,
+    adapter_error_payload,
     get_adapter,
 )
+from app.services.n8n_client import N8nHttpError
 
 WORKFLOW_ID = uuid.UUID("00000000-0000-0000-0000-000000000501")
 EXECUTION_ID = uuid.UUID("00000000-0000-0000-0000-000000000601")
@@ -37,6 +40,30 @@ def test_get_adapter_rejects_unknown_mode() -> None:
 def test_adapter_base_is_abstract() -> None:
     with pytest.raises(TypeError):
         ExecutionAdapter()  # type: ignore[abstract]
+
+
+def test_adapter_error_payload_plain_exception_is_bounded() -> None:
+    payload = adapter_error_payload(RuntimeError("boom " * 1000))
+
+    assert payload["error"] == "adapter_error"
+    assert len(payload["message"]) <= 2000
+
+
+def test_adapter_error_payload_empty_exception_uses_class_name() -> None:
+    payload = adapter_error_payload(ValueError())
+
+    assert payload["error"] == "adapter_error"
+    assert payload["message"] == "ValueError"
+
+
+def test_adapter_error_payload_n8n_diagnostics() -> None:
+    error = N8nHttpError(status_code=500, body="db unavailable", url="https://n8n/x")
+    payload = adapter_error_payload(error)
+
+    assert payload["provider"] == "n8n"
+    assert payload["status_code"] == 500
+    assert payload["body"] == "db unavailable"
+    assert payload["error"] == "adapter_error"
 
 
 async def test_n8n_adapter_posts_to_webhook(monkeypatch) -> None:
@@ -119,3 +146,67 @@ async def test_builtin_adapter_propagates_step_errors_and_counts_failed() -> Non
         )
     assert get_counter("builtin_execution_failed").value == 1
     assert get_counter("builtin_execution_succeeded").value == 0
+
+
+async def test_builtin_adapter_emits_step_events_to_sink() -> None:
+    sink = AsyncMock()
+    adapter = BuiltinAdapter(event_sink=sink)
+    await adapter.execute(
+        workflow_id=WORKFLOW_ID,
+        execution_id=EXECUTION_ID,
+        input_data={"lead": {"first_name": "Ada"}},
+        config={},
+        definition={
+            "steps": [
+                {"type": "set", "key": "a", "value": "1", "id": "s1"},
+                {"type": "copy", "from": "input.lead", "to": "lead", "id": "s2"},
+            ],
+            "output_key": "a",
+        },
+    )
+
+    sink.assert_awaited_once()
+    events = sink.await_args.args[0]
+    assert events == [
+        (ExecutionEventType.STEP_STARTED, {"step_index": 1, "step_id": "s1"}),
+        (ExecutionEventType.STEP_COMPLETED, {"step_index": 1, "step_id": "s1"}),
+        (ExecutionEventType.STEP_STARTED, {"step_index": 2, "step_id": "s2"}),
+        (ExecutionEventType.STEP_COMPLETED, {"step_index": 2, "step_id": "s2"}),
+    ]
+
+
+async def test_builtin_adapter_flushes_step_events_on_failure() -> None:
+    sink = AsyncMock()
+    adapter = BuiltinAdapter(event_sink=sink)
+    with pytest.raises(BuiltinExecutionError):
+        await adapter.execute(
+            workflow_id=WORKFLOW_ID,
+            execution_id=EXECUTION_ID,
+            input_data={},
+            config={},
+            definition={
+                "steps": [
+                    {"type": "set", "key": "a", "value": "1", "id": "s1"},
+                    {"type": "copy", "from": "input.nope", "to": "x", "id": "s2"},
+                ]
+            },
+        )
+
+    sink.assert_awaited_once()
+    events = sink.await_args.args[0]
+    assert events[-1] == (ExecutionEventType.STEP_FAILED, {"step_index": 2, "step_id": "s2"})
+
+
+async def test_builtin_adapter_sink_failure_is_best_effort() -> None:
+    async def broken_sink(_events: object) -> None:
+        raise RuntimeError("db down")
+
+    adapter = BuiltinAdapter(event_sink=broken_sink)
+    result = await adapter.execute(
+        workflow_id=WORKFLOW_ID,
+        execution_id=EXECUTION_ID,
+        input_data={"lead": {"first_name": "Ada"}},
+        config={},
+        definition={"steps": [{"type": "set", "key": "a", "value": "1"}]},
+    )
+    assert result == {"input": {"lead": {"first_name": "Ada"}}, "a": "1"}

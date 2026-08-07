@@ -30,3 +30,21 @@ interface CardBodyProps extends React.HTMLAttributes<HTMLDivElement> {}
 export function CardBody({ className, ...props }: CardBodyProps) {
   return <div className={cn("px-4 pb-4 pt-1", className)} {...props} />;
 }
+
+interface CardTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {}
+
+export function CardTitle({ className, ...props }: CardTitleProps) {
+  return <h3 className={cn("text-sm font-semibold", className)} {...props} />;
+}
+
+interface CardDescriptionProps extends React.HTMLAttributes<HTMLParagraphElement> {}
+
+export function CardDescription({ className, ...props }: CardDescriptionProps) {
+  return <p className={cn("mt-0.5 text-xs text-gray-500", className)} {...props} />;
+}
+
+interface CardContentProps extends React.HTMLAttributes<HTMLDivElement> {}
+
+export function CardContent({ className, ...props }: CardContentProps) {
+  return <div className={cn("px-4 pb-4 pt-1", className)} {...props} />;
+}

@@ -123,6 +123,8 @@ class ActivityEventType(StrEnum):
     TRIGGER_CREATED = "trigger_created"
     TRIGGER_UPDATED = "trigger_updated"
     TRIGGER_DELETED = "trigger_deleted"
+    AUTOMATION_PAUSED = "automation_paused"
+    AUTOMATION_RESUMED = "automation_resumed"
 
 
 class ConversationSender(StrEnum):
@@ -212,6 +214,30 @@ class ExecutionStatus(StrEnum):
     RETRYING = "retrying"
     CANCELLED = "cancelled"
     TIMED_OUT = "timed_out"
+
+
+class ExecutionEventType(StrEnum):
+    """Closed set of append-only technical timeline labels.
+
+    Mirrors ``public.execution_event_type`` (database/migrations/enums/).
+    ``queued``/``started``/``retrying``/``succeeded``/``failed``/
+    ``cancelled``/``timed_out`` are the state-machine transitions; the rest
+    are worker/adapter/step instrumentation points.
+    """
+
+    QUEUED = "queued"
+    STARTED = "started"
+    ADAPTER_DISPATCHED = "adapter_dispatched"
+    ADAPTER_RETURNED = "adapter_returned"
+    STEP_STARTED = "step_started"
+    STEP_COMPLETED = "step_completed"
+    STEP_FAILED = "step_failed"
+    RETRYING = "retrying"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    TIMED_OUT = "timed_out"
+    TIMEOUT_GUARD = "timeout_guard"
 
 
 class CredentialType(StrEnum):

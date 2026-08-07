@@ -11,6 +11,7 @@ Central home for AgencyOS documentation.
 | `observability.md`        | Logging, request IDs, health probes, OpenTelemetry.  |
 | `development.md`          | Day-to-day dev workflow: branch, lint, test, commit. |
 | `deployment.md`           | Docker Compose, env matrix, production notes.        |
+| `operations/`             | Runbooks: admin guide, automation troubleshooting.    |
 | `api/`                    | API reference, OpenAPI spec, endpoint docs.          |
 | `diagrams/`               | Architecture / sequence diagrams (images, .puml).    |
 

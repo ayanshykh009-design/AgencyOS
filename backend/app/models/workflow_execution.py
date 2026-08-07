@@ -13,6 +13,7 @@ from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.enums import ExecutionStatus
 
 if TYPE_CHECKING:
+    from app.models.execution_event import ExecutionEvent
     from app.models.organization import Organization
     from app.models.user import User
     from app.models.workflow import Workflow
@@ -50,6 +51,19 @@ class WorkflowExecution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "trace_id",
             postgresql_where="trace_id IS NOT NULL",
         ),
+        Index("idx_workflow_executions_org_created", "organization_id", "created_at"),
+        Index(
+            "uq_workflow_executions_org_idempotency",
+            "organization_id",
+            "idempotency_key",
+            unique=True,
+            postgresql_where="idempotency_key IS NOT NULL",
+        ),
+        Index(
+            "idx_workflow_executions_cancel_pending",
+            "cancel_requested_at",
+            postgresql_where="cancel_requested_at IS NOT NULL",
+        ),
     )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(
@@ -82,11 +96,28 @@ class WorkflowExecution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL")
     )
     trace_id: Mapped[uuid.UUID | None] = mapped_column()
+    cancel_requested_at: Mapped[datetime | None] = mapped_column()
+    cancelled_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    idempotency_key: Mapped[str | None] = mapped_column()
 
     workflow: Mapped[Workflow] = relationship(back_populates="executions")
     trigger: Mapped[WorkflowTrigger | None] = relationship(back_populates="executions")
     organization: Mapped[Organization] = relationship(back_populates="workflow_executions")
-    requested_by: Mapped[User | None] = relationship()
+    requested_by: Mapped[User | None] = relationship(
+        foreign_keys="WorkflowExecution.requested_by_user_id"
+    )
+    events: Mapped[list[ExecutionEvent]] = relationship(
+        back_populates="execution", order_by="ExecutionEvent.occurred_at"
+    )
+
+    @property
+    def duration_ms(self) -> int | None:
+        """Elapsed wall-clock time between started and finished, in ms."""
+        if self.started_at is None or self.finished_at is None:
+            return None
+        return int((self.finished_at - self.started_at).total_seconds() * 1000)
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<WorkflowExecution id={self.id} workflow={self.workflow_id} status={self.status}>"

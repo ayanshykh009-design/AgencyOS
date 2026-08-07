@@ -35,6 +35,7 @@ from app.core.errors import AppError
 from app.core.metrics import get_counter
 from app.repositories.workflow_trigger import WorkflowTriggerRepository
 from app.schemas.workflow_execution import WorkflowExecutionCreate
+from app.services.automation_control_service import AutomationControlService
 from app.services.base import utcnow
 from app.services.schedule_cron import previous_fire
 from app.services.workflow_execution_service import WorkflowExecutionService
@@ -72,6 +73,7 @@ class ScheduleDispatcher:
         self._session = session
         self._trigger_repo = WorkflowTriggerRepository(session)
         self._execution_service = WorkflowExecutionService(session)
+        self._automation_control = AutomationControlService(session)
 
     async def dispatch_due(
         self, *, now: datetime | None = None, limit: int | None = None
@@ -81,8 +83,15 @@ class ScheduleDispatcher:
         Returns a summary dict with ``scanned``, ``queued``, ``failed``,
         ``skipped``, and ``conflicts`` counts. Raises on infrastructure
         failures; per-trigger failures are logged and counted, never raised.
+
+        When the global kill switch is paused, dispatch is a no-op (returns
+        zeroed stats) — due ticks are left for the next sweep after resume.
         """
         from app.core.config import settings
+
+        if not await self._automation_control.is_enabled():
+            _log("tick_skipped_automation_paused")
+            return {"scanned": 0, "queued": 0, "failed": 0, "skipped": 0, "conflicts": 0}
 
         now = (now or utcnow()).astimezone(UTC)
         batch_limit = limit if limit is not None else settings.SCHEDULE_BATCH_LIMIT

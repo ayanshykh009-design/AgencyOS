@@ -80,6 +80,26 @@ class WorkflowEventRepository:
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
 
+    async def count_events_queued(self) -> int:
+        """Count unconsumed workflow events across all organizations."""
+        stmt = (
+            select(func.count(WorkflowEvent.id))
+            .where(WorkflowEvent.consumed.is_(False))
+            .select_from(WorkflowEvent)
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar_one())
+
+    async def count_events_consumed(self) -> int:
+        """Count consumed workflow events across all organizations."""
+        stmt = (
+            select(func.count(WorkflowEvent.id))
+            .where(WorkflowEvent.consumed.is_(True))
+            .select_from(WorkflowEvent)
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar_one())
+
     def add(self, event: WorkflowEvent) -> None:
         self._session.add(event)
 

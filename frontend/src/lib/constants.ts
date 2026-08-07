@@ -23,3 +23,15 @@ export const ROUTES = {
 export const STORAGE_KEYS = {
   authSession: "agencyos.session",
 } as const;
+
+// Permission constants matching backend
+export const Permission = {
+  AUTOMATION_READ: "automation_read",
+  AUTOMATION_MANAGE: "automation_manage",
+  AUTOMATION_CONTROL: "automation_control",
+  EXECUTION_READ: "execution_read",
+  EXECUTION_WRITE: "execution_write",
+  EXECUTION_MANAGE: "execution_manage",
+} as const;
+
+export type Permission = (typeof Permission)[keyof typeof Permission];

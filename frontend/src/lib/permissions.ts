@@ -24,6 +24,10 @@ export type PermissionKey =
   | "automation_read"
   | "automation_write"
   | "automation_manage"
+  | "automation_control"
+  | "execution_read"
+  | "execution_write"
+  | "execution_manage"
   | "credential_read"
   | "credential_write"
   | "credential_delete";
@@ -54,6 +58,10 @@ const PERMISSION_MATRIX: Record<PermissionKey, UserRole[]> = {
   automation_read: _READ,
   automation_write: _WRITE,
   automation_manage: _ADMIN_ONLY,
+  automation_control: _ADMIN_ONLY,
+  execution_read: _READ,
+  execution_write: _WRITE,
+  execution_manage: _ADMIN_ONLY,
   credential_read: _READ,
   credential_write: _WRITE,
   credential_delete: _ADMIN_ONLY,

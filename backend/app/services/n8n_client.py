@@ -11,6 +11,43 @@ from app.core.config import settings
 logger = logging.getLogger("agencyos.automation.n8n")
 
 _DEFAULT_TIMEOUT = 30.0
+# Bounded, sanitized copy of an upstream error body kept for diagnostics.
+_MAX_ERROR_BODY_CHARS = 2000
+# Fields/patterns that are never stored in error metadata.
+_SENSITIVE_TOKENS = ("x-n8n-api-key", "authorization", "api_key", "apikey", "secret")
+
+
+class N8nHttpError(Exception):
+    """Raised for non-2xx responses from n8n with a sanitized body.
+
+    The body is truncated and redacted so error metadata carries real
+    diagnostics without leaking credentials or unbounded payloads.
+    """
+
+    def __init__(self, status_code: int, body: str, url: str) -> None:
+        super().__init__(f"n8n request failed with status {status_code}")
+        self.status_code = status_code
+        self.body = _sanitize_body(body)
+        self.url = url
+
+    @property
+    def diagnostics(self) -> dict[str, Any]:
+        """Structured, safe error metadata for execution error payloads."""
+        return {
+            "provider": "n8n",
+            "status_code": self.status_code,
+            "body": self.body,
+        }
+
+
+def _sanitize_body(body: str) -> str:
+    """Truncate and redact sensitive values from an upstream response body."""
+    truncated = (body or "")[:_MAX_ERROR_BODY_CHARS]
+    lower = truncated.lower()
+    for token in _SENSITIVE_TOKENS:
+        if token in lower:
+            return "<redacted due to potential credential in response body>"
+    return truncated
 
 
 class N8nClient:
@@ -43,8 +80,13 @@ class N8nClient:
         url = f"{self._base_url}{webhook_path}"
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             response = await client.post(url, json=payload, headers=self._headers())
-            response.raise_for_status()
-            return response.json() if response.content else {}
+        if response.status_code >= 400:
+            raise N8nHttpError(
+                status_code=response.status_code,
+                body=response.text,
+                url=url,
+            )
+        return response.json() if response.content else {}
 
     async def get_workflow_status(self, workflow_id: str) -> dict[str, Any] | None:
         """Fetch workflow status from n8n API (best-effort)."""

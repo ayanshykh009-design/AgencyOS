@@ -15,6 +15,7 @@ from app.repositories.workflow_event import WorkflowEventRepository
 from app.repositories.workflow_trigger import WorkflowTriggerRepository
 from app.schemas.workflow_event import WorkflowEventCreate
 from app.schemas.workflow_execution import WorkflowExecutionCreate
+from app.services.automation_control_service import AutomationControlService
 from app.services.base import commit_with_retry, utcnow
 from app.services.workflow_execution_service import WorkflowExecutionService
 
@@ -29,6 +30,7 @@ class WorkflowEventService:
         self._event_repo = WorkflowEventRepository(session)
         self._trigger_repo = WorkflowTriggerRepository(session)
         self._execution_service = WorkflowExecutionService(session)
+        self._automation_control = AutomationControlService(session)
 
     async def list_events(
         self,
@@ -78,7 +80,12 @@ class WorkflowEventService:
         triggers are queued per event. Exceeding either is misconfiguration
         and is surfaced via a counter + warning log rather than an unbounded
         transaction.
+
+        While the global kill switch is paused, publishing is blocked with a
+        ``409`` so no event row is written and no execution is queued.
         """
+        await self._automation_control.block_queue_if_paused()
+
         if data.organization_id is None:
             raise AppError(
                 code="event.organization_required",

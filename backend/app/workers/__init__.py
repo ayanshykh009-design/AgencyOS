@@ -8,11 +8,14 @@
 - ``execution_worker``: drains the workflow execution queue (queued ->
   running -> succeeded/failed), re-queues due retries, and times out stuck
   executions. Runs as a standalone loop or one-off sweep.
+- ``retention_worker``: chunked pruning of expired execution telemetry
+  (execution_events + dead worker heartbeats). Runs as a standalone loop.
 
 Keep workers dependency-injected (import repositories, never endpoints).
 """
 from app.workers.execution_worker import ExecutionWorker
 from app.workers.import_worker import ImportWorker
 from app.workers.research_worker import ResearchWorker
+from app.workers.retention_worker import RetentionWorker
 
-__all__ = ["ExecutionWorker", "ImportWorker", "ResearchWorker"]
+__all__ = ["ExecutionWorker", "ImportWorker", "ResearchWorker", "RetentionWorker"]

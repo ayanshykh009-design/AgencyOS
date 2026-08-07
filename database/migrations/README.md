@@ -12,6 +12,16 @@ AgencyOS schema. Naming: `NNNN_description.sql` (e.g. `0001_core_enums.sql`).
 | `0005_conversations_activity.sql` | `conversations`, `conversation_messages`, `activity_logs` |
 | `0006_imports_provider.sql` | `import_jobs`, `import_row_errors`, `provider_usage` |
 | `0007_auth.sql`             | `users.password_hash`, `refresh_tokens` (rotation-based) |
+| `0008_team_management.sql`  | `user_role` grows `manager`/`sales_agent`, `team_invites` |
+| `0009_lead_assignment.sql`  | `lead_assignment_rules`, `lead_assignment_logs` (immutable), `assignment_method`/`assignment_strategy` enums |
+| `0010_pipeline_management.sql` | `pipeline_stages`, `close_reasons`, `stage_lifecycle` enum, lead stage/deal columns |
+| `0011_tasks.sql`            | `tasks`, `task_status`/`task_priority`/`recurrence_frequency` enums, task activity events |
+| `0012_notes.sql`            | `notes`, note activity events |
+| `0013_automation.sql`       | `workflows`, `workflow_triggers`, `workflow_executions`, `workflow_events`, `credentials`, automation enums + activity events |
+| `0014_schedule_last_fired.sql` | `workflow_triggers.last_fired_at` + partial schedule-due index |
+| `0015_credential_key_versions.sql` | `credential_key_versions`, `credentials.key_version`/`last_rotated_at`, partial unique per-version index |
+| `0016_search_trigram_indexes.sql` | `pg_trgm` GIN indexes for leading-wildcard lead/task search |
+| `0017_automation_hardening.sql` | `execution_event_type` enum, `execution_events` (append-only timeline), `worker_health` (heartbeats), `system_settings` (kill switch), `workflow_executions` hardening columns (`cancel_requested_at`, `cancelled_by_user_id`, `idempotency_key` + indexes), `automation_paused`/`automation_resumed` activity events |
 
 Rules:
 

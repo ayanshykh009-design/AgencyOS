@@ -48,7 +48,8 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     organization: Mapped[Organization] = relationship(back_populates="users")
     created_workflows: Mapped[list[Workflow]] = relationship(back_populates="created_by")
     requested_executions: Mapped[list[WorkflowExecution]] = relationship(
-        back_populates="requested_by"
+        back_populates="requested_by",
+        foreign_keys="WorkflowExecution.requested_by_user_id",
     )
     created_credentials: Mapped[list[Credential]] = relationship(back_populates="created_by")
 

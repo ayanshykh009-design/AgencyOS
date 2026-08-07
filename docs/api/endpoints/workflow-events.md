@@ -17,9 +17,15 @@ consumed}`.
 ```
 
 Publishing fans out to every enabled `event` trigger whose `event_type` matches
-and whose workflow is `active`, queuing one execution per matching trigger.
+and whose workflow is `active`, queueing one execution per matching trigger.
 `consumed` in the response reflects the fan-out result. Event reads never block;
 consumption is recorded on the event row.
+
+| Error | Meaning |
+| ----- | ------- |
+| `400` `event.organization_required` | Missing `organization_id` (server sets it; defensive) |
+| `400` `event.payload_too_large` | Payload exceeds `EVENT_MAX_PAYLOAD_BYTES` |
+| `409` `automation.paused.queue_blocked` | Automation is paused (kill switch) — no event row is written and nothing is queued |
 
 ### Production guards
 

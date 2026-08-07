@@ -16,6 +16,7 @@ from app.schemas.credential import (
     CredentialRead,
     CredentialUpdate,
 )
+from app.schemas.execution_event import ExecutionEventListResponse, ExecutionEventRead
 from app.schemas.imports import (
     ImportJobCreate,
     ImportJobRead,
@@ -30,6 +31,26 @@ from app.schemas.lead_research import (
     LeadResearchUpdate,
 )
 from app.schemas.lead_source import LeadSourceCreate, LeadSourceRead, LeadSourceUpdate
+from app.schemas.monitoring import (
+    AutomationLifecycleResponse,
+    DatabaseHealth,
+    ExecutionHistoryEntry,
+    ExecutionHistoryResponse,
+    ExecutionStatisticsResponse,
+    ExecutionTimelineEvent,
+    ExecutionTimelineResponse,
+    HeartbeatVisibilityResponse,
+    MonitoringInformationResponse,
+    OperationalSummaryResponse,
+    OrganizationQueue,
+    QueueMetrics,
+    QueueStatusResponse,
+    RetentionStatisticsResponse,
+    ScheduleStatisticsResponse,
+    SystemHealth,
+    WorkerHealthSummary,
+    WorkerStatisticsResponse,
+)
 from app.schemas.organization import OrganizationCreate, OrganizationRead, OrganizationUpdate
 from app.schemas.outreach import (
     FollowUpCreate,
@@ -46,7 +67,9 @@ from app.schemas.outreach import (
     OutreachMessageUpdate,
 )
 from app.schemas.provider import ProviderUsageCreate, ProviderUsageRead, ProviderUsageUpdate
+from app.schemas.system_settings import SystemSettingRead, SystemSettingUpsert
 from app.schemas.user import UserCreate, UserRead, UserUpdate
+from app.schemas.worker_health import WorkerHealthRead
 from app.schemas.workflow import (
     WorkflowCreate,
     WorkflowListResponse,
@@ -83,6 +106,8 @@ __all__ = [
     "ConversationMessageRead",
     "ConversationRead",
     "ConversationUpdate",
+    "ExecutionEventListResponse",
+    "ExecutionEventRead",
     "FollowUpCreate",
     "FollowUpRead",
     "FollowUpUpdate",
@@ -103,6 +128,24 @@ __all__ = [
     "ManualOutreachQueueCreate",
     "ManualOutreachQueueRead",
     "ManualOutreachQueueUpdate",
+    "AutomationLifecycleResponse",
+    "DatabaseHealth",
+    "ExecutionHistoryEntry",
+    "ExecutionHistoryResponse",
+    "ExecutionStatisticsResponse",
+    "ExecutionTimelineEvent",
+    "ExecutionTimelineResponse",
+    "HeartbeatVisibilityResponse",
+    "MonitoringInformationResponse",
+    "OperationalSummaryResponse",
+    "OrganizationQueue",
+    "QueueMetrics",
+    "QueueStatusResponse",
+    "RetentionStatisticsResponse",
+    "ScheduleStatisticsResponse",
+    "SystemHealth",
+    "WorkerHealthSummary",
+    "WorkerStatisticsResponse",
     "OrganizationCreate",
     "OrganizationRead",
     "OrganizationUpdate",
@@ -115,9 +158,12 @@ __all__ = [
     "ProviderUsageCreate",
     "ProviderUsageRead",
     "ProviderUsageUpdate",
+    "SystemSettingRead",
+    "SystemSettingUpsert",
     "UserCreate",
     "UserRead",
     "UserUpdate",
+    "WorkerHealthRead",
     "WorkflowCreate",
     "WorkflowListResponse",
     "WorkflowRead",

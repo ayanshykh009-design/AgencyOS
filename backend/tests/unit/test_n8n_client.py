@@ -4,8 +4,9 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
+import pytest
 
-from app.services.n8n_client import N8nClient, get_n8n_client
+from app.services.n8n_client import N8nClient, N8nHttpError, get_n8n_client
 
 _BASE = "https://n8n.example.com"
 
@@ -18,6 +19,7 @@ async def test_trigger_webhook_async(monkeypatch) -> None:
         captured["json"] = kwargs["json"]
         captured["headers"] = kwargs["headers"]
         response = MagicMock()
+        response.status_code = 200
         response.content = b'{"ok": true}'
         response.json.return_value = {"ok": True}
         return response
@@ -68,11 +70,62 @@ async def test_get_workflow_status_without_key_returns_none(monkeypatch) -> None
 
 
 async def test_trigger_webhook_requires_base_url() -> None:
-    import pytest
-
     client = N8nClient(base_url="")
     with pytest.raises(ValueError, match="N8N_BASE_URL"):
         await client.trigger_webhook("/webhook/x", {"a": 1})
+
+
+async def test_trigger_webhook_raises_sanitized_http_error(monkeypatch) -> None:
+    async def _fake_post(client: httpx.AsyncClient, url: str, **kwargs: object) -> MagicMock:
+        response = MagicMock()
+        response.status_code = 500
+        response.text = "x-account-error: 'boom' with a long traceback"
+        return response
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", _fake_post)
+
+    client = N8nClient(base_url=_BASE, api_key="k")
+    with pytest.raises(N8nHttpError) as exc_info:
+        await client.trigger_webhook("/webhook/x", {"a": 1})
+
+    error = exc_info.value
+    assert error.status_code == 500
+    assert error.body == "x-account-error: 'boom' with a long traceback"
+    assert error.diagnostics["provider"] == "n8n"
+    assert error.diagnostics["status_code"] == 500
+
+
+async def test_trigger_webhook_redacts_sensitive_body(monkeypatch) -> None:
+    async def _fake_post(client: httpx.AsyncClient, url: str, **kwargs: object) -> MagicMock:
+        response = MagicMock()
+        response.status_code = 400
+        response.text = '{"error": "unauthorized", "x-n8n-api-key": "supersecret"}'
+        return response
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", _fake_post)
+
+    client = N8nClient(base_url=_BASE)
+    with pytest.raises(N8nHttpError) as exc_info:
+        await client.trigger_webhook("/webhook/x", {"a": 1})
+
+    assert "supersecret" not in exc_info.value.body
+    assert "redacted" in exc_info.value.body
+
+
+async def test_trigger_webhook_truncates_large_body(monkeypatch) -> None:
+    async def _fake_post(client: httpx.AsyncClient, url: str, **kwargs: object) -> MagicMock:
+        response = MagicMock()
+        response.status_code = 502
+        response.text = "z" * 5000
+        return response
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", _fake_post)
+
+    client = N8nClient(base_url=_BASE)
+    with pytest.raises(N8nHttpError) as exc_info:
+        await client.trigger_webhook("/webhook/x", {"a": 1})
+
+    assert len(exc_info.value.body) <= 2000
 
 
 def test_get_n8n_client_factory(monkeypatch) -> None:

@@ -100,3 +100,22 @@ class ActivityLogRepository:
             stmt = stmt.where(ActivityLog.event_type == event_type)
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
+
+    async def count_by_event_type(
+        self, event_type: ActivityEventType, since: datetime
+    ) -> int:
+        """Count events of one type occurred at/after ``since`` (all orgs).
+
+        Used for operator-level lifecycle statistics where the acting
+        organization is the operator tenant, not a customer tenant.
+        """
+        stmt = (
+            select(func.count(ActivityLog.id))
+            .where(
+                ActivityLog.event_type == event_type,
+                ActivityLog.occurred_at >= since,
+            )
+            .select_from(ActivityLog)
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar_one())

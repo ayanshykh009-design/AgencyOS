@@ -28,7 +28,14 @@ CREATE TYPE public.activity_event_type AS ENUM (
   'proposal_sent', 'lead_won', 'lead_lost', 'user_invited', 'invite_accepted',
   'invite_revoked', 'user_role_changed', 'user_status_changed', 'lead_assigned',
   'task_created', 'task_updated', 'task_completed', 'task_deleted',
-  'note_created', 'note_updated', 'note_deleted'
+  'note_created', 'note_updated', 'note_deleted',
+  'workflow_created', 'workflow_updated', 'workflow_activated',
+  'workflow_paused', 'workflow_archived', 'workflow_deleted',
+  'execution_queued', 'execution_started', 'execution_completed',
+  'execution_failed', 'execution_retried', 'execution_cancelled',
+  'credential_created', 'credential_updated', 'credential_deleted',
+  'trigger_created', 'trigger_updated', 'trigger_deleted',
+  'automation_paused', 'automation_resumed'
 );
 
 CREATE TYPE public.conversation_sender AS ENUM ('lead', 'agent', 'system');
@@ -63,4 +70,11 @@ CREATE TYPE public.execution_status AS ENUM (
 
 CREATE TYPE public.credential_type AS ENUM (
   'n8n_api_key', 'api_key', 'basic_auth'
+);
+
+CREATE TYPE public.execution_event_type AS ENUM (
+  'queued', 'started', 'adapter_dispatched', 'adapter_returned',
+  'step_started', 'step_completed', 'step_failed',
+  'retrying', 'succeeded', 'failed', 'cancelled', 'timed_out',
+  'timeout_guard'
 );

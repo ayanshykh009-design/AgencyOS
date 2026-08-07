@@ -1,7 +1,13 @@
 """Unit tests: lightweight metrics counters (app.core.metrics)."""
 from __future__ import annotations
 
-from app.core.metrics import get_counter, read_counter, reset
+from app.core.metrics import (
+    get_counter,
+    get_histogram,
+    read_counter,
+    read_histogram,
+    reset,
+)
 
 
 def test_counter_starts_at_zero() -> None:
@@ -50,3 +56,38 @@ def test_schedule_metric_names_registered() -> None:
         "queue_failure",
     ):
         assert read_counter(name) == 0
+
+
+def test_histogram_starts_empty() -> None:
+    reset()
+    snapshot = read_histogram("test.never_observed")
+    assert snapshot.count == 0
+    assert snapshot.sum == 0.0
+
+
+def test_histogram_observes_count_and_sum() -> None:
+    reset()
+    histogram = get_histogram("test.duration")
+    histogram.observe(1.5)
+    histogram.observe(2.5)
+    snapshot = read_histogram("test.duration")
+    assert snapshot.count == 2
+    assert snapshot.sum == 4.0
+
+
+def test_histogram_shares_singleton_per_name() -> None:
+    reset()
+    get_histogram("test.singleton").observe(3.0)
+    assert get_histogram("test.singleton") is get_histogram("test.singleton")
+    snapshot = read_histogram("test.singleton")
+    assert snapshot.count == 1
+    assert snapshot.sum == 3.0
+
+
+def test_reset_zeroes_histograms() -> None:
+    reset()
+    get_histogram("test.h").observe(9.0)
+    reset()
+    snapshot = read_histogram("test.h")
+    assert snapshot.count == 0
+    assert snapshot.sum == 0.0

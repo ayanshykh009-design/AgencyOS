@@ -29,6 +29,10 @@ that are wired into the foundation — treat them as a contract, not a suggestio
 | RLS-first data access          | `database/supabase/policies/` (required for every tenant table)      |
 | Non-root prod containers       | `docker/*/Dockerfile.prod`                                           |
 | No secrets in git              | `.gitignore` + `*.env.example` only                                  |
+| Credential envelope encryption | `backend/app/services/credential_crypto_service.py` (per-org DEKs + key rotation) |
+| Automation kill switch         | `backend/app/services/automation_control_service.py` — operator-only global pause/resume |
+| Fail-closed worker gate        | `backend/app/workers/execution_worker.py` — a settings outage pauses, never half-runs |
+| No secrets in git              | `.gitignore` + `*.env.example` only                                  |
 
 ## Must-dos before production
 
@@ -46,6 +50,24 @@ that are wired into the foundation — treat them as a contract, not a suggestio
    new table.
 6. **Dependencies:** pin versions in production (incl. `N8N_IMAGE_TAG`) and
    run dependency scanning (e.g. `pip-audit`, `npm audit`) in CI.
+
+## Automation kill switch
+
+`GET/POST /api/v1/automation/status|pause|resume` is an operational emergency
+control, not a tenant feature. It is gated to **admin** roles (`owner`/`admin`)
+via the dedicated `AUTOMATION_CONTROL` permission (`app/core/permissions.py`),
+and both toggles are written to the `activity_logs` audit trail with the acting
+operator and reason. While paused, every automation entry point (queue, retry,
+schedule dispatch, event publish, worker phases) fails closed with
+`409 automation.paused…`, so a paused system cannot drift into partial
+execution. The worker treats a settings read failure as paused (fail-closed)
+rather than risk an unguarded run.
+
+Treat the kill switch like a circuit breaker: use it during deploys/incidents
+(see `docs/operations/admin-guide.md`) and keep the audit log reviewable. It
+stops *new* automation; it does not kill in-flight executions (they complete or
+time out normally) — if a hard stop is required, terminate the execution worker
+processes first.
 
 ## Incident reporting
 

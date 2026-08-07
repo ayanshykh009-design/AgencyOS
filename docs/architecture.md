@@ -40,6 +40,35 @@ endpoints (HTTP)  →  services (business logic)  →  repositories (data)  → 
 | Prompt content | `prompts/`     |
 | Business logic| `backend/app/services/` |
 
+## Automation engine
+
+Beyond n8n's cross-service automation, the backend ships its own workflow
+execution engine (`backend/app/workers/` + `backend/app/services/`) that owns
+the tenant-facing automation loop:
+
+```
+API (queue / retry / events / schedule)
+   → WorkflowExecutionService / WorkflowEventService / ScheduleDispatcher
+   → repositories → Postgres (workflow_executions / workflow_events)
+   → ExecutionWorker (retries → queue drain → stale-timeout sweep → schedule ticks)
+   → adapters (n8n / provider) → terminal states + execution_events timeline
+```
+
+- State lives in Postgres; workers are restart-safe and horizontally scalable.
+  Optimistic transitions mean exactly one worker wins each claim.
+- A global **kill switch** (`AutomationControlService`, backed by
+  `system_settings`) can pause queueing, retries, schedule dispatch, and event
+  publishing operator-wide without dropping data (see
+  `docs/api/endpoints/automation-control.md`). The worker gate is fail-closed.
+- Worker liveness is surfaced via `worker_health` heartbeats and the
+  `monitoring/` endpoints; retention for the append-only `execution_events`
+  timeline is a separate worker.
+- Credentials used by automations are envelope-encrypted at rest
+  (`CredentialCryptoService`) with versioned key rotation.
+
+See `docs/operations/admin-guide.md` and `docs/operations/troubleshooting-automation.md`
+for the operational view.
+
 ## Environments
 
 - `development` — local: Postgres + n8n via Docker, backend/frontend on host.

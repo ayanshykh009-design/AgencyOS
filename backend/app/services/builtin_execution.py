@@ -37,6 +37,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
@@ -311,45 +312,60 @@ def _run_steps(
     max_depth: int,
     max_template_length: int,
     depth: int,
+    on_step: Callable[[str, int, str | None], None] | None = None,
 ) -> None:
     for step in steps:
         _check_budget(budget, max_steps)
-        step_type = step["type"]
-        if step_type == "set":
-            value = step["value"]
-            if isinstance(value, str) and "{{" in value:
-                context[step["key"]] = _render_template(
+        index = budget[0]
+        step_id = step.get("id") if isinstance(step, dict) else None
+        if on_step is not None:
+            on_step("started", index, step_id)
+        try:
+            step_type = step["type"]
+            if step_type == "set":
+                value = step["value"]
+                if isinstance(value, str) and "{{" in value:
+                    context[step["key"]] = _render_template(
+                        context,
+                        value,
+                        max_length=max_template_length,
+                    )
+                else:
+                    context[step["key"]] = deepcopy(value)
+            elif step_type == "copy":
+                resolved = _resolve(context, step["from"])
+                if resolved is _MISSING:
+                    raise BuiltinExecutionError(
+                        f"copy source path not found: {step['from']}"
+                    )
+                context[step["to"]] = deepcopy(resolved)
+            elif step_type == "condition":
+                if depth + 1 > max_depth:
+                    raise BuiltinExecutionError(
+                        f"condition nesting exceeds the {max_depth} depth limit"
+                    )
+                branch = (
+                    step["then"] if _evaluate_guard(context, step["if"]) else step.get("else", [])
+                )
+                _run_steps(
+                    branch,
                     context,
-                    value,
-                    max_length=max_template_length,
+                    budget=budget,
+                    max_steps=max_steps,
+                    max_depth=max_depth,
+                    max_template_length=max_template_length,
+                    depth=depth + 1,
+                    on_step=on_step,
                 )
-            else:
-                context[step["key"]] = deepcopy(value)
-        elif step_type == "copy":
-            resolved = _resolve(context, step["from"])
-            if resolved is _MISSING:
-                raise BuiltinExecutionError(
-                    f"copy source path not found: {step['from']}"
-                )
-            context[step["to"]] = deepcopy(resolved)
-        elif step_type == "condition":
-            if depth + 1 > max_depth:
-                raise BuiltinExecutionError(
-                    f"condition nesting exceeds the {max_depth} depth limit"
-                )
-            branch = step["then"] if _evaluate_guard(context, step["if"]) else step.get("else", [])
-            _run_steps(
-                branch,
-                context,
-                budget=budget,
-                max_steps=max_steps,
-                max_depth=max_depth,
-                max_template_length=max_template_length,
-                depth=depth + 1,
-            )
-        elif step_type == "error_if":
-            if _evaluate_guard(context, step["if"]):
-                raise BuiltinExecutionError(step["message"])
+            elif step_type == "error_if":
+                if _evaluate_guard(context, step["if"]):
+                    raise BuiltinExecutionError(step["message"])
+        except BuiltinExecutionError:
+            if on_step is not None:
+                on_step("failed", index, step_id)
+            raise
+        if on_step is not None:
+            on_step("completed", index, step_id)
 
 
 def run_builtin_definition(
@@ -360,12 +376,18 @@ def run_builtin_definition(
     max_depth: int | None = None,
     max_template_length: int | None = None,
     max_result_size: int | None = None,
+    on_step: Callable[[str, int, str | None], None] | None = None,
 ) -> dict[str, Any]:
     """Execute a builtin definition and return the result payload.
 
     The engine is deterministic and side-effect free; a crash mid-execution
     leaves nothing behind, so retries (driven by the execution worker's
     existing state machine) always re-run from the same input.
+
+    ``on_step`` is an optional instrumentation hook called as
+    ``on_step(event, index, step_id)`` before and after every executed step
+    (``event`` in ``{"started", "completed", "failed"}``). It is a pure
+    observer: it must never raise and never change the result.
     """
     if max_steps is None:
         max_steps = settings.BUILTIN_MAX_STEPS
@@ -390,6 +412,7 @@ def run_builtin_definition(
         max_depth=max_depth,
         max_template_length=max_template_length,
         depth=1,
+        on_step=on_step,
     )
     _check_result_size(context, limit=max_result_size)
 

@@ -378,3 +378,43 @@ def test_validate_accepts_valid_definition() -> None:
         "output_key": "lead",
     }
     validate_builtin_definition(definition)
+
+
+def test_on_step_reports_started_and_completed() -> None:
+    definition = {
+        "steps": [
+            {"type": "set", "key": "a", "value": "1", "id": "s1"},
+            {"type": "copy", "from": "input.lead", "to": "lead", "id": "s2"},
+        ]
+    }
+    calls: list[tuple[str, int, str | None]] = []
+
+    run_builtin_definition(definition, _input(), on_step=lambda *c: calls.append(c))
+
+    assert calls == [
+        ("started", 1, "s1"),
+        ("completed", 1, "s1"),
+        ("started", 2, "s2"),
+        ("completed", 2, "s2"),
+    ]
+
+
+def test_on_step_reports_failed_and_stops() -> None:
+    definition = {
+        "steps": [
+            {"type": "set", "key": "a", "value": "1", "id": "s1"},
+            {
+                "type": "error_if",
+                "message": "boom",
+                "if": {"path": "input.source", "op": "eq", "value": "webform"},
+                "id": "s2",
+            },
+        ]
+    }
+    calls: list[tuple[str, int, str | None]] = []
+
+    with pytest.raises(BuiltinExecutionError, match="boom"):
+        run_builtin_definition(definition, _input(), on_step=lambda *c: calls.append(c))
+
+    assert calls[-1] == ("failed", 2, "s2")
+    assert ("completed", 2, "s2") not in calls

@@ -100,7 +100,10 @@ def test_migrations_apply_cleanly(migrated_db) -> None:
         "outreach_messages", "outreach_attempts", "follow_ups",
         "manual_outreach_queue", "conversations", "conversation_messages",
         "activity_logs", "import_jobs", "import_row_errors", "provider_usage",
-        "schema_migrations",
+        "schema_migrations", "workflows", "workflow_triggers",
+        "workflow_executions", "workflow_events", "credentials",
+        "credential_key_versions", "execution_events", "worker_health",
+        "system_settings",
     }
     with migrated_db.cursor() as cur:
         cur.execute(
@@ -379,4 +382,247 @@ def test_migration_0015_credential_key_versions_additive_idempotent(migrated_db)
             (credential_id,),
         )
         assert cur.fetchone() == ("n8n prod", "0", "enc:legacy")
+    migrated_db.commit()
+
+
+def test_migration_0017_automation_hardening_additive_idempotent(migrated_db) -> None:
+    """0017 adds the execution timeline/heartbeat/settings tables + queue columns.
+
+    Re-applying must be a no-op that does not touch existing rows.
+    """
+    with migrated_db.cursor() as cur:
+        for table in ("execution_events", "worker_health", "system_settings"):
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = 'public' AND table_name = %s)",
+                (table,),
+            )
+            assert cur.fetchone()[0] is True
+        for column in ("cancel_requested_at", "cancelled_by_user_id", "idempotency_key"):
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'workflow_executions' "
+                "AND column_name = %s)",
+                (column,),
+            )
+            assert cur.fetchone()[0] is True
+        cur.execute(
+            "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' "
+            "AND tablename = 'workflow_executions' "
+            "AND indexname = 'uq_workflow_executions_org_idempotency')"
+        )
+        assert cur.fetchone()[0] is True
+        cur.execute(
+            "SELECT EXISTS (SELECT 1 FROM pg_type t "
+            "JOIN pg_namespace n ON n.oid = t.typnamespace "
+            "WHERE n.nspname = 'public' AND t.typname = 'execution_event_type')"
+        )
+        assert cur.fetchone()[0] is True
+        cur.execute(
+            "SELECT EXISTS (SELECT 1 FROM pg_enum e "
+            "JOIN pg_type t ON t.oid = e.enumtypid "
+            "WHERE t.typname = 'activity_event_type' AND e.enumlabel = 'automation_paused')"
+        )
+        assert cur.fetchone()[0] is True
+
+    org_id = str(uuid.uuid4())
+    _insert_org(migrated_db, org_id)
+    migration_0017 = (MIGRATIONS_DIR / "0017_automation_hardening.sql").read_text(
+        encoding="utf-8"
+    )
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.users (organization_id, email, full_name, role) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (org_id, "hardening-owner@example.com", "Owner", "owner"),
+        )
+        user_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.workflows "
+            "(organization_id, name, status, execution_mode, created_by_user_id) "
+            "VALUES (%s, %s, 'active', 'builtin', %s) RETURNING id",
+            (org_id, "Hardening wf", user_id),
+        )
+        workflow_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.workflow_executions "
+            "(organization_id, workflow_id, status, idempotency_key) "
+            "VALUES (%s, %s, 'queued', %s) RETURNING id, cancel_requested_at",
+            (org_id, workflow_id, "idem-key-1"),
+        )
+        execution_id, cancel_requested_at = cur.fetchone()
+        assert cancel_requested_at is None
+        cur.execute(
+            "INSERT INTO public.execution_events "
+            "(organization_id, workflow_id, execution_id, attempt, event_type) "
+            "VALUES (%s, %s, %s, 0, 'queued') RETURNING id",
+            (org_id, workflow_id, execution_id),
+        )
+        event_id = cur.fetchone()[0]
+        assert event_id is not None
+        cur.execute(
+            "INSERT INTO public.system_settings (key, value) "
+            "VALUES ('automation.control', %s::jsonb) RETURNING key",
+            ('{"paused": false}',),
+        )
+        assert cur.fetchone()[0] == "automation.control"
+
+        # Re-applying 0017 must be a safe no-op and must not touch existing rows.
+        cur.execute(migration_0017)
+        cur.execute(
+            "SELECT status, idempotency_key FROM public.workflow_executions WHERE id = %s",
+            (execution_id,),
+        )
+        assert cur.fetchone() == ("queued", "idem-key-1")
+    migrated_db.commit()
+
+
+def test_migration_0017_idempotency_unique_per_org(migrated_db) -> None:
+    """Duplicate idempotency keys are rejected within one org, allowed across."""
+    org_a = str(uuid.uuid4())
+    org_b = str(uuid.uuid4())
+    _insert_org(migrated_db, org_a)
+    _insert_org(migrated_db, org_b)
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.users (organization_id, email, full_name, role) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (org_a, "idem-a@example.com", "Owner A", "owner"),
+        )
+        user_a = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.users (organization_id, email, full_name, role) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (org_b, "idem-b@example.com", "Owner B", "owner"),
+        )
+        user_b = cur.fetchone()[0]
+        for org, user, suffix in ((org_a, user_a, "a"), (org_b, user_b, "b")):
+            cur.execute(
+                "INSERT INTO public.workflows "
+                "(organization_id, name, status, execution_mode, created_by_user_id) "
+                "VALUES (%s, %s, 'active', 'builtin', %s) RETURNING id",
+                (org, f"Wf {suffix}", user),
+            )
+            workflow_id = cur.fetchone()[0]
+            cur.execute(
+                "INSERT INTO public.workflow_executions "
+                "(organization_id, workflow_id, status, idempotency_key) "
+                "VALUES (%s, %s, 'queued', 'shared-key')",
+                (org, workflow_id),
+            )
+        # Same org + same key -> unique violation.
+        with pytest.raises(errors.UniqueViolation):
+            cur.execute(
+                "INSERT INTO public.workflow_executions "
+                "(organization_id, workflow_id, status, idempotency_key) "
+                "VALUES (%s, %s, 'queued', 'shared-key')",
+                (org_a, workflow_id),
+            )
+    migrated_db.rollback()
+
+
+def test_retention_chunked_delete_respects_batch(migrated_db) -> None:
+    """The retention sweep's chunked DELETE removes only old rows, in order.
+
+    Mirrors ``app/workers/retention_worker.py``: delete up to ``batch`` events
+    older than the cutoff, oldest first, repeating until the chunk is partial.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    org_id = str(uuid.uuid4())
+    _insert_org(migrated_db, org_id)
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.users (organization_id, email, full_name, role) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (org_id, "retention@example.com", "Retention", "owner"),
+        )
+        user_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.workflows "
+            "(organization_id, name, status, execution_mode, created_by_user_id) "
+            "VALUES (%s, %s, 'active', 'builtin', %s) RETURNING id",
+            (org_id, "Retention wf", user_id),
+        )
+        workflow_id = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.workflow_executions "
+            "(organization_id, workflow_id, status) VALUES (%s, %s, 'queued') RETURNING id",
+            (org_id, workflow_id),
+        )
+        execution_id = cur.fetchone()[0]
+
+        old = datetime.now(UTC) - timedelta(days=100)
+        new = datetime.now(UTC)
+        for _, occurred_at in ((1, old), (2, old), (3, new)):
+            cur.execute(
+                "INSERT INTO public.execution_events "
+                "(organization_id, workflow_id, execution_id, attempt, event_type, occurred_at) "
+                "VALUES (%s, %s, %s, 0, 'queued', %s)",
+                (org_id, workflow_id, execution_id, occurred_at),
+            )
+
+        cutoff = datetime.now(UTC) - timedelta(days=90)
+        batch = 1
+        total_deleted = 0
+        while True:
+            cur.execute(
+                "DELETE FROM public.execution_events WHERE id IN ("
+                "  SELECT id FROM public.execution_events"
+                "  WHERE occurred_at < %s ORDER BY occurred_at LIMIT %s"
+                ")",
+                (cutoff, batch),
+            )
+            deleted = cur.rowcount
+            total_deleted += deleted
+            if deleted < batch:
+                break
+        assert total_deleted == 2
+        cur.execute(
+            "SELECT count(*) FROM public.execution_events WHERE occurred_at < %s",
+            (cutoff,),
+        )
+        assert cur.fetchone()[0] == 0
+        cur.execute(
+            "SELECT event_type FROM public.execution_events WHERE occurred_at >= %s",
+            (cutoff,),
+        )
+        assert cur.fetchone()[0] == "queued"
+    migrated_db.commit()
+
+
+def test_worker_health_retention_prunes_dead_instances(migrated_db) -> None:
+    """Long-gone worker heartbeat rows are pruned; live ones are kept."""
+    from datetime import UTC, datetime, timedelta
+
+    stale = datetime.now(UTC) - timedelta(days=200)
+    fresh = datetime.now(UTC)
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.worker_health "
+            "(worker_type, instance_id, pid, hostname, last_heartbeat_at) "
+            "VALUES ('execution', %s, 1, 'dead', %s)",
+            (str(uuid.uuid4()), stale),
+        )
+        cur.execute(
+            "INSERT INTO public.worker_health "
+            "(worker_type, instance_id, pid, hostname, last_heartbeat_at) "
+            "VALUES ('execution', %s, 2, 'alive', %s)",
+            (str(uuid.uuid4()), fresh),
+        )
+        cur.execute(
+            "DELETE FROM public.worker_health WHERE id IN ("
+            "  SELECT id FROM public.worker_health"
+            "  WHERE last_heartbeat_at < %s ORDER BY last_heartbeat_at LIMIT 100"
+            ")",
+            (stale + timedelta(days=1),),
+        )
+        cur.execute(
+            "SELECT count(*) FROM public.worker_health WHERE hostname = 'dead'"
+        )
+        assert cur.fetchone()[0] == 0
+        cur.execute(
+            "SELECT count(*) FROM public.worker_health WHERE hostname = 'alive'"
+        )
+        assert cur.fetchone()[0] == 1
     migrated_db.commit()

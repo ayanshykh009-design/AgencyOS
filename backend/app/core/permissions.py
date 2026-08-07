@@ -77,6 +77,7 @@ class Permission(StrEnum):
     AUTOMATION_READ = "automation_read"
     AUTOMATION_WRITE = "automation_write"
     AUTOMATION_MANAGE = "automation_manage"
+    AUTOMATION_CONTROL = "automation_control"
     CREDENTIAL_MANAGE = "credential_manage"
     CREDENTIAL_READ = "credential_read"
     CREDENTIAL_WRITE = "credential_write"
@@ -110,6 +111,7 @@ PERMISSION_MATRIX: dict[Permission, set[UserRole]] = {
     Permission.AUTOMATION_READ: _READ,
     Permission.AUTOMATION_WRITE: _WRITE,
     Permission.AUTOMATION_MANAGE: _ADMIN_ONLY,
+    Permission.AUTOMATION_CONTROL: _ADMIN_ONLY,
     Permission.CREDENTIAL_MANAGE: _ADMIN_ONLY,
     Permission.CREDENTIAL_READ: _READ,
     Permission.CREDENTIAL_WRITE: _WRITE,

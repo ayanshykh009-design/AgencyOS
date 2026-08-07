@@ -13,6 +13,7 @@ from app.models import (
     Conversation,
     ConversationMessage,
     Credential,
+    ExecutionEvent,
     FollowUp,
     ImportJob,
     ImportRowError,
@@ -25,8 +26,10 @@ from app.models import (
     OutreachAttempt,
     OutreachMessage,
     ProviderUsage,
+    SystemSetting,
     Task,
     User,
+    WorkerHealth,
     Workflow,
     WorkflowEvent,
     WorkflowExecution,
@@ -58,6 +61,9 @@ ALL_MODELS = (
     WorkflowExecution,
     WorkflowEvent,
     Credential,
+    ExecutionEvent,
+    WorkerHealth,
+    SystemSetting,
 )
 
 
@@ -101,6 +107,7 @@ def test_uuid_primary_key(model: type) -> None:
         WorkflowExecution,
         WorkflowEvent,
         Credential,
+        ExecutionEvent,
     ],
 )
 def test_tenant_scoped_with_org_fk(model: type) -> None:
@@ -131,10 +138,12 @@ def test_updated_at_on_mutable_tables() -> None:
         WorkflowTrigger,
         WorkflowExecution,
         Credential,
+        WorkerHealth,
+        SystemSetting,
     }
     for model in mutable:
         assert "updated_at" in Base.metadata.tables[model.__tablename__].c
-    append_only = {ConversationMessage, ActivityLog, ImportRowError, WorkflowEvent}
+    append_only = {ConversationMessage, ActivityLog, ImportRowError, WorkflowEvent, ExecutionEvent}
     for model in append_only:
         assert "updated_at" not in Base.metadata.tables[model.__tablename__].c
 

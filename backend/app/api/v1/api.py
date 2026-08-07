@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (
     assignment,
     audit,
     auth,
+    automation_control,
     conversations,
     credentials,
     dashboard,
@@ -19,6 +20,7 @@ from app.api.v1.endpoints import (
     imports,
     lead_sources,
     leads,
+    monitoring,
     notes,
     outreach,
     pipeline,
@@ -39,6 +41,7 @@ api_router = APIRouter()
 
 # Operational endpoints.
 api_router.include_router(health.router, prefix="/health", tags=["health"])
+api_router.include_router(monitoring.router, prefix="/monitoring", tags=["monitoring"])
 
 # Authentication.
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -55,7 +58,7 @@ api_router.include_router(notes.router, prefix="/notes", tags=["notes"])
 api_router.include_router(outreach.router, prefix="/outreach", tags=["outreach"])
 api_router.include_router(conversations.router, prefix="/conversations", tags=["conversations"])
 
-# Automation: workflows, triggers, executions, events, credentials.
+# Automation: workflows, triggers, executions, events, credentials, control.
 api_router.include_router(workflows.router, prefix="/workflows", tags=["workflows"])
 api_router.include_router(
     workflow_triggers.router, prefix="/workflow-triggers", tags=["workflow-triggers"]
@@ -67,6 +70,9 @@ api_router.include_router(
     workflow_events.router, prefix="/workflow-events", tags=["workflow-events"]
 )
 api_router.include_router(credentials.router, prefix="/credentials", tags=["credentials"])
+api_router.include_router(
+    automation_control.router, prefix="/automation", tags=["automation"]
+)
 
 # Analytics & reporting.
 api_router.include_router(imports.router, prefix="/imports", tags=["imports"])

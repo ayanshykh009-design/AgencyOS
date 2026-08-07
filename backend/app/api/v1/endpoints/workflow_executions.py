@@ -7,14 +7,16 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import CurrentUser, DbSession
-from app.core.permissions import Permission, require_permission
+from app.core.permissions import Permission, has_permission, require_permission
 from app.models.enums import ExecutionStatus
+from app.schemas.execution_event import ExecutionEventListResponse, ExecutionEventRead
 from app.schemas.workflow_execution import (
     WorkflowExecutionCreate,
     WorkflowExecutionListResponse,
     WorkflowExecutionQueue,
     WorkflowExecutionRead,
 )
+from app.services.execution_event_service import ExecutionEventService
 from app.services.workflow_execution_service import WorkflowExecutionService
 
 if TYPE_CHECKING:
@@ -42,6 +44,7 @@ async def queue_execution(
     execution = await service.queue(
         body.model_copy(update={"organization_id": current_user.organization_id}),
         requested_by_user_id=current_user.id,
+        bypass_pending_cap=has_permission(current_user.role, Permission.EXECUTION_MANAGE),
     )
     return WorkflowExecutionQueue(
         execution_id=execution.id,
@@ -105,6 +108,32 @@ async def get_execution(
     return WorkflowExecutionRead.model_validate(execution)
 
 
+@router.get(
+    "/{execution_id}/events",
+    response_model=ExecutionEventListResponse,
+    summary="Get the technical timeline for a workflow execution",
+    dependencies=[_read],
+)
+async def list_execution_events(
+    execution_id: uuid.UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> ExecutionEventListResponse:
+    service = ExecutionEventService(db)
+    events = await service.list_by_execution(
+        current_user.organization_id, execution_id, limit=limit, offset=offset
+    )
+    total = await service.count_by_execution(
+        current_user.organization_id, execution_id
+    )
+    return ExecutionEventListResponse(
+        items=[ExecutionEventRead.model_validate(e) for e in events],
+        total=total,
+    )
+
+
 @router.post(
     "/{execution_id}/start",
     response_model=WorkflowExecutionRead,
@@ -117,7 +146,11 @@ async def start_execution(
     current_user: CurrentUser,
 ) -> WorkflowExecutionRead:
     service = WorkflowExecutionService(db)
-    execution = await service.start(current_user.organization_id, execution_id)
+    execution = await service.start(
+        current_user.organization_id,
+        execution_id,
+        actor_user_id=current_user.id,
+    )
     return WorkflowExecutionRead.model_validate(execution)
 
 
@@ -133,7 +166,11 @@ async def retry_execution(
     current_user: CurrentUser,
 ) -> WorkflowExecutionRead:
     service = WorkflowExecutionService(db)
-    execution = await service.retry(current_user.organization_id, execution_id)
+    execution = await service.retry(
+        current_user.organization_id,
+        execution_id,
+        actor_user_id=current_user.id,
+    )
     return WorkflowExecutionRead.model_validate(execution)
 
 
@@ -154,6 +191,7 @@ async def complete_execution(
         current_user.organization_id,
         execution_id,
         output=body,
+        actor_user_id=current_user.id,
     )
     return WorkflowExecutionRead.model_validate(execution)
 
@@ -177,6 +215,7 @@ async def fail_execution(
         execution_id,
         error=body,
         schedule_retry=schedule_retry,
+        actor_user_id=current_user.id,
     )
     return WorkflowExecutionRead.model_validate(execution)
 
@@ -193,5 +232,9 @@ async def cancel_execution(
     current_user: CurrentUser,
 ) -> WorkflowExecutionRead:
     service = WorkflowExecutionService(db)
-    execution = await service.cancel(current_user.organization_id, execution_id)
+    execution = await service.cancel(
+        current_user.organization_id,
+        execution_id,
+        cancelled_by_user_id=current_user.id,
+    )
     return WorkflowExecutionRead.model_validate(execution)

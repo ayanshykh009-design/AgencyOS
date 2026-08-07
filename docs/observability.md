@@ -121,9 +121,58 @@ Alert on `event_fanout_truncated` — a persistent non-zero value means an
 `event_type` matches far more enabled triggers than intended and executions are
 being silently dropped at the cap.
 
+## Execution worker telemetry
+
+The execution worker (`app/workers/execution_worker.py`) emits per-phase
+telemetry. The `execution_worker_phase_seconds` histogram records the duration
+of each sweep phase (`retries`, `queued`, `timeouts`, `schedule`) so a slow
+phase is visible even when the loop is healthy. Counter metrics:
+
+| Counter                     | Meaning                                          |
+| --------------------------- | ------------------------------------------------ |
+| `execution_queued_total`    | Executions queued (all entry points)             |
+| `execution_drained_total`   | Executions drained from the queue                |
+| `execution_retried_total`   | Executions requeued by the retry phase           |
+| `execution_failed_total`    | Executions failed                                 |
+| `execution_timed_out_total` | Executions marked timed out (stale/hard timeout) |
+| `execution_cancelled_total` | Executions cancelled                              |
+
+The worker snapshots these counters into its `worker_health` heartbeat row each
+loop iteration, so `monitoring/heartbeat-visibility` shows a live counter view
+per instance. A `drained` counter that stops growing while `queue-status` shows
+depth means the worker is paused, dead, or stuck (see
+`docs/operations/troubleshooting-automation.md`).
+
+## Worker heartbeats & retention telemetry
+
+Every worker loop iteration upserts a `worker_health` row
+(`worker_type`, `instance_id`, `pid`, `hostname`, `loop_ok`, `last_error`,
+counters) — and once more on shutdown. `loop_ok=false` with a `last_error`
+marks the loop's last phase as failed. Surface this via:
+
+- `GET /api/v1/monitoring/heartbeat-visibility` — per-instance rows with a
+  configurable staleness window (default 300s).
+- `GET /api/v1/monitoring/worker-statistics` — aggregate health + errors.
+- `GET /api/v1/monitoring/automation-lifecycle` — kill-switch pause/resume
+  history (from `activity_logs`) plus current status.
+
+The retention worker (`app/workers/retention_worker.py`) reports its sweeps:
+
+| Counter                              | Meaning                                        |
+| ------------------------------------ | ---------------------------------------------- |
+| `retention_executions_deleted_total` | `execution_events` rows deleted in the window  |
+| `retention_workers_pruned_total`     | Dead `worker_health` rows pruned               |
+
+Alert on a persistent zero across both counters with retention enabled — the
+sweep has stopped and `execution_events` will grow unbounded.
+
 ## Alerts worth adding
 
 - Liveness/readiness failures (instance restarted or out of traffic).
 - 5xx rate and p95/p99 latency per endpoint.
 - DB pool exhaustion and failed DB connectivity checks.
 - Rate-limit (429) spikes and auth failure bursts (possible abuse).
+- Worker heartbeat stale (`loop_ok=false` or `last_heartbeat_at` older than
+  `EXECUTION_POLL_INTERVAL_SECONDS × 3`).
+- `execution_drained_total` flat while `queue-status` depth is non-zero.
+- `schedule_dispatch_failure` bursts and `event_fanout_truncated` non-zero.

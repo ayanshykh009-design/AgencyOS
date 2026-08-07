@@ -151,6 +151,14 @@ Move any non-archived workflow → `archived`. Requires `automation_manage`.
 Delete a workflow. Only allowed for `draft` or `archived` workflows (active
 workflows must be archived first). Requires `automation_manage`. Returns 204.
 
+## GET /api/v1/workflows/{workflow_id}/executions
+
+List executions scoped to one workflow (shortcut over
+`/workflow-executions`). Paginated with `limit` (1–200, default 50) and
+`offset`; `status` filters to a single execution state; `sort` is
+`created_at` (default), `started_at`, `finished_at`, or `status`; `order` is
+`asc` or `desc` (default `desc`). Returns a `Page` envelope.
+
 ## Authentication
 
 `Authorization: Bearer <token>`. Errors use the standard envelope.

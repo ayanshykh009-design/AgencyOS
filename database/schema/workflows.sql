@@ -70,6 +70,9 @@ CREATE TABLE IF NOT EXISTS public.workflow_executions (
   next_retry_at        timestamptz,
   requested_by_user_id uuid REFERENCES public.users (id) ON DELETE SET NULL,
   trace_id             uuid,
+  cancel_requested_at  timestamptz,
+  cancelled_by_user_id uuid REFERENCES public.users (id) ON DELETE SET NULL,
+  idempotency_key      text,
   created_at           timestamptz NOT NULL DEFAULT now(),
   updated_at           timestamptz NOT NULL DEFAULT now()
 );
@@ -78,6 +81,14 @@ CREATE INDEX idx_workflow_executions_org_status ON public.workflow_executions (o
 CREATE INDEX idx_workflow_executions_org_workflow ON public.workflow_executions (organization_id, workflow_id);
 CREATE INDEX idx_workflow_executions_next_retry ON public.workflow_executions (next_retry_at) WHERE status = 'retrying';
 CREATE INDEX idx_workflow_executions_trace_id ON public.workflow_executions (trace_id) WHERE trace_id IS NOT NULL;
+CREATE UNIQUE INDEX uq_workflow_executions_org_idempotency
+  ON public.workflow_executions (organization_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+CREATE INDEX idx_workflow_executions_org_created
+  ON public.workflow_executions (organization_id, created_at DESC);
+CREATE INDEX idx_workflow_executions_cancel_pending
+  ON public.workflow_executions (cancel_requested_at)
+  WHERE cancel_requested_at IS NOT NULL;
 
 CREATE TRIGGER trg_workflow_executions_updated_at
   BEFORE UPDATE ON public.workflow_executions

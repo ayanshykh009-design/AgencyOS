@@ -23,6 +23,7 @@ class WorkflowExecutionCreate(WorkflowExecutionBase):
     workflow_id: uuid.UUID
     trigger_id: uuid.UUID | None = None
     trace_id: uuid.UUID | None = None
+    idempotency_key: str | None = Field(default=None, max_length=255)
 
 
 class WorkflowExecutionRead(WorkflowExecutionBase):
@@ -41,6 +42,10 @@ class WorkflowExecutionRead(WorkflowExecutionBase):
     next_retry_at: datetime | None = None
     requested_by_user_id: uuid.UUID | None = None
     trace_id: uuid.UUID | None = None
+    idempotency_key: str | None = None
+    cancel_requested_at: datetime | None = None
+    cancelled_by_user_id: uuid.UUID | None = None
+    duration_ms: int | None = None
     created_at: datetime
     updated_at: datetime
 

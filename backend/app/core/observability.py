@@ -5,6 +5,8 @@ OTEL_ENDPOINT. All imports are lazy so the app still starts if the
 instrumentation packages are not installed.
 """
 import logging
+from contextlib import AbstractContextManager, nullcontext
+from typing import Any
 
 from fastapi import FastAPI
 
@@ -37,3 +39,20 @@ def setup_telemetry(app: FastAPI) -> None:
         logger.info("OpenTelemetry enabled (endpoint=%s)", settings.OTEL_ENDPOINT)
     except ImportError:
         logger.warning("OpenTelemetry packages not installed; telemetry disabled")
+
+
+def span(name: str) -> AbstractContextManager[Any]:
+    """Start a named span, guarded by OTEL_ENABLED (no-op when disabled).
+
+    Worker sweeps use this to emit per-phase traces without adding a hard
+    dependency on the OpenTelemetry SDK in local/dev runs.
+    """
+    if not settings.OTEL_ENABLED:
+        return nullcontext()
+    try:
+        from opentelemetry import trace
+
+        return trace.get_tracer("agencyos.automation").start_as_current_span(name)
+    except ImportError:
+        logger.warning("OpenTelemetry packages not installed; span skipped")
+        return nullcontext()

@@ -36,6 +36,14 @@ class WorkflowRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_many(self, workflow_ids: list[uuid.UUID]) -> list[Workflow]:
+        """Batch-fetch workflows by id (worker drain avoids a per-row query)."""
+        if not workflow_ids:
+            return []
+        stmt = select(Workflow).where(Workflow.id.in_(workflow_ids))
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
     async def get_or_404(self, organization_id: uuid.UUID, workflow_id: uuid.UUID) -> Workflow:
         from app.core.errors import AppError
 

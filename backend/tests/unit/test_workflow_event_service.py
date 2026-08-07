@@ -54,6 +54,8 @@ def _service() -> WorkflowEventService:
     service._event_repo.add = MagicMock()
     service._trigger_repo = MagicMock()
     service._execution_service = MagicMock()
+    service._automation_control = MagicMock()
+    service._automation_control.block_queue_if_paused = AsyncMock()
     return service
 
 
@@ -170,6 +172,27 @@ async def test_mark_consumed_scoped_to_org() -> None:
 
 
 # --- Production guards -------------------------------------------------------
+
+
+async def test_publish_blocks_when_automation_paused() -> None:
+    service = _service()
+    service._automation_control.block_queue_if_paused = AsyncMock(
+        side_effect=AppError(
+            code="automation.paused.queue_blocked",
+            message="Automation is currently paused. New executions cannot be queued.",
+            status_code=409,
+        )
+    )
+    service._trigger_repo.get_by_event_type = AsyncMock(return_value=[])
+
+    with pytest.raises(AppError) as exc_info:
+        await service.publish(_event())
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "automation.paused.queue_blocked"
+    service._event_repo.add.assert_not_called()
+    service._trigger_repo.get_by_event_type.assert_not_awaited()
+    assert read_counter("event_publish_total") == 0
 
 
 async def test_publish_rejects_oversized_payload() -> None:

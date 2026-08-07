@@ -118,6 +118,25 @@ class Settings(BaseSettings):
     # Seconds a queued execution may spend in RUNNING before the worker marks
     # it timed out (guards against adapters that hang without raising).
     EXECUTION_TIMEOUT_SECONDS: int = 300
+    # Max un-drained (QUEUED + RETRYING) executions per organization. ``queue()``
+    # refuses with 409 once the cap is reached; EXECUTION_MANAGE bypasses it.
+    EXECUTION_MAX_PENDING_PER_ORG: int = 500
+    # Max candidate organizations visited by the fair-drain sweep in one poll;
+    # candidates are ordered oldest-first so no org starves the queue.
+    EXECUTION_ORGS_PER_SWEEP: int = 20
+    # Per-session statement timeout applied to worker sessions (seconds), so a
+    # runaway sweep query can never pin a DB connection for long.
+    EXECUTION_STATEMENT_TIMEOUT_SECONDS: int = 30
+
+    # --- Execution data retention ---
+    # Retention sweep is on by default (bounded DELETE in chunks).
+    EXECUTION_RETENTION_ENABLED: bool = True
+    # execution_events older than this (days) are deleted by the retention sweep.
+    EXECUTION_EVENT_RETENTION_DAYS: int = 90
+    # Rows pruned per retention batch (bounds DB + lock time).
+    EXECUTION_RETENTION_BATCH: int = 1000
+    # Cadence (seconds) between retention sweep ticks.
+    EXECUTION_RETENTION_INTERVAL_SECONDS: int = 3600
 
     # --- Builtin (in-process) execution engine ---
     # Max steps executed across a whole definition (incl. nested branches).
@@ -201,6 +220,20 @@ class Settings(BaseSettings):
             raise RuntimeError("EVENT_FANOUT_MAX_TRIGGERS must be >= 1")
         if self.EVENT_MAX_PAYLOAD_BYTES < 1:
             raise RuntimeError("EVENT_MAX_PAYLOAD_BYTES must be >= 1")
+        if self.EXECUTION_BATCH_SIZE < 1:
+            raise RuntimeError("EXECUTION_BATCH_SIZE must be >= 1")
+        if self.EXECUTION_ORGS_PER_SWEEP < 1:
+            raise RuntimeError("EXECUTION_ORGS_PER_SWEEP must be >= 1")
+        if self.EXECUTION_MAX_PENDING_PER_ORG < 1:
+            raise RuntimeError("EXECUTION_MAX_PENDING_PER_ORG must be >= 1")
+        if self.EXECUTION_STATEMENT_TIMEOUT_SECONDS < 1:
+            raise RuntimeError("EXECUTION_STATEMENT_TIMEOUT_SECONDS must be >= 1")
+        if self.EXECUTION_EVENT_RETENTION_DAYS < 1:
+            raise RuntimeError("EXECUTION_EVENT_RETENTION_DAYS must be >= 1")
+        if self.EXECUTION_RETENTION_BATCH < 1:
+            raise RuntimeError("EXECUTION_RETENTION_BATCH must be >= 1")
+        if self.EXECUTION_RETENTION_INTERVAL_SECONDS < 1:
+            raise RuntimeError("EXECUTION_RETENTION_INTERVAL_SECONDS must be >= 1")
 
     def _validate_csp(self) -> None:
         # Lazy import: csp.py reads this module's settings singleton, so it

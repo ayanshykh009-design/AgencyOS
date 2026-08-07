@@ -5,6 +5,7 @@ from app.models.enums import (
     AssignmentStrategy,
     ConversationSender,
     CredentialType,
+    ExecutionEventType,
     ExecutionStatus,
     ImportStatus,
     InviteStatus,
@@ -120,6 +121,26 @@ def test_activity_event_type_values() -> None:
         "trigger_created",
         "trigger_updated",
         "trigger_deleted",
+        "automation_paused",
+        "automation_resumed",
+    }
+
+
+def test_execution_event_type_values() -> None:
+    assert set(ExecutionEventType) == {
+        "queued",
+        "started",
+        "adapter_dispatched",
+        "adapter_returned",
+        "step_started",
+        "step_completed",
+        "step_failed",
+        "retrying",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "timed_out",
+        "timeout_guard",
     }
 
 
@@ -194,6 +215,7 @@ def test_all_enums_are_str_enums() -> None:
         WorkflowStatus,
         WorkflowTriggerType,
         ExecutionStatus,
+        ExecutionEventType,
         CredentialType,
     ):
         assert all(isinstance(member.value, str) for member in enum_cls)
