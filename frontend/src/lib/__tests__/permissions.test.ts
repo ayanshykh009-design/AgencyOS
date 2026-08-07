@@ -52,4 +52,42 @@ describe("permissions", () => {
       expect(can("viewer", permission)).toBe(false);
     }
   });
+
+  it("every role can read Phase 5D context", () => {
+    for (const role of ROLES) {
+      expect(can(role, "memory_read")).toBe(true);
+      expect(can(role, "approval_read")).toBe(true);
+      expect(can(role, "notification_read")).toBe(true);
+      expect(can(role, "agent_read")).toBe(true);
+    }
+  });
+
+  it("notification_write is a team-level action", () => {
+    for (const role of ["owner", "admin", "manager", "member", "sales_agent"] as const) {
+      expect(can(role, "notification_write")).toBe(true);
+    }
+    expect(can("viewer", "notification_write")).toBe(false);
+  });
+
+  it("manager-level Phase 5D permissions require owner, admin, or manager", () => {
+    for (const permission of ["memory_write", "approval_manage", "growth_read"] as const) {
+      expect(can("owner", permission)).toBe(true);
+      expect(can("admin", permission)).toBe(true);
+      expect(can("manager", permission)).toBe(true);
+      expect(can("member", permission)).toBe(false);
+      expect(can("sales_agent", permission)).toBe(false);
+      expect(can("viewer", permission)).toBe(false);
+    }
+  });
+
+  it("admin-only Phase 5D permissions require owner or admin", () => {
+    for (const permission of ["growth_manage", "agent_manage"] as const) {
+      expect(can("owner", permission)).toBe(true);
+      expect(can("admin", permission)).toBe(true);
+      expect(can("manager", permission)).toBe(false);
+      expect(can("member", permission)).toBe(false);
+      expect(can("sales_agent", permission)).toBe(false);
+      expect(can("viewer", permission)).toBe(false);
+    }
+  });
 });

@@ -179,6 +179,28 @@ class Settings(BaseSettings):
     # Cadence (seconds) between rekey sweeps.
     CREDENTIAL_REKEY_INTERVAL_SECONDS: int = 3600
 
+    # --- Phase 5D AI Intelligence Layer (foundation) ---
+    # Feature flags gate each Phase 5D subsystem. Defaults are OFF until a
+    # subsystem ships and passes its quality gate; consumers must treat an
+    # OFF flag as "feature unavailable" (fail closed).
+    AGENT_RUNTIME_ENABLED: bool = False
+    AI_MEMORY_ENABLED: bool = False
+    COMMUNICATION_LAYER_ENABLED: bool = False
+    GROWTH_AGENT_ENABLED: bool = False
+
+    # Bounds on the Phase 5D data lifecycle. Recorded in M1 so the design
+    # defaults stay config-driven once each subsystem ships (see the approved
+    # Phase 5D documentation: database design / communication layer).
+    # Working memory (conversation / research / workflow / shared context) is
+    # ephemeral: entries older than this are eligible for TTL cleanup.
+    MEMORY_WORKING_TTL_DAYS: int = 30
+    # In-app notifications are pruned after this many days.
+    NOTIFICATION_RETENTION_DAYS: int = 90
+    # Approval requests auto-expire (deny) after this many hours.
+    APPROVAL_EXPIRY_HOURS: int = 24
+    # Growth metrics rows are pruned after this many days (36 months).
+    GROWTH_METRICS_RETENTION_DAYS: int = 1095
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS_ORIGINS into a list of allowed origins."""
@@ -235,6 +257,16 @@ class Settings(BaseSettings):
         if self.EXECUTION_RETENTION_INTERVAL_SECONDS < 1:
             raise RuntimeError("EXECUTION_RETENTION_INTERVAL_SECONDS must be >= 1")
 
+    def _validate_phase5d(self) -> None:
+        if self.MEMORY_WORKING_TTL_DAYS < 1:
+            raise RuntimeError("MEMORY_WORKING_TTL_DAYS must be >= 1")
+        if self.NOTIFICATION_RETENTION_DAYS < 1:
+            raise RuntimeError("NOTIFICATION_RETENTION_DAYS must be >= 1")
+        if self.APPROVAL_EXPIRY_HOURS < 1:
+            raise RuntimeError("APPROVAL_EXPIRY_HOURS must be >= 1")
+        if self.GROWTH_METRICS_RETENTION_DAYS < 1:
+            raise RuntimeError("GROWTH_METRICS_RETENTION_DAYS must be >= 1")
+
     def _validate_csp(self) -> None:
         # Lazy import: csp.py reads this module's settings singleton, so it
         # cannot be imported at module load time without a cycle.
@@ -249,6 +281,7 @@ class Settings(BaseSettings):
         """Environment-agnostic startup validation (called on every boot)."""
         self._validate_redis_url()
         self._validate_enc_key()
+        self._validate_phase5d()
         self._validate_csp()
 
     def validate_for_production(self) -> None:
@@ -265,6 +298,7 @@ class Settings(BaseSettings):
             raise RuntimeError("ENABLE_CSP must be enabled in production")
         self._validate_redis_url()
         self._validate_enc_key()
+        self._validate_phase5d()
         self._validate_csp()
 
 

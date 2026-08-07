@@ -68,3 +68,31 @@ def test_production_validation_rejects_bad_redis() -> None:
     )
     with pytest.raises(RuntimeError, match="REDIS_URL"):
         settings.validate_for_production()
+
+
+def test_phase5d_validation_rejects_zero_ttl() -> None:
+    settings = Settings(MEMORY_WORKING_TTL_DAYS=0)
+    with pytest.raises(RuntimeError, match="MEMORY_WORKING_TTL_DAYS"):
+        settings.validate_runtime()
+
+
+def test_phase5d_validation_rejects_zero_notification_retention() -> None:
+    settings = Settings(NOTIFICATION_RETENTION_DAYS=0)
+    with pytest.raises(RuntimeError, match="NOTIFICATION_RETENTION_DAYS"):
+        settings.validate_runtime()
+
+
+def test_phase5d_validation_rejects_zero_approval_expiry() -> None:
+    settings = Settings(APPROVAL_EXPIRY_HOURS=0)
+    with pytest.raises(RuntimeError, match="APPROVAL_EXPIRY_HOURS"):
+        settings.validate_runtime()
+
+
+def test_phase5d_validation_rejects_zero_growth_retention() -> None:
+    settings = Settings(GROWTH_METRICS_RETENTION_DAYS=0)
+    with pytest.raises(RuntimeError, match="GROWTH_METRICS_RETENTION_DAYS"):
+        settings.validate_runtime()
+
+
+def test_phase5d_defaults_pass_runtime_validation() -> None:
+    Settings().validate_runtime()  # must not raise

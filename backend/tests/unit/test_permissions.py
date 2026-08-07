@@ -93,3 +93,46 @@ def test_credential_delete_is_admin_only() -> None:
         assert has_permission(role, Permission.CREDENTIAL_DELETE)
     for role in [UserRole.MANAGER, UserRole.MEMBER, UserRole.SALES_AGENT, UserRole.VIEWER]:
         assert not has_permission(role, Permission.CREDENTIAL_DELETE)
+
+
+def test_phase5d_read_permissions_grant_every_role() -> None:
+    for permission in [
+        Permission.MEMORY_READ,
+        Permission.APPROVAL_READ,
+        Permission.NOTIFICATION_READ,
+        Permission.AGENT_READ,
+    ]:
+        for role in ALL_ROLES:
+            assert has_permission(role, permission)
+
+
+def test_phase5d_notification_write_excludes_viewers() -> None:
+    for role in [
+        UserRole.OWNER,
+        UserRole.ADMIN,
+        UserRole.MANAGER,
+        UserRole.MEMBER,
+        UserRole.SALES_AGENT,
+    ]:
+        assert has_permission(role, Permission.NOTIFICATION_WRITE)
+    assert not has_permission(UserRole.VIEWER, Permission.NOTIFICATION_WRITE)
+
+
+def test_phase5d_manage_permissions_require_manager() -> None:
+    for permission in [
+        Permission.MEMORY_WRITE,
+        Permission.APPROVAL_MANAGE,
+        Permission.GROWTH_READ,
+    ]:
+        for role in MANAGE_ROLES:
+            assert has_permission(role, permission)
+        for role in [UserRole.MEMBER, UserRole.SALES_AGENT, UserRole.VIEWER]:
+            assert not has_permission(role, permission)
+
+
+def test_phase5d_manage_permissions_are_admin_only() -> None:
+    for permission in [Permission.GROWTH_MANAGE, Permission.AGENT_MANAGE]:
+        for role in [UserRole.OWNER, UserRole.ADMIN]:
+            assert has_permission(role, permission)
+        for role in [UserRole.MANAGER, UserRole.MEMBER, UserRole.SALES_AGENT, UserRole.VIEWER]:
+            assert not has_permission(role, permission)

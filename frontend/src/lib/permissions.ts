@@ -30,7 +30,17 @@ export type PermissionKey =
   | "execution_manage"
   | "credential_read"
   | "credential_write"
-  | "credential_delete";
+  | "credential_delete"
+  | "memory_read"
+  | "memory_write"
+  | "approval_read"
+  | "approval_manage"
+  | "notification_read"
+  | "notification_write"
+  | "growth_read"
+  | "growth_manage"
+  | "agent_read"
+  | "agent_manage";
 
 const _READ: UserRole[] = ["owner", "admin", "manager", "member", "sales_agent", "viewer"];
 const _WRITE: UserRole[] = ["owner", "admin", "manager", "member", "sales_agent"];
@@ -65,6 +75,16 @@ const PERMISSION_MATRIX: Record<PermissionKey, UserRole[]> = {
   credential_read: _READ,
   credential_write: _WRITE,
   credential_delete: _ADMIN_ONLY,
+  memory_read: _READ,
+  memory_write: _MANAGE,
+  approval_read: _READ,
+  approval_manage: _MANAGE,
+  notification_read: _READ,
+  notification_write: _WRITE,
+  growth_read: _MANAGE,
+  growth_manage: _ADMIN_ONLY,
+  agent_read: _READ,
+  agent_manage: _ADMIN_ONLY,
 };
 
 /** Return whether a role may perform a named capability. */

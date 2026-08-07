@@ -82,6 +82,17 @@ class Permission(StrEnum):
     CREDENTIAL_READ = "credential_read"
     CREDENTIAL_WRITE = "credential_write"
     CREDENTIAL_DELETE = "credential_delete"
+    # Phase 5D AI Intelligence Layer
+    MEMORY_READ = "memory_read"
+    MEMORY_WRITE = "memory_write"
+    APPROVAL_READ = "approval_read"
+    APPROVAL_MANAGE = "approval_manage"
+    NOTIFICATION_READ = "notification_read"
+    NOTIFICATION_WRITE = "notification_write"
+    GROWTH_READ = "growth_read"
+    GROWTH_MANAGE = "growth_manage"
+    AGENT_READ = "agent_read"
+    AGENT_MANAGE = "agent_manage"
 
 
 PERMISSION_MATRIX: dict[Permission, set[UserRole]] = {
@@ -116,6 +127,17 @@ PERMISSION_MATRIX: dict[Permission, set[UserRole]] = {
     Permission.CREDENTIAL_READ: _READ,
     Permission.CREDENTIAL_WRITE: _WRITE,
     Permission.CREDENTIAL_DELETE: _ADMIN_ONLY,
+    # Phase 5D AI Intelligence Layer
+    Permission.MEMORY_READ: _READ,
+    Permission.MEMORY_WRITE: _MANAGE,
+    Permission.APPROVAL_READ: _READ,
+    Permission.APPROVAL_MANAGE: _MANAGE,
+    Permission.NOTIFICATION_READ: _READ,
+    Permission.NOTIFICATION_WRITE: _WRITE,
+    Permission.GROWTH_READ: _MANAGE,
+    Permission.GROWTH_MANAGE: _ADMIN_ONLY,
+    Permission.AGENT_READ: _READ,
+    Permission.AGENT_MANAGE: _ADMIN_ONLY,
 }
 
 
