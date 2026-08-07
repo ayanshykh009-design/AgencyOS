@@ -9,19 +9,30 @@ from sqlalchemy.sql.schema import Computed, Index
 
 from app.models import (
     ActivityLog,
+    AgentRun,
+    AgentState,
+    AiMemory,
+    ApprovalLog,
+    ApprovalRequest,
     Base,
+    Briefing,
+    BusinessInsight,
     Conversation,
     ConversationMessage,
     Credential,
     ExecutionEvent,
     FollowUp,
+    GrowthForecast,
+    GrowthMetric,
     ImportJob,
     ImportRowError,
+    KnowledgeItem,
     Lead,
     LeadResearch,
     LeadSource,
     ManualOutreachQueue,
     Note,
+    Notification,
     Organization,
     OutreachAttempt,
     OutreachMessage,
@@ -64,6 +75,17 @@ ALL_MODELS = (
     ExecutionEvent,
     WorkerHealth,
     SystemSetting,
+    AiMemory,
+    KnowledgeItem,
+    AgentRun,
+    AgentState,
+    Notification,
+    ApprovalRequest,
+    ApprovalLog,
+    Briefing,
+    GrowthMetric,
+    GrowthForecast,
+    BusinessInsight,
 )
 
 
@@ -108,6 +130,17 @@ def test_uuid_primary_key(model: type) -> None:
         WorkflowEvent,
         Credential,
         ExecutionEvent,
+        AiMemory,
+        KnowledgeItem,
+        AgentRun,
+        AgentState,
+        Notification,
+        ApprovalRequest,
+        ApprovalLog,
+        Briefing,
+        GrowthMetric,
+        GrowthForecast,
+        BusinessInsight,
     ],
 )
 def test_tenant_scoped_with_org_fk(model: type) -> None:
@@ -140,10 +173,27 @@ def test_updated_at_on_mutable_tables() -> None:
         Credential,
         WorkerHealth,
         SystemSetting,
+        AiMemory,
+        KnowledgeItem,
+        AgentRun,
+        AgentState,
+        Notification,
+        ApprovalRequest,
+        Briefing,
+        GrowthMetric,
+        GrowthForecast,
+        BusinessInsight,
     }
     for model in mutable:
         assert "updated_at" in Base.metadata.tables[model.__tablename__].c
-    append_only = {ConversationMessage, ActivityLog, ImportRowError, WorkflowEvent, ExecutionEvent}
+    append_only = {
+        ConversationMessage,
+        ActivityLog,
+        ImportRowError,
+        WorkflowEvent,
+        ExecutionEvent,
+        ApprovalLog,
+    }
     for model in append_only:
         assert "updated_at" not in Base.metadata.tables[model.__tablename__].c
 

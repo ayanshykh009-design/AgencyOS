@@ -4,6 +4,41 @@ Request/response models that define the public JSON shape of the API.
 Keep them independent from ORM models (map explicitly, avoid dumping models).
 """
 from app.schemas.activity import ActivityLogCreate, ActivityLogRead
+from app.schemas.agent_run import (
+    AgentRunCreate,
+    AgentRunListResponse,
+    AgentRunRead,
+    AgentRunUpdate,
+)
+from app.schemas.agent_state import (
+    AgentStateListResponse,
+    AgentStateRead,
+    AgentStateUpsert,
+)
+from app.schemas.ai_memory import (
+    AiMemoryCreate,
+    AiMemoryListResponse,
+    AiMemoryRead,
+)
+from app.schemas.approval import (
+    ApprovalLogListResponse,
+    ApprovalLogRead,
+    ApprovalRequestCreate,
+    ApprovalRequestDecision,
+    ApprovalRequestListResponse,
+    ApprovalRequestRead,
+)
+from app.schemas.briefing import (
+    BriefingCreate,
+    BriefingListResponse,
+    BriefingRead,
+)
+from app.schemas.business_insight import (
+    BusinessInsightCreate,
+    BusinessInsightListResponse,
+    BusinessInsightRead,
+    BusinessInsightUpdate,
+)
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationMessageCreate,
@@ -17,12 +52,26 @@ from app.schemas.credential import (
     CredentialUpdate,
 )
 from app.schemas.execution_event import ExecutionEventListResponse, ExecutionEventRead
+from app.schemas.growth import (
+    GrowthForecastCreate,
+    GrowthForecastListResponse,
+    GrowthForecastRead,
+    GrowthMetricCreate,
+    GrowthMetricListResponse,
+    GrowthMetricRead,
+)
 from app.schemas.imports import (
     ImportJobCreate,
     ImportJobRead,
     ImportJobUpdate,
     ImportRowErrorCreate,
     ImportRowErrorRead,
+)
+from app.schemas.knowledge_item import (
+    KnowledgeItemCreate,
+    KnowledgeItemListResponse,
+    KnowledgeItemRead,
+    KnowledgeItemUpdate,
 )
 from app.schemas.lead import LeadCreate, LeadRead, LeadUpdate
 from app.schemas.lead_research import (
@@ -50,6 +99,12 @@ from app.schemas.monitoring import (
     SystemHealth,
     WorkerHealthSummary,
     WorkerStatisticsResponse,
+)
+from app.schemas.notification import (
+    NotificationCreate,
+    NotificationListResponse,
+    NotificationRead,
+    NotificationUpdate,
 )
 from app.schemas.organization import OrganizationCreate, OrganizationRead, OrganizationUpdate
 from app.schemas.outreach import (
@@ -98,6 +153,29 @@ from app.schemas.workflow_trigger import (
 __all__ = [
     "ActivityLogCreate",
     "ActivityLogRead",
+    "AgentRunCreate",
+    "AgentRunListResponse",
+    "AgentRunRead",
+    "AgentRunUpdate",
+    "AgentStateListResponse",
+    "AgentStateRead",
+    "AgentStateUpsert",
+    "AiMemoryCreate",
+    "AiMemoryListResponse",
+    "AiMemoryRead",
+    "ApprovalLogListResponse",
+    "ApprovalLogRead",
+    "ApprovalRequestCreate",
+    "ApprovalRequestDecision",
+    "ApprovalRequestListResponse",
+    "ApprovalRequestRead",
+    "BriefingCreate",
+    "BriefingListResponse",
+    "BriefingRead",
+    "BusinessInsightCreate",
+    "BusinessInsightListResponse",
+    "BusinessInsightRead",
+    "BusinessInsightUpdate",
     "CredentialCreate",
     "CredentialRead",
     "CredentialUpdate",
@@ -111,11 +189,21 @@ __all__ = [
     "FollowUpCreate",
     "FollowUpRead",
     "FollowUpUpdate",
+    "GrowthForecastCreate",
+    "GrowthForecastListResponse",
+    "GrowthForecastRead",
+    "GrowthMetricCreate",
+    "GrowthMetricListResponse",
+    "GrowthMetricRead",
     "ImportJobCreate",
     "ImportJobRead",
     "ImportJobUpdate",
     "ImportRowErrorCreate",
     "ImportRowErrorRead",
+    "KnowledgeItemCreate",
+    "KnowledgeItemListResponse",
+    "KnowledgeItemRead",
+    "KnowledgeItemUpdate",
     "LeadCreate",
     "LeadRead",
     "LeadResearchCreate",
@@ -146,6 +234,10 @@ __all__ = [
     "SystemHealth",
     "WorkerHealthSummary",
     "WorkerStatisticsResponse",
+    "NotificationCreate",
+    "NotificationListResponse",
+    "NotificationRead",
+    "NotificationUpdate",
     "OrganizationCreate",
     "OrganizationRead",
     "OrganizationUpdate",

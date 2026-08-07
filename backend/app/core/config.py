@@ -200,6 +200,8 @@ class Settings(BaseSettings):
     APPROVAL_EXPIRY_HOURS: int = 24
     # Growth metrics rows are pruned after this many days (36 months).
     GROWTH_METRICS_RETENTION_DAYS: int = 1095
+    # Agent run records are pruned after this many days (configurable).
+    AGENT_RUN_RETENTION_DAYS: int = 90
 
     @property
     def cors_origins_list(self) -> list[str]:
@@ -266,6 +268,8 @@ class Settings(BaseSettings):
             raise RuntimeError("APPROVAL_EXPIRY_HOURS must be >= 1")
         if self.GROWTH_METRICS_RETENTION_DAYS < 1:
             raise RuntimeError("GROWTH_METRICS_RETENTION_DAYS must be >= 1")
+        if self.AGENT_RUN_RETENTION_DAYS < 1:
+            raise RuntimeError("AGENT_RUN_RETENTION_DAYS must be >= 1")
 
     def _validate_csp(self) -> None:
         # Lazy import: csp.py reads this module's settings singleton, so it

@@ -246,3 +246,130 @@ class CredentialType(StrEnum):
     N8N_API_KEY = "n8n_api_key"
     API_KEY = "api_key"
     BASIC_AUTH = "basic_auth"
+
+
+class MemoryType(StrEnum):
+    """Persistence class of an AI memory row.
+
+    ``working`` memories are ephemeral (pruned after ``MEMORY_WORKING_TTL_DAYS``);
+    ``long_term`` memories are durable and never auto-deleted.
+    """
+
+    WORKING = "working"
+    LONG_TERM = "long_term"
+
+
+class MemoryScope(StrEnum):
+    """Where an AI memory came from / applies to."""
+
+    CONVERSATION = "conversation"
+    RESEARCH = "research"
+    WORKFLOW = "workflow"
+    SHARED_CONTEXT = "shared_context"
+    KNOWLEDGE = "knowledge"
+    MANUAL = "manual"
+
+
+class AgentRunStatus(StrEnum):
+    """Lifecycle of a single agent run."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class AgentRunTrigger(StrEnum):
+    """How an agent run was started."""
+
+    MANUAL = "manual"
+    SCHEDULE = "schedule"
+    WORKFLOW = "workflow"
+    EVENT = "event"
+
+
+class AgentStateStatus(StrEnum):
+    """Lifecycle of an agent definition."""
+
+    ACTIVE = "active"
+    PAUSED = "paused"
+    DEGRADED = "degraded"
+    DISABLED = "disabled"
+
+
+class AgentHealth(StrEnum):
+    """Rolling health signal for an agent."""
+
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    UNHEALTHY = "unhealthy"
+
+
+class NotificationType(StrEnum):
+    """Category of an in-app notification."""
+
+    APPROVAL_REQUEST = "approval_request"
+    APPROVAL_RESULT = "approval_result"
+    WORKFLOW_EVENT = "workflow_event"
+    AGENT_EVENT = "agent_event"
+    SYSTEM = "system"
+    BRIEFING = "briefing"
+    INSIGHT = "insight"
+
+
+class ApprovalRequestStatus(StrEnum):
+    """Lifecycle of a gated approval request."""
+
+    PENDING = "pending"
+    APPROVED = "approved"
+    DENIED = "denied"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+
+class ApprovalLogAction(StrEnum):
+    """Action recorded in the immutable approval audit log."""
+
+    REQUESTED = "requested"
+    NOTIFIED = "notified"
+    APPROVED = "approved"
+    DENIED = "denied"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+
+class BriefingType(StrEnum):
+    """Cadence of a generated founder briefing."""
+
+    DAILY = "daily"
+    WEEKLY = "weekly"
+    MANUAL = "manual"
+
+
+class InsightType(StrEnum):
+    """Category of a generated business insight."""
+
+    OPPORTUNITY = "opportunity"
+    RISK = "risk"
+    TREND = "trend"
+    ANOMALY = "anomaly"
+    RECOMMENDATION = "recommendation"
+
+
+class InsightSeverity(StrEnum):
+    """Urgency of a business insight."""
+
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class InsightStatus(StrEnum):
+    """Triage lifecycle of a business insight."""
+
+    ACTIVE = "active"
+    ACKNOWLEDGED = "acknowledged"
+    DISMISSED = "dismissed"

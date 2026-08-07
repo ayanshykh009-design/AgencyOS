@@ -5,20 +5,31 @@ schema). Models stay dumb (fields + relationships only); behavior lives in
 services.
 """
 from app.models.activity_log import ActivityLog
+from app.models.agent_run import AgentRun
+from app.models.agent_state import AgentState
+from app.models.ai_memory import AiMemory
+from app.models.approval_log import ApprovalLog
+from app.models.approval_request import ApprovalRequest
 from app.models.base import Base
+from app.models.briefing import Briefing
+from app.models.business_insight import BusinessInsight
 from app.models.close_reason import CloseReason
 from app.models.conversation import Conversation
 from app.models.conversation_message import ConversationMessage
 from app.models.credential import Credential
 from app.models.execution_event import ExecutionEvent
 from app.models.follow_up import FollowUp
+from app.models.growth_forecast import GrowthForecast
+from app.models.growth_metric import GrowthMetric
 from app.models.import_job import ImportJob
 from app.models.import_row_error import ImportRowError
+from app.models.knowledge_item import KnowledgeItem
 from app.models.lead import Lead
 from app.models.lead_research import LeadResearch
 from app.models.lead_source import LeadSource
 from app.models.manual_outreach_queue import ManualOutreachQueue
 from app.models.note import Note
+from app.models.notification import Notification
 from app.models.organization import Organization
 from app.models.outreach_attempt import OutreachAttempt
 from app.models.outreach_message import OutreachMessage
@@ -36,19 +47,30 @@ from app.models.workflow_trigger import WorkflowTrigger
 
 __all__ = [
     "ActivityLog",
+    "AgentRun",
+    "AgentState",
+    "AiMemory",
+    "ApprovalLog",
+    "ApprovalRequest",
     "Base",
+    "Briefing",
+    "BusinessInsight",
     "CloseReason",
     "Conversation",
     "ConversationMessage",
     "Credential",
     "ExecutionEvent",
     "FollowUp",
+    "GrowthForecast",
+    "GrowthMetric",
     "ImportJob",
     "ImportRowError",
+    "KnowledgeItem",
     "Lead",
     "LeadResearch",
     "LeadSource",
     "ManualOutreachQueue",
+    "Notification",
     "Note",
     "Organization",
     "OutreachAttempt",

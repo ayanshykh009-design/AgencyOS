@@ -103,7 +103,9 @@ def test_migrations_apply_cleanly(migrated_db) -> None:
         "schema_migrations", "workflows", "workflow_triggers",
         "workflow_executions", "workflow_events", "credentials",
         "credential_key_versions", "execution_events", "worker_health",
-        "system_settings",
+        "system_settings", "ai_memories", "knowledge_items", "agent_runs",
+        "agent_state", "notifications", "approval_requests", "approval_logs",
+        "briefings", "growth_metrics", "growth_forecasts", "business_insights",
     }
     with migrated_db.cursor() as cur:
         cur.execute(
@@ -519,6 +521,104 @@ def test_migration_0017_idempotency_unique_per_org(migrated_db) -> None:
                 (org_a, workflow_id),
             )
     migrated_db.rollback()
+
+
+def test_migration_0018_phase5d_database_layer_additive_idempotent(migrated_db) -> None:
+    """0018 adds the AI layer tables + enums + indexes.
+
+    Re-applying must be a no-op that does not touch existing rows.
+    """
+    with migrated_db.cursor() as cur:
+        for table in (
+            "ai_memories", "knowledge_items", "agent_runs", "agent_state",
+            "notifications", "approval_requests", "approval_logs", "briefings",
+            "growth_metrics", "growth_forecasts", "business_insights",
+        ):
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = 'public' AND table_name = %s)",
+                (table,),
+            )
+            assert cur.fetchone()[0] is True
+        for enum_name in (
+            "memory_type", "memory_scope", "agent_run_status", "agent_run_trigger",
+            "agent_state_status", "agent_health", "notification_type",
+            "approval_request_status", "approval_log_action", "briefing_type",
+            "insight_type", "insight_severity", "insight_status",
+        ):
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM pg_type t "
+                "JOIN pg_namespace n ON n.oid = t.typnamespace "
+                "WHERE n.nspname = 'public' AND t.typname = %s)",
+                (enum_name,),
+            )
+            assert cur.fetchone()[0] is True
+        for index in (
+            "idx_ai_memories_working_ttl",
+            "uq_agent_state_org_agent",
+            "idx_notifications_user_unread",
+            "idx_approval_requests_pending_expiry",
+            "idx_approval_logs_org_occurred",
+            "uq_growth_metrics_org_type_period",
+            "idx_business_insights_source",
+        ):
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' "
+                "AND indexname = %s)",
+                (index,),
+            )
+            assert cur.fetchone()[0] is True
+        # approval_logs is append-only: no updated_at column.
+        cur.execute(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'approval_logs' "
+            "AND column_name = 'updated_at')"
+        )
+        assert cur.fetchone()[0] is False
+        # RLS is enabled on every new table.
+        cur.execute(
+            "SELECT count(*) FROM pg_tables WHERE schemaname = 'public' "
+            "AND relrowsecurity = true AND tablename IN ("
+            "'ai_memories', 'knowledge_items', 'agent_runs', 'agent_state', "
+            "'notifications', 'approval_requests', 'approval_logs', 'briefings', "
+            "'growth_metrics', 'growth_forecasts', 'business_insights')"
+        )
+        assert cur.fetchone()[0] == 11
+
+    org_id = str(uuid.uuid4())
+    _insert_org(migrated_db, org_id)
+    migration_0018 = (MIGRATIONS_DIR / "0018_phase5d_database_layer.sql").read_text(
+        encoding="utf-8"
+    )
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.ai_memories (organization_id, scope, content) "
+            "VALUES (%s, 'research', 'memory row') RETURNING id, memory_type",
+            (org_id,),
+        )
+        memory_id, memory_type = cur.fetchone()
+        assert memory_type == "working"
+        cur.execute(
+            "INSERT INTO public.approval_requests (organization_id, title) "
+            "VALUES (%s, 'approval row') RETURNING id, status",
+            (org_id,),
+        )
+        approval_id, approval_status = cur.fetchone()
+        assert approval_status == "pending"
+
+        # Re-applying 0018 must be a safe no-op and must not touch existing rows.
+        cur.execute(migration_0018)
+        cur.execute(
+            "SELECT scope, content FROM public.ai_memories WHERE id = %s",
+            (memory_id,),
+        )
+        assert cur.fetchone() == ("research", "memory row")
+        cur.execute(
+            "SELECT title, status FROM public.approval_requests WHERE id = %s",
+            (approval_id,),
+        )
+        assert cur.fetchone() == ("approval row", "pending")
+    migrated_db.commit()
 
 
 def test_retention_chunked_delete_respects_batch(migrated_db) -> None:

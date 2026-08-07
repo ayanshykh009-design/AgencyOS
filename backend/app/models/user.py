@@ -13,6 +13,7 @@ from app.models.enums import UserRole
 
 if TYPE_CHECKING:
     from app.models.credential import Credential
+    from app.models.notification import Notification
     from app.models.organization import Organization
     from app.models.workflow import Workflow
     from app.models.workflow_execution import WorkflowExecution
@@ -52,6 +53,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         foreign_keys="WorkflowExecution.requested_by_user_id",
     )
     created_credentials: Mapped[list[Credential]] = relationship(back_populates="created_by")
+    notifications: Mapped[list[Notification]] = relationship(back_populates="user")
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<User id={self.id} email={self.email!r}>"

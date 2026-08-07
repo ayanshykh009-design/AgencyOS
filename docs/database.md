@@ -26,7 +26,8 @@ model, the Pydantic schemas, and this doc in the same change.
 - **Audit columns:** every mutable table has `created_at` and `updated_at`
   (`TimestampMixin`); `updated_at` is maintained by the `set_updated_at()`
   trigger. Append-only tables (`conversation_messages`, `activity_logs`,
-  `import_row_errors`) keep only `created_at`.
+  `import_row_errors`, `execution_events`, `approval_logs`) keep only
+  `created_at` (no `updated_at`, no write/delete RLS policies).
 - **Soft delete:** `leads.deleted_at` (nullable) for tenant data; prefer soft
   delete over hard `DELETE` in the service layer.
 - **Timestamps:** always `timestamptz`, stored UTC.
@@ -75,6 +76,17 @@ model, the Pydantic schemas, and this doc in the same change.
 | 29| `system_settings`      | Operator key/value settings (automation kill switch) |
 | 30| `credentials`          | Envelope-encrypted org secrets            |
 | 31| `credential_key_versions` | Key-rotation ledger                     |
+| 32| `ai_memories`          | Working + long-term AI memory store (working rows TTL-pruned via `MEMORY_WORKING_TTL_DAYS`) |
+| 33| `knowledge_items`      | Durable long-term knowledge (optionally promoted from a working memory) |
+| 34| `agent_runs`           | Per-run agent execution records (retention via `AGENT_RUN_RETENTION_DAYS`) |
+| 35| `agent_state`          | Per-agent health bookkeeping (one row per org + agent, unique index) |
+| 36| `notifications`        | Per-user in-app inbox (retention via `NOTIFICATION_RETENTION_DAYS`) |
+| 37| `approval_requests`    | Workflow-gated approval requests (auto-expire at `expires_at`) |
+| 38| `approval_logs`        | Immutable approval audit trail (append-only) |
+| 39| `briefings`            | Generated founder briefings (daily/weekly/manual) |
+| 40| `growth_metrics`       | Periodized growth/performance rows (retention via `GROWTH_METRICS_RETENTION_DAYS`) |
+| 41| `growth_forecasts`     | Deterministic growth forecasts (horizon + confidence band) |
+| 42| `business_insights`    | Generated business insights (triage lifecycle, polymorphic source ref) |
 
 See the ERD in [diagrams/database-erd.md](diagrams/database-erd.md).
 
@@ -92,6 +104,19 @@ Defined in `database/migrations/enums/` and materialized by `0001_core_enums.sql
 | `activity_event_type` | `lead_imported`, `research_completed`, `score_generated`, `email_sent`, `whatsapp_sent`, `manual_message_completed`, `reply_received`, `meeting_booked`, `proposal_sent`, `lead_won`, `lead_lost`, `execution_queued`, `execution_started`, `execution_completed`, `execution_failed`, `execution_retried`, `execution_cancelled`, `workflow_activated`, `workflow_paused`, `workflow_archived`, `automation_paused`, `automation_resumed` |
 | `conversation_sender` | `lead`, `agent`, `system`                                                     |
 | `execution_event_type` | `queued`, `started`, `adapter_dispatched`, `adapter_returned`, `step_started`, `step_completed`, `step_failed`, `retrying`, `succeeded`, `failed`, `cancelled`, `timed_out`, `timeout_guard` |
+| `memory_type`         | `working`, `long_term` (working is TTL-pruned; long_term is durable)       |
+| `memory_scope`         | `conversation`, `research`, `workflow`, `shared_context`, `knowledge`, `manual` |
+| `agent_run_status`     | `queued`, `running`, `succeeded`, `failed`, `cancelled`                   |
+| `agent_run_trigger`    | `manual`, `schedule`, `workflow`, `event`                                  |
+| `agent_state_status`   | `active`, `paused`, `degraded`, `disabled`                                 |
+| `agent_health`         | `healthy`, `degraded`, `unhealthy`                                         |
+| `notification_type`    | `approval_request`, `approval_result`, `workflow_event`, `agent_event`, `system`, `briefing`, `insight` |
+| `approval_request_status` | `pending`, `approved`, `denied`, `expired`, `cancelled`                 |
+| `approval_log_action`  | `requested`, `notified`, `approved`, `denied`, `expired`, `cancelled`      |
+| `briefing_type`        | `daily`, `weekly`, `manual`                                                |
+| `insight_type`         | `opportunity`, `risk`, `trend`, `anomaly`, `recommendation`               |
+| `insight_severity`     | `info`, `low`, `medium`, `high`, `critical`                                |
+| `insight_status`       | `active`, `acknowledged`, `dismissed`                                      |
 
 The backend mirrors every enum in `backend/app/models/enums.py`. Never rename
 or reorder values after release; add new ones via `ALTER TYPE ... ADD VALUE`.

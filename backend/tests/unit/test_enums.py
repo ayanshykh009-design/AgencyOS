@@ -1,15 +1,28 @@
 """Unit tests: enum value sets must match the database enum definitions."""
 from app.models.enums import (
     ActivityEventType,
+    AgentHealth,
+    AgentRunStatus,
+    AgentRunTrigger,
+    AgentStateStatus,
+    ApprovalLogAction,
+    ApprovalRequestStatus,
     AssignmentMethod,
     AssignmentStrategy,
+    BriefingType,
     ConversationSender,
     CredentialType,
     ExecutionEventType,
     ExecutionStatus,
     ImportStatus,
+    InsightSeverity,
+    InsightStatus,
+    InsightType,
     InviteStatus,
     LeadStatus,
+    MemoryScope,
+    MemoryType,
+    NotificationType,
     OutreachChannel,
     OutreachStatus,
     RecurrenceFrequency,
@@ -196,6 +209,98 @@ def test_credential_type_values() -> None:
     assert set(CredentialType) == {"n8n_api_key", "api_key", "basic_auth"}
 
 
+def test_memory_type_values() -> None:
+    assert set(MemoryType) == {"working", "long_term"}
+
+
+def test_memory_scope_values() -> None:
+    assert set(MemoryScope) == {
+        "conversation",
+        "research",
+        "workflow",
+        "shared_context",
+        "knowledge",
+        "manual",
+    }
+
+
+def test_agent_run_status_values() -> None:
+    assert set(AgentRunStatus) == {
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+    }
+
+
+def test_agent_run_trigger_values() -> None:
+    assert set(AgentRunTrigger) == {"manual", "schedule", "workflow", "event"}
+
+
+def test_agent_state_status_values() -> None:
+    assert set(AgentStateStatus) == {"active", "paused", "degraded", "disabled"}
+
+
+def test_agent_health_values() -> None:
+    assert set(AgentHealth) == {"healthy", "degraded", "unhealthy"}
+
+
+def test_notification_type_values() -> None:
+    assert set(NotificationType) == {
+        "approval_request",
+        "approval_result",
+        "workflow_event",
+        "agent_event",
+        "system",
+        "briefing",
+        "insight",
+    }
+
+
+def test_approval_request_status_values() -> None:
+    assert set(ApprovalRequestStatus) == {
+        "pending",
+        "approved",
+        "denied",
+        "expired",
+        "cancelled",
+    }
+
+
+def test_approval_log_action_values() -> None:
+    assert set(ApprovalLogAction) == {
+        "requested",
+        "notified",
+        "approved",
+        "denied",
+        "expired",
+        "cancelled",
+    }
+
+
+def test_briefing_type_values() -> None:
+    assert set(BriefingType) == {"daily", "weekly", "manual"}
+
+
+def test_insight_type_values() -> None:
+    assert set(InsightType) == {
+        "opportunity",
+        "risk",
+        "trend",
+        "anomaly",
+        "recommendation",
+    }
+
+
+def test_insight_severity_values() -> None:
+    assert set(InsightSeverity) == {"info", "low", "medium", "high", "critical"}
+
+
+def test_insight_status_values() -> None:
+    assert set(InsightStatus) == {"active", "acknowledged", "dismissed"}
+
+
 def test_all_enums_are_str_enums() -> None:
     for enum_cls in (
         UserRole,
@@ -217,6 +322,19 @@ def test_all_enums_are_str_enums() -> None:
         ExecutionStatus,
         ExecutionEventType,
         CredentialType,
+        MemoryType,
+        MemoryScope,
+        AgentRunStatus,
+        AgentRunTrigger,
+        AgentStateStatus,
+        AgentHealth,
+        NotificationType,
+        ApprovalRequestStatus,
+        ApprovalLogAction,
+        BriefingType,
+        InsightType,
+        InsightSeverity,
+        InsightStatus,
     ):
         assert all(isinstance(member.value, str) for member in enum_cls)
         # Round-trip: constructing from the raw label must yield the member.

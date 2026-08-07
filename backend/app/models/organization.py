@@ -10,7 +10,18 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.agent_run import AgentRun
+    from app.models.agent_state import AgentState
+    from app.models.ai_memory import AiMemory
+    from app.models.approval_log import ApprovalLog
+    from app.models.approval_request import ApprovalRequest
+    from app.models.briefing import Briefing
+    from app.models.business_insight import BusinessInsight
     from app.models.credential import Credential
+    from app.models.growth_forecast import GrowthForecast
+    from app.models.growth_metric import GrowthMetric
+    from app.models.knowledge_item import KnowledgeItem
+    from app.models.notification import Notification
     from app.models.user import User
     from app.models.workflow import Workflow
     from app.models.workflow_event import WorkflowEvent
@@ -46,6 +57,31 @@ class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     workflow_events: Mapped[list[WorkflowEvent]] = relationship(back_populates="organization")
     credentials: Mapped[list[Credential]] = relationship(back_populates="organization")
+    ai_memories: Mapped[list[AiMemory]] = relationship(back_populates="organization")
+    knowledge_items: Mapped[list[KnowledgeItem]] = relationship(
+        back_populates="organization"
+    )
+    agent_runs: Mapped[list[AgentRun]] = relationship(back_populates="organization")
+    agent_states: Mapped[list[AgentState]] = relationship(back_populates="organization")
+    notifications: Mapped[list[Notification]] = relationship(
+        back_populates="organization"
+    )
+    approval_requests: Mapped[list[ApprovalRequest]] = relationship(
+        back_populates="organization"
+    )
+    approval_logs: Mapped[list[ApprovalLog]] = relationship(
+        back_populates="organization"
+    )
+    briefings: Mapped[list[Briefing]] = relationship(back_populates="organization")
+    growth_metrics: Mapped[list[GrowthMetric]] = relationship(
+        back_populates="organization"
+    )
+    growth_forecasts: Mapped[list[GrowthForecast]] = relationship(
+        back_populates="organization"
+    )
+    business_insights: Mapped[list[BusinessInsight]] = relationship(
+        back_populates="organization"
+    )
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<Organization id={self.id} slug={self.slug!r}>"
