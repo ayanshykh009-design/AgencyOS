@@ -41,5 +41,17 @@ class NotificationRead(NotificationBase):
     updated_at: datetime
 
 
+class NotificationUnreadCount(BaseModel):
+    """Unread badge count for the current user."""
+
+    count: int
+
+
+class NotificationTypeCounts(BaseModel):
+    """Notification counts grouped by type for an organization."""
+
+    counts: dict[NotificationType, int]
+
+
 class NotificationListResponse(Page[NotificationRead]):
     pass

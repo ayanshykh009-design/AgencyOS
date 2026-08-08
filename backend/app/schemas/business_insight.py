@@ -42,5 +42,12 @@ class BusinessInsightRead(BusinessInsightBase):
     updated_at: datetime
 
 
+class BusinessInsightCounts(BaseModel):
+    """Open insight count plus counts grouped by type."""
+
+    open: int
+    by_type: dict[InsightType, int]
+
+
 class BusinessInsightListResponse(Page[BusinessInsightRead]):
     pass

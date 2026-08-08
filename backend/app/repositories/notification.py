@@ -62,10 +62,15 @@ class NotificationRepository(TenantRepository[Notification]):
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
 
-    async def mark_read(
-        self, organization_id: uuid.UUID, user_id: uuid.UUID, notification_id: uuid.UUID
+    async def set_read(
+        self,
+        organization_id: uuid.UUID,
+        user_id: uuid.UUID,
+        notification_id: uuid.UUID,
+        *,
+        is_read: bool,
     ) -> bool:
-        """Mark one notification read; returns False when it does not exist."""
+        """Mark one notification read/unread; returns False when not found."""
         stmt = (
             update(Notification)
             .where(
@@ -73,10 +78,21 @@ class NotificationRepository(TenantRepository[Notification]):
                 Notification.user_id == user_id,
                 Notification.id == notification_id,
             )
-            .values(is_read=True, read_at=datetime.now().astimezone())
+            .values(
+                is_read=is_read,
+                read_at=datetime.now().astimezone() if is_read else None,
+            )
         )
         result = cast(CursorResult, await self._session.execute(stmt))
         return (result.rowcount or 0) > 0
+
+    async def mark_read(
+        self, organization_id: uuid.UUID, user_id: uuid.UUID, notification_id: uuid.UUID
+    ) -> bool:
+        """Mark one notification read; returns False when it does not exist."""
+        return await self.set_read(
+            organization_id, user_id, notification_id, is_read=True
+        )
 
     async def count_by_type(
         self, organization_id: uuid.UUID

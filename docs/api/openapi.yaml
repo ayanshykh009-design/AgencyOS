@@ -5302,6 +5302,1572 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /api/v1/agents/states:
+    get:
+      tags:
+      - agents
+      summary: List per-agent health states
+      operationId: list_agent_states_api_v1_agents_states_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AgentStateStatus'
+          - type: 'null'
+          title: Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentStateListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/agents/states/{agent_name}:
+    patch:
+      tags:
+      - agents
+      summary: Upsert an agent health state
+      operationId: upsert_agent_state_api_v1_agents_states__agent_name__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: agent_name
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Agent Name
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentStateUpsert'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentStateRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/agents/runs:
+    get:
+      tags:
+      - agents
+      summary: List agent run records
+      operationId: list_agent_runs_api_v1_agents_runs_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: agent_name
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Agent Name
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/AgentRunStatus'
+          - type: 'null'
+          title: Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - agents
+      summary: Create an agent run record (queued, not executed)
+      operationId: create_agent_run_api_v1_agents_runs_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRunCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/agents/runs/{run_id}:
+    get:
+      tags:
+      - agents
+      summary: Get an agent run record
+      operationId: get_agent_run_api_v1_agents_runs__run_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Run Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - agents
+      summary: Update an agent run record
+      operationId: update_agent_run_api_v1_agents_runs__run_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Run Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentRunUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/memory:
+    get:
+      tags:
+      - memory
+      summary: List AI memories (optional type/scope filter)
+      operationId: list_memories_api_v1_memory_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: memory_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/MemoryType'
+          - type: 'null'
+          title: Memory Type
+      - name: scope
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/MemoryScope'
+          - type: 'null'
+          title: Scope
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiMemoryListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - memory
+      summary: Create an AI memory
+      operationId: create_memory_api_v1_memory_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiMemoryCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiMemoryRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/memory/knowledge:
+    get:
+      tags:
+      - memory
+      summary: List knowledge items (optional category filter)
+      operationId: list_knowledge_api_v1_memory_knowledge_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: category
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
+          title: Category
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeItemListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - memory
+      summary: Create a knowledge item
+      operationId: create_knowledge_api_v1_memory_knowledge_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeItemCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeItemRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/memory/knowledge/search:
+    get:
+      tags:
+      - memory
+      summary: Substring search over knowledge title/content
+      operationId: search_knowledge_api_v1_memory_knowledge_search_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: q
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 200
+          title: Q
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeItemListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/memory/knowledge/{item_id}:
+    get:
+      tags:
+      - memory
+      summary: Get a knowledge item
+      operationId: get_knowledge_api_v1_memory_knowledge__item_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Item Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeItemRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - memory
+      summary: Update a knowledge item
+      operationId: update_knowledge_api_v1_memory_knowledge__item_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Item Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KnowledgeItemUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KnowledgeItemRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - memory
+      summary: Delete a knowledge item
+      operationId: delete_knowledge_api_v1_memory_knowledge__item_id__delete
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: item_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Item Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/memory/{memory_id}:
+    get:
+      tags:
+      - memory
+      summary: Get an AI memory
+      operationId: get_memory_api_v1_memory__memory_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: memory_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Memory Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiMemoryRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - memory
+      summary: Update an AI memory
+      operationId: update_memory_api_v1_memory__memory_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: memory_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Memory Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AiMemoryUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiMemoryRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - memory
+      summary: Delete an AI memory
+      operationId: delete_memory_api_v1_memory__memory_id__delete
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: memory_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Memory Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/notifications:
+    get:
+      tags:
+      - notifications
+      summary: List the current user's notifications
+      operationId: list_notifications_api_v1_notifications_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: only_unread
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Only Unread
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - notifications
+      summary: Create a notification (system/worker)
+      operationId: create_notification_api_v1_notifications_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/notifications/unread-count:
+    get:
+      tags:
+      - notifications
+      summary: Unread badge count for the current user
+      operationId: unread_count_api_v1_notifications_unread_count_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationUnreadCount'
+      security:
+      - HTTPBearer: []
+  /api/v1/notifications/counts:
+    get:
+      tags:
+      - notifications
+      summary: Notification counts grouped by type
+      operationId: counts_by_type_api_v1_notifications_counts_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationTypeCounts'
+      security:
+      - HTTPBearer: []
+  /api/v1/notifications/{notification_id}:
+    get:
+      tags:
+      - notifications
+      summary: Get a notification owned by the current user
+      operationId: get_notification_api_v1_notifications__notification_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: notification_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Notification Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - notifications
+      summary: Update a notification (e.g. mark read/unread)
+      operationId: update_notification_api_v1_notifications__notification_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: notification_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Notification Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/notifications/{notification_id}/read:
+    post:
+      tags:
+      - notifications
+      summary: Mark a notification read
+      operationId: mark_notification_read_api_v1_notifications__notification_id__read_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: notification_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Notification Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/approvals:
+    get:
+      tags:
+      - approvals
+      summary: List approval requests (optional status filter)
+      operationId: list_approvals_api_v1_approvals_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/ApprovalRequestStatus'
+          - type: 'null'
+          title: Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - approvals
+      summary: Create an approval request
+      operationId: create_approval_api_v1_approvals_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalRequestCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/approvals/pending-count:
+    get:
+      tags:
+      - approvals
+      summary: Open (pending) approval request count
+      operationId: pending_count_api_v1_approvals_pending_count_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalPendingCount'
+      security:
+      - HTTPBearer: []
+  /api/v1/approvals/{request_id}/decision:
+    post:
+      tags:
+      - approvals
+      summary: Approve or deny a pending approval request
+      operationId: decide_approval_api_v1_approvals__request_id__decision_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Request Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalRequestDecision'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/approvals/{request_id}:
+    get:
+      tags:
+      - approvals
+      summary: Get an approval request
+      operationId: get_approval_api_v1_approvals__request_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Request Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequestRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/approvals/{request_id}/logs:
+    get:
+      tags:
+      - approvals
+      summary: Audit timeline for an approval request (oldest first)
+      operationId: list_approval_logs_api_v1_approvals__request_id__logs_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: request_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Request Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalLogListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/founder/briefings:
+    get:
+      tags:
+      - founder
+      summary: List founder briefings (optional type filter)
+      operationId: list_briefings_api_v1_founder_briefings_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: briefing_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/BriefingType'
+          - type: 'null'
+          title: Briefing Type
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BriefingListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - founder
+      summary: Create a founder briefing
+      operationId: create_briefing_api_v1_founder_briefings_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BriefingCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BriefingRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/founder/briefings/latest:
+    get:
+      tags:
+      - founder
+      summary: Most recent briefing of a given cadence
+      operationId: latest_briefing_api_v1_founder_briefings_latest_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: briefing_type
+        in: query
+        required: false
+        schema:
+          $ref: '#/components/schemas/BriefingType'
+          default: daily
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BriefingRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/founder/briefings/{briefing_id}:
+    get:
+      tags:
+      - founder
+      summary: Get a briefing
+      operationId: get_briefing_api_v1_founder_briefings__briefing_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: briefing_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Briefing Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BriefingRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/founder/insights:
+    get:
+      tags:
+      - founder
+      summary: List business insights (optional status/severity filter)
+      operationId: list_insights_api_v1_founder_insights_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/InsightStatus'
+          - type: 'null'
+          title: Status
+      - name: severity
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/InsightSeverity'
+          - type: 'null'
+          title: Severity
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessInsightListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - founder
+      summary: Create a business insight
+      operationId: create_insight_api_v1_founder_insights_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BusinessInsightCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessInsightRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/founder/insights/counts:
+    get:
+      tags:
+      - founder
+      summary: Active insight count + counts by type
+      operationId: insight_counts_api_v1_founder_insights_counts_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessInsightCounts'
+      security:
+      - HTTPBearer: []
+  /api/v1/founder/insights/{insight_id}:
+    get:
+      tags:
+      - founder
+      summary: Get a business insight
+      operationId: get_insight_api_v1_founder_insights__insight_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: insight_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Insight Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessInsightRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - founder
+      summary: Update an insight (triage status/severity)
+      operationId: update_insight_api_v1_founder_insights__insight_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: insight_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Insight Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BusinessInsightUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessInsightRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - founder
+      summary: Delete a business insight
+      operationId: delete_insight_api_v1_founder_insights__insight_id__delete
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: insight_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Insight Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/growth/metrics:
+    get:
+      tags:
+      - growth
+      summary: Time series for a metric type (optional window)
+      operationId: list_metrics_api_v1_growth_metrics_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: metric_type
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 100
+          title: Metric Type
+      - name: start
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Start
+      - name: end
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: End
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 1000
+          minimum: 1
+          default: 500
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthMetricListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - growth
+      summary: Record a growth metric
+      operationId: create_metric_api_v1_growth_metrics_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrowthMetricCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthMetricRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/growth/metrics/types:
+    get:
+      tags:
+      - growth
+      summary: Distinct metric types recorded
+      operationId: metric_types_api_v1_growth_metrics_types_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthMetricTypesResponse'
+      security:
+      - HTTPBearer: []
+  /api/v1/growth/forecasts:
+    get:
+      tags:
+      - growth
+      summary: List growth forecasts (optional type filter)
+      operationId: list_forecasts_api_v1_growth_forecasts_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: forecast_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 100
+          - type: 'null'
+          title: Forecast Type
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthForecastListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - growth
+      summary: Record a growth forecast
+      operationId: create_forecast_api_v1_growth_forecasts_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrowthForecastCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthForecastRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/growth/forecasts/latest:
+    get:
+      tags:
+      - growth
+      summary: Most recent forecast for a type
+      operationId: latest_forecast_api_v1_growth_forecasts_latest_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: forecast_type
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          maxLength: 100
+          title: Forecast Type
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthForecastRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/growth/forecasts/{forecast_id}:
+    get:
+      tags:
+      - growth
+      summary: Get a growth forecast
+      operationId: get_forecast_api_v1_growth_forecasts__forecast_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: forecast_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Forecast Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthForecastRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/growth/metrics/{metric_id}:
+    get:
+      tags:
+      - growth
+      summary: Get a growth metric
+      operationId: get_metric_api_v1_growth_metrics__metric_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: metric_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Metric Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthMetricRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/communications/summary:
+    get:
+      tags:
+      - communications
+      summary: Founder communications digest (unread, pending, insights, latest briefing)
+      operationId: communications_summary_api_v1_communications_summary_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommunicationsSummary'
+      security:
+      - HTTPBearer: []
   /api/v1/webhooks/leads:
     post:
       tags:
@@ -5462,6 +7028,783 @@ components:
       - created_at
       title: ActivityLogRead
       description: Full activity log entry returned by the API.
+    AgentHealth:
+      type: string
+      enum:
+      - healthy
+      - degraded
+      - unhealthy
+      title: AgentHealth
+      description: Rolling health signal for an agent.
+    AgentRunCreate:
+      properties:
+        agent_name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Agent Name
+        status:
+          $ref: '#/components/schemas/AgentRunStatus'
+          default: queued
+        trigger:
+          $ref: '#/components/schemas/AgentRunTrigger'
+          default: manual
+        workflow_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Workflow Id
+        input:
+          additionalProperties: true
+          type: object
+          title: Input
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+      type: object
+      required:
+      - agent_name
+      - organization_id
+      title: AgentRunCreate
+    AgentRunListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/AgentRunRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: AgentRunListResponse
+    AgentRunRead:
+      properties:
+        agent_name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Agent Name
+        status:
+          $ref: '#/components/schemas/AgentRunStatus'
+          default: queued
+        trigger:
+          $ref: '#/components/schemas/AgentRunTrigger'
+          default: manual
+        workflow_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Workflow Id
+        input:
+          additionalProperties: true
+          type: object
+          title: Input
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        output:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Output
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        duration_ms:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Duration Ms
+        cost:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Cost
+        started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started At
+        finished_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Finished At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - agent_name
+      - id
+      - organization_id
+      - cost
+      - created_at
+      - updated_at
+      title: AgentRunRead
+    AgentRunStatus:
+      type: string
+      enum:
+      - queued
+      - running
+      - succeeded
+      - failed
+      - cancelled
+      title: AgentRunStatus
+      description: Lifecycle of a single agent run.
+    AgentRunTrigger:
+      type: string
+      enum:
+      - manual
+      - schedule
+      - workflow
+      - event
+      title: AgentRunTrigger
+      description: How an agent run was started.
+    AgentRunUpdate:
+      properties:
+        status:
+          anyOf:
+          - $ref: '#/components/schemas/AgentRunStatus'
+          - type: 'null'
+        output:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Output
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        duration_ms:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Duration Ms
+        cost:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Cost
+        started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Started At
+        finished_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Finished At
+      type: object
+      title: AgentRunUpdate
+    AgentStateListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/AgentStateRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: AgentStateListResponse
+    AgentStateRead:
+      properties:
+        agent_name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Agent Name
+        status:
+          $ref: '#/components/schemas/AgentStateStatus'
+          default: active
+        health:
+          $ref: '#/components/schemas/AgentHealth'
+          default: healthy
+        queue_depth:
+          type: integer
+          minimum: 0.0
+          title: Queue Depth
+          default: 0
+        total_runs:
+          type: integer
+          minimum: 0.0
+          title: Total Runs
+          default: 0
+        average_runtime_ms:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Average Runtime Ms
+          default: '0'
+        average_cost:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Average Cost
+          default: '0'
+        last_execution:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Execution
+        last_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Error
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - agent_name
+      - id
+      - organization_id
+      - created_at
+      - updated_at
+      title: AgentStateRead
+    AgentStateStatus:
+      type: string
+      enum:
+      - active
+      - paused
+      - degraded
+      - disabled
+      title: AgentStateStatus
+      description: Lifecycle of an agent definition.
+    AgentStateUpsert:
+      properties:
+        agent_name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Agent Name
+        status:
+          $ref: '#/components/schemas/AgentStateStatus'
+          default: active
+        health:
+          $ref: '#/components/schemas/AgentHealth'
+          default: healthy
+        queue_depth:
+          type: integer
+          minimum: 0.0
+          title: Queue Depth
+          default: 0
+        total_runs:
+          type: integer
+          minimum: 0.0
+          title: Total Runs
+          default: 0
+        average_runtime_ms:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Average Runtime Ms
+          default: '0'
+        average_cost:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Average Cost
+          default: '0'
+        last_execution:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Execution
+        last_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Error
+      type: object
+      required:
+      - agent_name
+      title: AgentStateUpsert
+    AiMemoryCreate:
+      properties:
+        memory_type:
+          $ref: '#/components/schemas/MemoryType'
+          default: working
+        scope:
+          $ref: '#/components/schemas/MemoryScope'
+        source_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Id
+        title:
+          anyOf:
+          - type: string
+            maxLength: 500
+            minLength: 1
+          - type: 'null'
+          title: Title
+        content:
+          type: string
+          minLength: 1
+          title: Content
+        importance:
+          type: integer
+          maximum: 5.0
+          minimum: 1.0
+          title: Importance
+          default: 1
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        metadata_:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+      type: object
+      required:
+      - scope
+      - content
+      - organization_id
+      title: AiMemoryCreate
+    AiMemoryListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/AiMemoryRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: AiMemoryListResponse
+    AiMemoryRead:
+      properties:
+        memory_type:
+          $ref: '#/components/schemas/MemoryType'
+          default: working
+        scope:
+          $ref: '#/components/schemas/MemoryScope'
+        source_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Id
+        title:
+          anyOf:
+          - type: string
+            maxLength: 500
+            minLength: 1
+          - type: 'null'
+          title: Title
+        content:
+          type: string
+          minLength: 1
+          title: Content
+        importance:
+          type: integer
+          maximum: 5.0
+          minimum: 1.0
+          title: Importance
+          default: 1
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - scope
+      - content
+      - id
+      - organization_id
+      - created_at
+      - updated_at
+      title: AiMemoryRead
+    AiMemoryUpdate:
+      properties:
+        scope:
+          anyOf:
+          - $ref: '#/components/schemas/MemoryScope'
+          - type: 'null'
+        source_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Id
+        title:
+          anyOf:
+          - type: string
+            maxLength: 500
+            minLength: 1
+          - type: 'null'
+          title: Title
+        content:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Content
+        importance:
+          anyOf:
+          - type: integer
+            maximum: 5.0
+            minimum: 1.0
+          - type: 'null'
+          title: Importance
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+        metadata_:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Metadata
+      type: object
+      title: AiMemoryUpdate
+      description: Partial update of a memory row (type is immutable once created).
+    ApprovalLogAction:
+      type: string
+      enum:
+      - requested
+      - notified
+      - approved
+      - denied
+      - expired
+      - cancelled
+      title: ApprovalLogAction
+      description: Action recorded in the immutable approval audit log.
+    ApprovalLogListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ApprovalLogRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: ApprovalLogListResponse
+    ApprovalLogRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        approval_request_id:
+          type: string
+          format: uuid
+          title: Approval Request Id
+        actor_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Actor User Id
+        action:
+          $ref: '#/components/schemas/ApprovalLogAction'
+        note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Note
+        occurred_at:
+          type: string
+          format: date-time
+          title: Occurred At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - organization_id
+      - approval_request_id
+      - action
+      - occurred_at
+      - created_at
+      title: ApprovalLogRead
+    ApprovalPendingCount:
+      properties:
+        count:
+          type: integer
+          title: Count
+      type: object
+      required:
+      - count
+      title: ApprovalPendingCount
+      description: Open (pending) approval request count for an organization.
+    ApprovalRequestCreate:
+      properties:
+        workflow_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Workflow Id
+        workflow_execution_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Workflow Execution Id
+        requested_by_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Requested By User Id
+        approver_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Approver User Id
+        title:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Title
+        details:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Details
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+      type: object
+      required:
+      - title
+      title: ApprovalRequestCreate
+    ApprovalRequestDecision:
+      properties:
+        approve:
+          type: boolean
+          title: Approve
+        decided_by_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Decided By User Id
+        decision_note:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+          title: Decision Note
+      type: object
+      required:
+      - approve
+      title: ApprovalRequestDecision
+      description: Payload to approve/deny a pending request.
+    ApprovalRequestListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ApprovalRequestRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: ApprovalRequestListResponse
+    ApprovalRequestRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        workflow_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Workflow Id
+        workflow_execution_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Workflow Execution Id
+        requested_by_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Requested By User Id
+        approver_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Approver User Id
+        title:
+          type: string
+          title: Title
+        details:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Details
+        status:
+          $ref: '#/components/schemas/ApprovalRequestStatus'
+        expires_at:
+          type: string
+          format: date-time
+          title: Expires At
+        decided_by_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Decided By User Id
+        decided_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Decided At
+        decision_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Decision Note
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - organization_id
+      - title
+      - status
+      - expires_at
+      - created_at
+      - updated_at
+      title: ApprovalRequestRead
+    ApprovalRequestStatus:
+      type: string
+      enum:
+      - pending
+      - approved
+      - denied
+      - expired
+      - cancelled
+      title: ApprovalRequestStatus
+      description: Lifecycle of a gated approval request.
     AssignmentLogRead:
       properties:
         id:
@@ -5741,6 +8084,267 @@ components:
       - success
       title: BrainRunResponse
       description: Outcome of a brain run (mirrors ``BrainResult``).
+    BriefingCreate:
+      properties:
+        briefing_type:
+          $ref: '#/components/schemas/BriefingType'
+          default: daily
+        title:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Title
+        summary:
+          type: string
+          minLength: 1
+          title: Summary
+        sections:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Sections
+        metadata_:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+      type: object
+      required:
+      - title
+      - summary
+      - organization_id
+      title: BriefingCreate
+    BriefingListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/BriefingRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: BriefingListResponse
+    BriefingRead:
+      properties:
+        briefing_type:
+          $ref: '#/components/schemas/BriefingType'
+          default: daily
+        title:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Title
+        summary:
+          type: string
+          minLength: 1
+          title: Summary
+        sections:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Sections
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        generated_at:
+          type: string
+          format: date-time
+          title: Generated At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - title
+      - summary
+      - id
+      - organization_id
+      - generated_at
+      - created_at
+      - updated_at
+      title: BriefingRead
+    BriefingType:
+      type: string
+      enum:
+      - daily
+      - weekly
+      - manual
+      title: BriefingType
+      description: Cadence of a generated founder briefing.
+    BusinessInsightCounts:
+      properties:
+        open:
+          type: integer
+          title: Open
+        by_type:
+          additionalProperties:
+            type: integer
+          propertyNames:
+            $ref: '#/components/schemas/InsightType'
+          type: object
+          title: By Type
+      type: object
+      required:
+      - open
+      - by_type
+      title: BusinessInsightCounts
+      description: Open insight count plus counts grouped by type.
+    BusinessInsightCreate:
+      properties:
+        insight_type:
+          $ref: '#/components/schemas/InsightType'
+        severity:
+          $ref: '#/components/schemas/InsightSeverity'
+          default: info
+        status:
+          $ref: '#/components/schemas/InsightStatus'
+          default: active
+        title:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Title
+        summary:
+          type: string
+          minLength: 1
+          title: Summary
+        source_table:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Table
+        source_row_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Row Id
+        metadata_:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+      type: object
+      required:
+      - insight_type
+      - title
+      - summary
+      - organization_id
+      title: BusinessInsightCreate
+    BusinessInsightListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/BusinessInsightRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: BusinessInsightListResponse
+    BusinessInsightRead:
+      properties:
+        insight_type:
+          $ref: '#/components/schemas/InsightType'
+        severity:
+          $ref: '#/components/schemas/InsightSeverity'
+          default: info
+        status:
+          $ref: '#/components/schemas/InsightStatus'
+          default: active
+        title:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Title
+        summary:
+          type: string
+          minLength: 1
+          title: Summary
+        source_table:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Table
+        source_row_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Row Id
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - insight_type
+      - title
+      - summary
+      - id
+      - organization_id
+      - created_at
+      - updated_at
+      title: BusinessInsightRead
+    BusinessInsightUpdate:
+      properties:
+        status:
+          anyOf:
+          - $ref: '#/components/schemas/InsightStatus'
+          - type: 'null'
+        severity:
+          anyOf:
+          - $ref: '#/components/schemas/InsightSeverity'
+          - type: 'null'
+      type: object
+      title: BusinessInsightUpdate
     ChangePasswordRequest:
       properties:
         current_password:
@@ -5806,6 +8410,28 @@ components:
       - created_at
       title: CloseReasonRead
       description: Full close reason representation returned by the API.
+    CommunicationsSummary:
+      properties:
+        unread_notifications:
+          type: integer
+          title: Unread Notifications
+        pending_approvals:
+          type: integer
+          title: Pending Approvals
+        active_insights:
+          type: integer
+          title: Active Insights
+        latest_briefing:
+          anyOf:
+          - $ref: '#/components/schemas/BriefingRead'
+          - type: 'null'
+      type: object
+      required:
+      - unread_notifications
+      - pending_approvals
+      - active_insights
+      title: CommunicationsSummary
+      description: Single-view digest of the founder communication surfaces.
     ConversationCreate:
       properties:
         channel:
@@ -6799,6 +9425,265 @@ components:
       type: object
       title: FollowUpUpdate
       description: Partial update of a follow-up (all fields optional).
+    GrowthForecastCreate:
+      properties:
+        forecast_type:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Forecast Type
+        horizon_start:
+          type: string
+          format: date-time
+          title: Horizon Start
+        horizon_end:
+          type: string
+          format: date-time
+          title: Horizon End
+        total_value:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Total Value
+        confidence_low:
+          anyOf:
+          - type: number
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Confidence Low
+        confidence_high:
+          anyOf:
+          - type: number
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Confidence High
+        model_config:
+          additionalProperties: true
+          type: object
+          title: Model Config
+      type: object
+      required:
+      - forecast_type
+      - horizon_start
+      - horizon_end
+      - total_value
+      title: GrowthForecastCreate
+    GrowthForecastListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/GrowthForecastRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: GrowthForecastListResponse
+    GrowthForecastRead:
+      properties:
+        forecast_type:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Forecast Type
+        horizon_start:
+          type: string
+          format: date-time
+          title: Horizon Start
+        horizon_end:
+          type: string
+          format: date-time
+          title: Horizon End
+        total_value:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Total Value
+        confidence_low:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Confidence Low
+        confidence_high:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Confidence High
+        model_config:
+          additionalProperties: true
+          type: object
+          title: Model Config
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        generated_at:
+          type: string
+          format: date-time
+          title: Generated At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - forecast_type
+      - horizon_start
+      - horizon_end
+      - total_value
+      - id
+      - organization_id
+      - generated_at
+      - created_at
+      - updated_at
+      title: GrowthForecastRead
+    GrowthMetricCreate:
+      properties:
+        metric_type:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Metric Type
+        period_start:
+          type: string
+          format: date-time
+          title: Period Start
+        period_end:
+          type: string
+          format: date-time
+          title: Period End
+        value:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Value
+        unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Unit
+        metadata_:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+      type: object
+      required:
+      - metric_type
+      - period_start
+      - period_end
+      - value
+      - organization_id
+      title: GrowthMetricCreate
+    GrowthMetricListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/GrowthMetricRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: GrowthMetricListResponse
+    GrowthMetricRead:
+      properties:
+        metric_type:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Metric Type
+        period_start:
+          type: string
+          format: date-time
+          title: Period Start
+        period_end:
+          type: string
+          format: date-time
+          title: Period End
+        value:
+          type: string
+          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          title: Value
+        unit:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Unit
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        recorded_at:
+          type: string
+          format: date-time
+          title: Recorded At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - metric_type
+      - period_start
+      - period_end
+      - value
+      - id
+      - organization_id
+      - recorded_at
+      - created_at
+      - updated_at
+      title: GrowthMetricRead
+    GrowthMetricTypesResponse:
+      properties:
+        types:
+          items:
+            type: string
+          type: array
+          title: Types
+      type: object
+      required:
+      - types
+      title: GrowthMetricTypesResponse
+      description: Distinct growth metric types recorded for an organization.
     HTTPValidationError:
       properties:
         detail:
@@ -7006,6 +9891,34 @@ components:
       - cancelled
       title: ImportStatus
       description: Lifecycle of a CSV import job.
+    InsightSeverity:
+      type: string
+      enum:
+      - info
+      - low
+      - medium
+      - high
+      - critical
+      title: InsightSeverity
+      description: Urgency of a business insight.
+    InsightStatus:
+      type: string
+      enum:
+      - active
+      - acknowledged
+      - dismissed
+      title: InsightStatus
+      description: Triage lifecycle of a business insight.
+    InsightType:
+      type: string
+      enum:
+      - opportunity
+      - risk
+      - trend
+      - anomaly
+      - recommendation
+      title: InsightType
+      description: Category of a generated business insight.
     InviteStatus:
       type: string
       enum:
@@ -7015,6 +9928,163 @@ components:
       - expired
       title: InviteStatus
       description: Lifecycle of a team invite.
+    KnowledgeItemCreate:
+      properties:
+        source_memory_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Memory Id
+        title:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Title
+        content:
+          type: string
+          minLength: 1
+          title: Content
+        category:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Category
+          default: general
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        metadata_:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+      type: object
+      required:
+      - title
+      - content
+      - organization_id
+      title: KnowledgeItemCreate
+    KnowledgeItemListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/KnowledgeItemRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: KnowledgeItemListResponse
+    KnowledgeItemRead:
+      properties:
+        source_memory_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Memory Id
+        title:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Title
+        content:
+          type: string
+          minLength: 1
+          title: Content
+        category:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Category
+          default: general
+        tags:
+          items:
+            type: string
+          type: array
+          title: Tags
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - title
+      - content
+      - id
+      - organization_id
+      - created_at
+      - updated_at
+      title: KnowledgeItemRead
+    KnowledgeItemUpdate:
+      properties:
+        source_memory_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Memory Id
+        title:
+          anyOf:
+          - type: string
+            maxLength: 500
+            minLength: 1
+          - type: 'null'
+          title: Title
+        content:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Content
+        category:
+          anyOf:
+          - type: string
+            maxLength: 100
+            minLength: 1
+          - type: 'null'
+          title: Category
+        tags:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Tags
+        metadata_:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Metadata
+      type: object
+      title: KnowledgeItemUpdate
     LeadAssignRequest:
       properties:
         user_id:
@@ -7867,6 +10937,29 @@ components:
       type: object
       title: ManualOutreachQueueUpdate
       description: Partial update of a manual outreach task (all fields optional).
+    MemoryScope:
+      type: string
+      enum:
+      - conversation
+      - research
+      - workflow
+      - shared_context
+      - knowledge
+      - manual
+      title: MemoryScope
+      description: Where an AI memory came from / applies to.
+    MemoryType:
+      type: string
+      enum:
+      - working
+      - long_term
+      title: MemoryType
+      description: 'Persistence class of an AI memory row.
+
+
+        ``working`` memories are ephemeral (pruned after ``MEMORY_WORKING_TTL_DAYS``);
+
+        ``long_term`` memories are durable and never auto-deleted.'
     MonitoringInformationResponse:
       properties:
         system:
@@ -7969,6 +11062,169 @@ components:
       type: object
       title: NoteUpdate
       description: Partial update of a note (all fields optional).
+    NotificationCreate:
+      properties:
+        user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: User Id
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        title:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Title
+        body:
+          type: string
+          minLength: 1
+          title: Body
+        action_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action Url
+        metadata_:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+      type: object
+      required:
+      - type
+      - title
+      - body
+      - organization_id
+      title: NotificationCreate
+    NotificationListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/NotificationRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: NotificationListResponse
+    NotificationRead:
+      properties:
+        user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: User Id
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        title:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Title
+        body:
+          type: string
+          minLength: 1
+          title: Body
+        action_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action Url
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        is_read:
+          type: boolean
+          title: Is Read
+        read_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Read At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - type
+      - title
+      - body
+      - id
+      - organization_id
+      - is_read
+      - created_at
+      - updated_at
+      title: NotificationRead
+    NotificationType:
+      type: string
+      enum:
+      - approval_request
+      - approval_result
+      - workflow_event
+      - agent_event
+      - system
+      - briefing
+      - insight
+      title: NotificationType
+      description: Category of an in-app notification.
+    NotificationTypeCounts:
+      properties:
+        counts:
+          additionalProperties:
+            type: integer
+          propertyNames:
+            $ref: '#/components/schemas/NotificationType'
+          type: object
+          title: Counts
+      type: object
+      required:
+      - counts
+      title: NotificationTypeCounts
+      description: Notification counts grouped by type for an organization.
+    NotificationUnreadCount:
+      properties:
+        count:
+          type: integer
+          title: Count
+      type: object
+      required:
+      - count
+      title: NotificationUnreadCount
+      description: Unread badge count for the current user.
+    NotificationUpdate:
+      properties:
+        is_read:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Read
+      type: object
+      title: NotificationUpdate
     OperationalSummaryResponse:
       properties:
         timestamp:

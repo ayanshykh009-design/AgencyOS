@@ -48,6 +48,12 @@ class ApprovalRequestRead(BaseModel):
     updated_at: datetime
 
 
+class ApprovalPendingCount(BaseModel):
+    """Open (pending) approval request count for an organization."""
+
+    count: int
+
+
 class ApprovalRequestListResponse(Page[ApprovalRequestRead]):
     pass
 

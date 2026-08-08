@@ -88,6 +88,17 @@ class AgentStateRepository(TenantRepository[AgentState]):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_by_name(
+        self, organization_id: uuid.UUID, agent_name: str
+    ) -> AgentState | None:
+        """Fetch the single state row for (org, agent)."""
+        stmt = select(AgentState).where(
+            AgentState.organization_id == organization_id,
+            AgentState.agent_name == agent_name,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def mark_heartbeat(
         self,
         organization_id: uuid.UUID,

@@ -62,5 +62,11 @@ class GrowthForecastRead(GrowthForecastCreate):
     updated_at: datetime
 
 
+class GrowthMetricTypesResponse(BaseModel):
+    """Distinct growth metric types recorded for an organization."""
+
+    types: list[str]
+
+
 class GrowthForecastListResponse(Page[GrowthForecastRead]):
     pass

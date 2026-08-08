@@ -136,3 +136,12 @@ def test_phase5d_manage_permissions_are_admin_only() -> None:
             assert has_permission(role, permission)
         for role in [UserRole.MANAGER, UserRole.MEMBER, UserRole.SALES_AGENT, UserRole.VIEWER]:
             assert not has_permission(role, permission)
+
+
+def test_phase5d_communications_summary_requires_manager() -> None:
+    # /communications/summary gates on NOTIFICATION_READ + GROWTH_READ +
+    # APPROVAL_READ; GROWTH_READ is manager-level, so the route floor is manager.
+    for role in [UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER]:
+        assert has_permission(role, Permission.GROWTH_READ)
+    for role in [UserRole.MEMBER, UserRole.SALES_AGENT, UserRole.VIEWER]:
+        assert not has_permission(role, Permission.GROWTH_READ)

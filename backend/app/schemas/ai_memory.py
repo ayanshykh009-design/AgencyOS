@@ -28,6 +28,20 @@ class AiMemoryCreate(AiMemoryBase):
     organization_id: uuid.UUID
 
 
+class AiMemoryUpdate(BaseModel):
+    """Partial update of a memory row (type is immutable once created)."""
+
+    scope: MemoryScope | None = None
+    source_id: uuid.UUID | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    content: str | None = Field(default=None, min_length=1)
+    importance: int | None = Field(default=None, ge=1, le=5)
+    tags: list[str] | None = None
+    metadata: dict[str, Any] | None = Field(
+        default=None, alias="metadata_", serialization_alias="metadata"
+    )
+
+
 class AiMemoryRead(AiMemoryBase):
     model_config = ConfigDict(from_attributes=True)
 

@@ -11,7 +11,14 @@ One file per endpoint group, e.g.:
 - `search.md` — unified search across leads, tasks, notes
 - `exports.md` — CSV/JSON lead export
 - `audit.md` — admin-only audit trail with actor metadata
-- `ai.md` — AI brain orchestrator
+|- `ai.md` — AI brain orchestrator
+- `agents.md` — agent run records + per-agent health state
+- `memory.md` — AI memories + durable knowledge items
+- `notifications.md` — per-user in-app inbox
+- `approvals.md` — gated approval requests + immutable audit log
+- `founder.md` — generated briefings + business insights
+- `growth.md` — periodized metrics + deterministic forecasts
+- `communications.md` — founder communications summary
 - `webhooks.md` — external ingestion (n8n / contact forms)
 - `workflows.md` — workflow CRUD + lifecycle transitions
 - `workflow-triggers.md` — trigger definitions (manual / event / schedule)

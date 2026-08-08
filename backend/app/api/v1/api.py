@@ -7,21 +7,28 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     activity,
+    agents,
     ai,
+    approvals,
     assignment,
     audit,
     auth,
     automation_control,
+    communications,
     conversations,
     credentials,
     dashboard,
     exports,
+    founder,
+    growth,
     health,
     imports,
     lead_sources,
     leads,
+    memory,
     monitoring,
     notes,
+    notifications,
     outreach,
     pipeline,
     provider_usage,
@@ -86,6 +93,19 @@ api_router.include_router(research.router, prefix="/research", tags=["research"]
 
 # AI automation & per-org AI settings.
 api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
+
+# Phase 5D AI Intelligence Layer.
+api_router.include_router(agents.router, prefix="/agents", tags=["agents"])
+api_router.include_router(memory.router, prefix="/memory", tags=["memory"])
+api_router.include_router(
+    notifications.router, prefix="/notifications", tags=["notifications"]
+)
+api_router.include_router(approvals.router, prefix="/approvals", tags=["approvals"])
+api_router.include_router(founder.router, prefix="/founder", tags=["founder"])
+api_router.include_router(growth.router, prefix="/growth", tags=["growth"])
+api_router.include_router(
+    communications.router, prefix="/communications", tags=["communications"]
+)
 
 # External system ingestion (n8n / contact forms) — no user session.
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])

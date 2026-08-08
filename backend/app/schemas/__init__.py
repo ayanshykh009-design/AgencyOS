@@ -19,10 +19,12 @@ from app.schemas.ai_memory import (
     AiMemoryCreate,
     AiMemoryListResponse,
     AiMemoryRead,
+    AiMemoryUpdate,
 )
 from app.schemas.approval import (
     ApprovalLogListResponse,
     ApprovalLogRead,
+    ApprovalPendingCount,
     ApprovalRequestCreate,
     ApprovalRequestDecision,
     ApprovalRequestListResponse,
@@ -34,11 +36,13 @@ from app.schemas.briefing import (
     BriefingRead,
 )
 from app.schemas.business_insight import (
+    BusinessInsightCounts,
     BusinessInsightCreate,
     BusinessInsightListResponse,
     BusinessInsightRead,
     BusinessInsightUpdate,
 )
+from app.schemas.communication import CommunicationsSummary
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationMessageCreate,
@@ -59,6 +63,7 @@ from app.schemas.growth import (
     GrowthMetricCreate,
     GrowthMetricListResponse,
     GrowthMetricRead,
+    GrowthMetricTypesResponse,
 )
 from app.schemas.imports import (
     ImportJobCreate,
@@ -104,6 +109,8 @@ from app.schemas.notification import (
     NotificationCreate,
     NotificationListResponse,
     NotificationRead,
+    NotificationTypeCounts,
+    NotificationUnreadCount,
     NotificationUpdate,
 )
 from app.schemas.organization import OrganizationCreate, OrganizationRead, OrganizationUpdate
@@ -163,8 +170,10 @@ __all__ = [
     "AiMemoryCreate",
     "AiMemoryListResponse",
     "AiMemoryRead",
+    "AiMemoryUpdate",
     "ApprovalLogListResponse",
     "ApprovalLogRead",
+    "ApprovalPendingCount",
     "ApprovalRequestCreate",
     "ApprovalRequestDecision",
     "ApprovalRequestListResponse",
@@ -172,10 +181,12 @@ __all__ = [
     "BriefingCreate",
     "BriefingListResponse",
     "BriefingRead",
+    "BusinessInsightCounts",
     "BusinessInsightCreate",
     "BusinessInsightListResponse",
     "BusinessInsightRead",
     "BusinessInsightUpdate",
+    "CommunicationsSummary",
     "CredentialCreate",
     "CredentialRead",
     "CredentialUpdate",
@@ -195,6 +206,7 @@ __all__ = [
     "GrowthMetricCreate",
     "GrowthMetricListResponse",
     "GrowthMetricRead",
+    "GrowthMetricTypesResponse",
     "ImportJobCreate",
     "ImportJobRead",
     "ImportJobUpdate",
@@ -237,6 +249,8 @@ __all__ = [
     "NotificationCreate",
     "NotificationListResponse",
     "NotificationRead",
+    "NotificationTypeCounts",
+    "NotificationUnreadCount",
     "NotificationUpdate",
     "OrganizationCreate",
     "OrganizationRead",
