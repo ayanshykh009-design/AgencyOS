@@ -94,5 +94,33 @@ def test_phase5d_validation_rejects_zero_growth_retention() -> None:
         settings.validate_runtime()
 
 
+def test_m4_validation_rejects_short_cleanup_interval() -> None:
+    settings = Settings(MEMORY_CLEANUP_INTERVAL_SECONDS=30)
+    with pytest.raises(RuntimeError, match="MEMORY_CLEANUP_INTERVAL_SECONDS"):
+        settings.validate_runtime()
+
+
+def test_m4_validation_rejects_zero_batch_size() -> None:
+    settings = Settings(MEMORY_CLEANUP_BATCH_SIZE=0)
+    with pytest.raises(RuntimeError, match="MEMORY_CLEANUP_BATCH_SIZE"):
+        settings.validate_runtime()
+
+
+def test_m4_validation_rejects_small_context_budget() -> None:
+    settings = Settings(MEMORY_CONTEXT_MAX_CHARS=100)
+    with pytest.raises(RuntimeError, match="MEMORY_CONTEXT_MAX_CHARS"):
+        settings.validate_runtime()
+
+
+def test_m4_validation_rejects_zero_retrieval_limit() -> None:
+    settings = Settings(MEMORY_RETRIEVAL_LIMIT=0)
+    with pytest.raises(RuntimeError, match="MEMORY_RETRIEVAL_LIMIT"):
+        settings.validate_runtime()
+
+
+def test_m4_defaults_pass_runtime_validation() -> None:
+    Settings().validate_runtime()  # must not raise
+
+
 def test_phase5d_defaults_pass_runtime_validation() -> None:
     Settings().validate_runtime()  # must not raise

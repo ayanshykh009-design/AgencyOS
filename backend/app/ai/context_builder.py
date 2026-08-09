@@ -20,8 +20,14 @@ def build_system_prompt(
     lead: Lead,
     research: LeadResearch | None,
     recent_messages: list[dict[str, Any]] | None = None,
+    memory_context: str | None = None,
 ) -> str:
-    """Build the system prompt that gives the brain full context."""
+    """Build the system prompt that gives the brain full context.
+
+    ``memory_context`` (optional, pre-assembled by the memory layer) is
+    appended under a ``=== MEMORY CONTEXT ===`` header; when ``None`` the
+    prompt is byte-identical to the pre-M4 form.
+    """
     parts: list[str] = [
         "You are an AI outreach agent for a B2B agency. Your job is to research leads, "
         "draft personalized outreach, and dispatch it via automation. You have access to "
@@ -60,6 +66,11 @@ def build_system_prompt(
             role = msg.get("role", "user")
             content = msg.get("content", "")[:300]
             parts.append(f"{role.upper()}: {content}")
+        parts.append("")
+
+    if memory_context:
+        parts.append("=== MEMORY CONTEXT ===")
+        parts.append(memory_context)
         parts.append("")
 
     parts.append("=== AVAILABLE TOOLS ===")

@@ -166,6 +166,18 @@ The retention worker (`app/workers/retention_worker.py`) reports its sweeps:
 Alert on a persistent zero across both counters with retention enabled — the
 sweep has stopped and `execution_events` will grow unbounded.
 
+The memory cleanup worker (`app/workers/memory_worker.py`) reports its sweeps
+(see [endpoints](api/endpoints/memory.md#memory-cleanup-worker)):
+
+| Counter                              | Meaning                                     |
+| ------------------------------------ | ------------------------------------------- |
+| `agencyos.memory.cleanup.expired_total` | Expired `working` memories deleted (org-scoped chunks) |
+
+Its tick duration is recorded in the histogram
+`agencyos.memory.cleanup.duration_seconds`. Alert on a persistent zero counter
+with `MEMORY_CLEANUP_ENABLED=true` — expired `working` memory will grow
+unbounded.
+
 ## Alerts worth adding
 
 - Liveness/readiness failures (instance restarted or out of traffic).

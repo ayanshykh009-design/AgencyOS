@@ -45,6 +45,7 @@ Automation workers run as standalone loops:
 | Execution worker   | `python -m app.workers.execution_worker` | Requeues due retries, drains the queued bucket through the adapters, re-converges stale `running` rows, dispatches due schedule ticks |
 | Retention worker   | `python -m app.workers.retention_worker` | Deletes expired `execution_events` and prunes dead `worker_health` rows, in chunks |
 | Credential rekey   | `python -m app.workers.credential_worker`| Re-encrypts credential values under the current key after rotation |
+| Memory cleanup     | `python -m app.workers.memory_worker`    | Deletes expired `working` memories (TTL-pruned), in org-scoped chunks |
 
 Each phase runs in its own session/transaction, is restart-safe (state lives in
 Postgres), and may run on multiple instances — transitions are optimistic, so
@@ -88,6 +89,21 @@ Retention is on by default (`EXECUTION_RETENTION_ENABLED=true`):
 
 Confirm sweeps run via `monitoring/retention-statistics`
 (`retention_executions_deleted_total`, `retention_workers_pruned_total`).
+
+## Memory cleanup
+
+Memory cleanup is on by default (`MEMORY_CLEANUP_ENABLED=true`), see
+[endpoints](../api/endpoints/memory.md#memory-cleanup-worker):
+
+- `working` memories older than `MEMORY_WORKING_TTL_DAYS` (default 30) are
+  deleted in org-scoped chunks of `MEMORY_CLEANUP_BATCH_SIZE` (default 500),
+  every `MEMORY_CLEANUP_INTERVAL_SECONDS` (default 3600);
+- `long_term` memory is **never** auto-deleted;
+- the sweep is gated by `AI_MEMORY_ENABLED` context (the worker is harmless on
+  its own, but only run it when memory is in use).
+
+Confirm sweeps run via the `agencyos.memory.cleanup.expired_total` counter and
+`monitoring/heartbeat-visibility` (`worker_type=memory`).
 
 ## Monitoring surface
 

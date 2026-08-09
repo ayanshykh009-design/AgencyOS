@@ -68,13 +68,31 @@ class AIService:
         plan_params: dict[str, Any] = {"lead_id": str(lead_id)}
         if channel:
             plan_params["channel"] = channel
+        memory_context = await self._retrieve_memory_context(organization_id)
         return await brain.run_with_plan(
             goal=goal,
             lead=lead,
             research=research,
             recent_messages=recent_messages,
+            memory_context=memory_context,
             **plan_params,
         )
+
+    async def _retrieve_memory_context(self, organization_id: uuid.UUID) -> str | None:
+        """Fetch ranked memory context for the AI prompt, gated + fail-open.
+
+        Gated on ``settings.AI_MEMORY_ENABLED``; any retrieval error logs a
+        warning and returns ``None`` so the AI run proceeds unchanged.
+        """
+        if not settings.AI_MEMORY_ENABLED:
+            return None
+        from app.services.memory_service import MemoryService
+
+        try:
+            return await MemoryService(self._session).retrieve_context(organization_id)
+        except Exception as exc:  # pragma: no cover - defensive path
+            logger.warning("memory context retrieval failed; proceeding without it: %s", exc)
+            return None
 
     async def tools(self) -> list[dict[str, Any]]:
         """Return the static tool manifest (portable, no runtime deps)."""

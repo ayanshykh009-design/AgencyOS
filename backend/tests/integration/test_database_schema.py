@@ -20,12 +20,17 @@ from psycopg2 import errors, sql  # noqa: E402
 from app.core.config import settings  # noqa: E402
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "database" / "migrations"
+POLICIES_DIR = Path(__file__).resolve().parents[3] / "database" / "supabase" / "policies"
 ADMIN_URL = os.getenv(
     "TEST_POSTGRES_URL",
     settings.DATABASE_URL.replace("+asyncpg", "").rsplit("/", 1)[0] + "/postgres",
 )
 
 ORG_ID = "00000000-0000-0000-0000-000000000001"
+
+# Digest of 0018_phase5d_database_layer.sql (LF-normalized, utf-8): M4 must NOT
+# modify the migration, so this pins it against accidental drift.
+MIGRATION_0018_SHA256 = "78d81482401b8a74af3bc75acb36066c578a991255a31348cef9b72ae5e925bc"
 
 
 def _database_available() -> bool:
@@ -726,3 +731,237 @@ def test_worker_health_retention_prunes_dead_instances(migrated_db) -> None:
         )
         assert cur.fetchone()[0] == 1
     migrated_db.commit()
+
+
+def test_no_migration_0019_exists() -> None:
+    """M4 adds no schema migration: 0018 is the final AI-layer migration."""
+    assert not list(MIGRATIONS_DIR.glob("0019_*.sql"))
+
+
+def test_migration_0018_unchanged_sha256() -> None:
+    """M4 must not modify 0018: the migration content is pinned by digest."""
+    import hashlib
+
+    raw = (MIGRATIONS_DIR / "0018_phase5d_database_layer.sql").read_bytes()
+    normalized = raw.replace(b"\r\n", b"\n")
+    assert hashlib.sha256(normalized).hexdigest() == MIGRATION_0018_SHA256
+
+
+def test_memory_cleanup_org_scoped_and_working_only(migrated_db) -> None:
+    """The M4 cleanup sweep deletes only expired working rows for one org.
+
+    Mirrors ``AiMemoryRepository.list_expired_working`` + ``delete_many``:
+    org-scoped, ``memory_type='working'`` only, oldest first, batch-bounded.
+    Long-term rows and other orgs must be untouched.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    org_a = str(uuid.uuid4())
+    org_b = str(uuid.uuid4())
+    _insert_org(migrated_db, org_a)
+    _insert_org(migrated_db, org_b)
+
+    now = datetime.now(UTC)
+    old = now - timedelta(days=400)
+    fresh = now - timedelta(days=1)
+    with migrated_db.cursor() as cur:
+        for org in (org_a, org_b):
+            cur.execute(
+                "INSERT INTO public.ai_memories "
+                "(organization_id, memory_type, scope, content, created_at) "
+                "VALUES (%s, 'working', 'research', 'expired row', %s)",
+                (org, old),
+            )
+        # Fresh working row (not expired) + long-term row for org A.
+        cur.execute(
+            "INSERT INTO public.ai_memories "
+            "(organization_id, memory_type, scope, content, created_at) "
+            "VALUES (%s, 'working', 'research', 'fresh row', %s)",
+            (org_a, fresh),
+        )
+        cur.execute(
+            "INSERT INTO public.ai_memories "
+            "(organization_id, memory_type, scope, content, metadata, created_at) "
+            "VALUES (%s, 'long_term', 'manual', 'durable row', "
+            "'{\"category\": \"founder\"}'::jsonb, %s)",
+            (org_a, old),
+        )
+
+        cutoff = now - timedelta(days=30)
+        batch = 100
+        # One bounded, org-scoped sweep for org A only (delete_many semantics).
+        while True:
+            cur.execute(
+                "DELETE FROM public.ai_memories WHERE organization_id = %s AND id IN ("
+                "  SELECT id FROM public.ai_memories"
+                "  WHERE organization_id = %s AND memory_type = 'working'"
+                "  AND created_at < %s ORDER BY created_at LIMIT %s"
+                ")",
+                (org_a, org_a, cutoff, batch),
+            )
+            if cur.rowcount < batch:
+                break
+
+        cur.execute(
+            "SELECT memory_type, scope, content FROM public.ai_memories "
+            "WHERE organization_id = %s ORDER BY content",
+            (org_a,),
+        )
+        assert cur.fetchall() == [("working", "research", "fresh row"),
+                                  ("long_term", "manual", "durable row")]
+        cur.execute(
+            "SELECT count(*) FROM public.ai_memories "
+            "WHERE organization_id = %s AND content = 'expired row'",
+            (org_b,),
+        )
+        assert cur.fetchone()[0] == 1
+    migrated_db.commit()
+
+
+def test_rls_org_isolation_ai_memories_knowledge(migrated_db) -> None:
+    """RLS org isolation works for the tables the M4 ops touch.
+
+    Applies the repo's policy files verbatim (ai_memories + knowledge_items)
+    and models the Supabase Auth runtime: ``auth.uid()`` resolves from
+    ``request.jwt.claims.sub`` and ``tenant_org_id()`` runs as the table owner
+    (SECURITY DEFINER), which is how the Supabase-managed environment executes
+    it. Each authenticated user sees/edits only its own org's rows.
+    """
+    _insert_org(migrated_db, ORG_ID)
+    org_b = str(uuid.uuid4())
+    _insert_org(migrated_db, org_b)
+
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.users (organization_id, email, full_name, role) "
+            "VALUES (%s, %s, %s, 'owner') RETURNING id",
+            (ORG_ID, "owner-a@example.com"),
+        )
+        user_a = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.users (organization_id, email, full_name, role) "
+            "VALUES (%s, %s, %s, 'owner') RETURNING id",
+            (org_b, "owner-b@example.com"),
+        )
+        user_b = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.ai_memories (organization_id, scope, content) "
+            "VALUES (%s, 'research', 'memory-a') RETURNING id",
+            (ORG_ID,),
+        )
+        cur.fetchone()
+        cur.execute(
+            "INSERT INTO public.ai_memories (organization_id, scope, content) "
+            "VALUES (%s, 'research', 'memory-b') RETURNING id",
+            (org_b,),
+        )
+        mem_b = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.knowledge_items (organization_id, title, content, category) "
+            "VALUES (%s, 'knowledge-a', 'content-a', 'knowledge') RETURNING id",
+            (ORG_ID,),
+        )
+        cur.fetchone()
+        cur.execute(
+            "INSERT INTO public.knowledge_items (organization_id, title, content, category) "
+            "VALUES (%s, 'knowledge-b', 'content-b', 'knowledge') RETURNING id",
+            (org_b,),
+        )
+        knowledge_b = cur.fetchone()[0]
+    migrated_db.commit()
+
+    # -- Runtime modeling: auth schema, uid(), helper as owner, grants.
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated')"
+            " THEN CREATE ROLE authenticated; END IF; END $$;"
+        )
+        cur.execute("CREATE SCHEMA IF NOT EXISTS auth")
+        cur.execute(
+            "CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE "
+            "SECURITY DEFINER AS $$ SELECT (NULLIF(current_setting('request.jwt.claims', true), '')"
+            "::jsonb ->> 'sub')::uuid $$"
+        )
+        cur.execute(
+            (POLICIES_DIR / "_helpers.sql").read_text(encoding="utf-8")
+        )
+        cur.execute("ALTER FUNCTION public.tenant_org_id() SECURITY DEFINER")
+        cur.execute(
+            (POLICIES_DIR / "ai_memories.sql").read_text(encoding="utf-8")
+        )
+        cur.execute(
+            (POLICIES_DIR / "knowledge_items.sql").read_text(encoding="utf-8")
+        )
+        cur.execute("GRANT USAGE ON SCHEMA auth TO authenticated")
+        cur.execute(
+            "GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_memories, "
+            "public.knowledge_items TO authenticated"
+        )
+    migrated_db.commit()
+
+    # -- User A can see only A's rows, insert into A only, and cannot touch B.
+    with migrated_db.cursor() as cur:
+        cur.execute("SET ROLE authenticated")
+        cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{user_a}"}}',))
+        cur.execute("SELECT count(*) FROM public.ai_memories")
+        assert cur.fetchone()[0] == 1
+        cur.execute("SELECT content FROM public.ai_memories")
+        assert cur.fetchone()[0] == "memory-a"
+        cur.execute("SELECT count(*) FROM public.knowledge_items")
+        assert cur.fetchone()[0] == 1
+        cur.execute(
+            "INSERT INTO public.ai_memories (organization_id, scope, content) "
+            "VALUES (%s, 'research', 'memory-a-2') RETURNING id",
+            (ORG_ID,),
+        )
+        assert cur.fetchone()[0] is not None
+        # RLS silently filters rows of other orgs: the DELETE matches nothing.
+        cur.execute("DELETE FROM public.ai_memories WHERE id = %s", (mem_b,))
+        assert cur.rowcount == 0
+        cur.execute("DELETE FROM public.knowledge_items WHERE id = %s", (knowledge_b,))
+        assert cur.rowcount == 0
+    migrated_db.commit()
+
+    # -- User B sees only B's rows.
+    with migrated_db.cursor() as cur:
+        cur.execute("SET ROLE authenticated")
+        cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{user_b}"}}',))
+        cur.execute("SELECT content FROM public.ai_memories")
+        assert cur.fetchone()[0] == "memory-b"
+        cur.execute("SELECT count(*) FROM public.ai_memories")
+        assert cur.fetchone()[0] == 1
+    migrated_db.commit()
+
+    # -- RLS rejects cross-org INSERT for A (policy WITH CHECK violation).
+    with migrated_db.cursor() as cur:
+        cur.execute("SET ROLE authenticated")
+        cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{user_a}"}}',))
+        with pytest.raises(errors.InsufficientPrivilege):
+            cur.execute(
+                "INSERT INTO public.ai_memories (organization_id, scope, content) "
+                "VALUES (%s, 'research', 'sneaky')",
+                (org_b,),
+            )
+    migrated_db.rollback()
+    with migrated_db.cursor() as cur:
+        cur.execute("SET ROLE authenticated")
+        cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{user_a}"}}',))
+        with pytest.raises(errors.InsufficientPrivilege):
+            cur.execute(
+                "INSERT INTO public.knowledge_items "
+                "(organization_id, title, content, category) "
+                "VALUES (%s, 'sneaky', 'x', 'knowledge')",
+                (org_b,),
+            )
+        cur.execute("RESET ROLE")
+    migrated_db.commit()
+
+    # -- The A rows (incl. the extra insert) survived; B's are untouched.
+    with migrated_db.cursor() as cur:
+        cur.execute("SELECT count(*) FROM public.ai_memories WHERE organization_id = %s", (ORG_ID,))
+        assert cur.fetchone()[0] == 2
+        cur.execute(
+            "SELECT count(*) FROM public.knowledge_items WHERE organization_id = %s",
+            (org_b,),
+        )
+        assert cur.fetchone()[0] == 1

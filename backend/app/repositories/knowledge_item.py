@@ -60,6 +60,24 @@ class KnowledgeItemRepository(TenantRepository[KnowledgeItem]):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_by_source_memory(
+        self,
+        organization_id: uuid.UUID,
+        memory_id: uuid.UUID,
+    ) -> KnowledgeItem | None:
+        """Return the knowledge item promoted from a given working memory.
+
+        Promotion is service-internal and 1:1; this lookup (scoped by
+        ``organization_id`` plus the ``source_memory_id`` FK) is the duplicate
+        guard used by ``promote_to_knowledge``.
+        """
+        stmt = select(KnowledgeItem).where(
+            KnowledgeItem.organization_id == organization_id,
+            KnowledgeItem.source_memory_id == memory_id,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalars().first()
+
     async def count_by_category(self, organization_id: uuid.UUID) -> dict[str, int]:
         """Knowledge counts grouped by category."""
         stmt = (

@@ -194,6 +194,17 @@ class Settings(BaseSettings):
     # Working memory (conversation / research / workflow / shared context) is
     # ephemeral: entries older than this are eligible for TTL cleanup.
     MEMORY_WORKING_TTL_DAYS: int = 30
+    # Memory TTL cleanup worker (M4): deletes ONLY expired working memories in
+    # bounded, idempotent, org-scoped batches. Long-term memory is never pruned.
+    MEMORY_CLEANUP_ENABLED: bool = True
+    # Cadence (seconds) between working-memory TTL cleanup sweeps.
+    MEMORY_CLEANUP_INTERVAL_SECONDS: int = 3600
+    # Max expired working memories deleted per sweep tick (bounds DB + lock time).
+    MEMORY_CLEANUP_BATCH_SIZE: int = 500
+    # Bounds the memory context injected into the AI system prompt (M4).
+    MEMORY_CONTEXT_MAX_CHARS: int = 2500
+    # Max memories/knowledge returned by one memory retrieval for the AI path.
+    MEMORY_RETRIEVAL_LIMIT: int = 10
     # In-app notifications are pruned after this many days.
     NOTIFICATION_RETENTION_DAYS: int = 90
     # Approval requests auto-expire (deny) after this many hours.
@@ -262,6 +273,14 @@ class Settings(BaseSettings):
     def _validate_phase5d(self) -> None:
         if self.MEMORY_WORKING_TTL_DAYS < 1:
             raise RuntimeError("MEMORY_WORKING_TTL_DAYS must be >= 1")
+        if self.MEMORY_CLEANUP_INTERVAL_SECONDS < 60:
+            raise RuntimeError("MEMORY_CLEANUP_INTERVAL_SECONDS must be >= 60")
+        if self.MEMORY_CLEANUP_BATCH_SIZE < 1:
+            raise RuntimeError("MEMORY_CLEANUP_BATCH_SIZE must be >= 1")
+        if self.MEMORY_CONTEXT_MAX_CHARS < 500:
+            raise RuntimeError("MEMORY_CONTEXT_MAX_CHARS must be >= 500")
+        if self.MEMORY_RETRIEVAL_LIMIT < 1:
+            raise RuntimeError("MEMORY_RETRIEVAL_LIMIT must be >= 1")
         if self.NOTIFICATION_RETENTION_DAYS < 1:
             raise RuntimeError("NOTIFICATION_RETENTION_DAYS must be >= 1")
         if self.APPROVAL_EXPIRY_HOURS < 1:
