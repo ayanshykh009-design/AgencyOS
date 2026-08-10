@@ -44,6 +44,11 @@ def test_agents_runs_update_requires_auth(client) -> None:
     assert res.status_code == 401
 
 
+def test_agents_runs_cancel_requires_auth(client) -> None:
+    res = client.post(f"/api/v1/agents/runs/{RUN_ID}/cancel")
+    assert res.status_code == 401
+
+
 # -- memory ----------------------------------------------------------
 
 

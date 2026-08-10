@@ -69,12 +69,13 @@ class Brain:
         self,
         *,
         goal: str,
-        lead: Lead,
+        lead: Lead | None,
         research: LeadResearch | None,
         conversation: Conversation | None = None,
         recent_messages: list[dict[str, Any]] | None = None,
         plan_override: list[dict[str, Any]] | None = None,
         memory_context: str | None = None,
+        persona: str | None = None,
     ) -> BrainResult:
         """Execute the brain loop for a single goal."""
         from app.ai.context_builder import build_message_history, build_system_prompt
@@ -84,6 +85,7 @@ class Brain:
             research=research,
             recent_messages=recent_messages,
             memory_context=memory_context,
+            persona=persona,
         )
         messages = build_message_history(
             recent_messages=recent_messages, system_prompt=system_prompt
@@ -184,11 +186,12 @@ class Brain:
         self,
         *,
         goal: str,
-        lead: Lead,
+        lead: Lead | None,
         research: LeadResearch | None,
         conversation: Conversation | None = None,
         recent_messages: list[dict[str, Any]] | None = None,
         memory_context: str | None = None,
+        persona: str | None = None,
         **plan_params: Any,
     ) -> BrainResult:
         """Run the brain using the planner's pre-defined plan for the goal."""
@@ -204,6 +207,7 @@ class Brain:
                 conversation=conversation,
                 recent_messages=recent_messages,
                 memory_context=memory_context,
+                persona=persona,
             )
 
         return await self.run(
@@ -214,6 +218,7 @@ class Brain:
             recent_messages=recent_messages,
             plan_override=[{"tool": s.tool, "input": s.input} for s in plan.steps],
             memory_context=memory_context,
+            persona=persona,
         )
 
     @staticmethod

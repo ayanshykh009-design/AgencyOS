@@ -1,12 +1,16 @@
-"""Agent endpoints: run records (read/create/update) + per-agent state."""
-from __future__ import annotations
+"""Agent endpoints: run records (read/create/update/cancel) + agent state.
 
+NOTE: intentionally does NOT use ``from __future__ import annotations``;
+slowapi's ``@limiter.limit`` wrapper breaks FastAPI's forward-ref resolution.
+"""
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from app.api.deps import CurrentUser, DbSession
+from app.core.config import settings
 from app.core.permissions import Permission, require_permission
+from app.core.rate_limit import limiter
 from app.models.enums import AgentRunStatus, AgentStateStatus
 from app.schemas.agent_run import AgentRunCreate, AgentRunListResponse, AgentRunRead, AgentRunUpdate
 from app.schemas.agent_state import AgentStateListResponse, AgentStateRead, AgentStateUpsert
@@ -102,7 +106,9 @@ async def list_agent_runs(
     summary="Create an agent run record (queued, not executed)",
     dependencies=[_manage],
 )
+@limiter.limit(settings.RATE_LIMIT_AI)
 async def create_agent_run(
+    request: Request,
     body: AgentRunCreate,
     db: DbSession,
     current_user: CurrentUser,
@@ -116,6 +122,7 @@ async def create_agent_run(
         trigger=data["trigger"],
         workflow_id=data["workflow_id"],
         input_=data["input"],
+        idempotency_key=data["idempotency_key"],
     )
     return AgentRunRead.model_validate(run)
 
@@ -136,10 +143,32 @@ async def get_agent_run(
     return AgentRunRead.model_validate(run)
 
 
+@router.post(
+    "/runs/{run_id}/cancel",
+    response_model=AgentRunRead,
+    summary="Cancel an agent run",
+    dependencies=[_manage],
+)
+@limiter.limit(settings.RATE_LIMIT_DEFAULT)
+async def cancel_agent_run(
+    request: Request,
+    run_id: uuid.UUID,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> AgentRunRead:
+    service = AgentService(db)
+    run = await service.cancel_run(
+        current_user.organization_id,
+        run_id,
+        cancelled_by_user_id=current_user.id,
+    )
+    return AgentRunRead.model_validate(run)
+
+
 @router.patch(
     "/runs/{run_id}",
     response_model=AgentRunRead,
-    summary="Update an agent run record",
+    summary="Update agent run metadata (status is runtime-owned)",
     dependencies=[_manage],
 )
 async def update_agent_run(

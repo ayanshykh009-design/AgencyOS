@@ -17,31 +17,42 @@ if TYPE_CHECKING:
 
 def build_system_prompt(
     *,
-    lead: Lead,
+    lead: Lead | None,
     research: LeadResearch | None,
     recent_messages: list[dict[str, Any]] | None = None,
     memory_context: str | None = None,
+    persona: str | None = None,
 ) -> str:
     """Build the system prompt that gives the brain full context.
 
     ``memory_context`` (optional, pre-assembled by the memory layer) is
     appended under a ``=== MEMORY CONTEXT ===`` header; when ``None`` the
-    prompt is byte-identical to the pre-M4 form.
+    prompt is byte-identical to the pre-M4 form. ``lead`` may be ``None`` for
+    lead-less goals (the M5 generic agents): the prompt then uses ``persona``
+    (defaulting to a generic assistant persona) instead of lead details.
     """
-    parts: list[str] = [
-        "You are an AI outreach agent for a B2B agency. Your job is to research leads, "
-        "draft personalized outreach, and dispatch it via automation. You have access to "
-        "tools for lead search, research, web search, HTTP fetching, draft generation, "
-        "and n8n dispatch.",
-        "",
-        f"Current lead: {lead.first_name or ''} {lead.last_name or ''}".strip(),
-        f"Company: {lead.company or 'Unknown'}",
-        f"Role: {lead.position or 'Unknown'}",
-        f"Location: {lead.location or 'Unknown'}",
-        f"Email: {lead.email or 'N/A'}",
-        f"LinkedIn: {lead.linkedin_url or 'N/A'}",
-        "",
-    ]
+    if lead is None:
+        parts: list[str] = [
+            persona
+            or "You are an AI agent for a B2B agency. Accomplish the user's goal "
+            "using the provided tools, and report back concisely.",
+            "",
+        ]
+    else:
+        parts = [
+            "You are an AI outreach agent for a B2B agency. Your job is to research leads, "
+            "draft personalized outreach, and dispatch it via automation. You have access to "
+            "tools for lead search, research, web search, HTTP fetching, draft generation, "
+            "and n8n dispatch.",
+            "",
+            f"Current lead: {lead.first_name or ''} {lead.last_name or ''}".strip(),
+            f"Company: {lead.company or 'Unknown'}",
+            f"Role: {lead.position or 'Unknown'}",
+            f"Location: {lead.location or 'Unknown'}",
+            f"Email: {lead.email or 'N/A'}",
+            f"LinkedIn: {lead.linkedin_url or 'N/A'}",
+            "",
+        ]
 
     if research and research.status == "completed":
         parts.append("=== RESEARCH CONTEXT ===")

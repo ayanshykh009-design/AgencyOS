@@ -78,7 +78,7 @@ model, the Pydantic schemas, and this doc in the same change.
 | 31| `credential_key_versions` | Key-rotation ledger                     |
 | 32| `ai_memories`          | Working + long-term AI memory store (working rows TTL-pruned via `MEMORY_WORKING_TTL_DAYS`) |
 | 33| `knowledge_items`      | Durable long-term knowledge (optionally promoted from a working memory) |
-| 34| `agent_runs`           | Per-run agent execution records (retention via `AGENT_RUN_RETENTION_DAYS`) |
+| 34| `agent_runs`           | Per-run agent execution records (runtime-owned status machine, `idempotency_key`, cancel flags; retention via `AGENT_RUN_RETENTION_DAYS`) |
 | 35| `agent_state`          | Per-agent health bookkeeping (one row per org + agent, unique index) |
 | 36| `notifications`        | Per-user in-app inbox (retention via `NOTIFICATION_RETENTION_DAYS`) |
 | 37| `approval_requests`    | Workflow-gated approval requests (auto-expire at `expires_at`) |

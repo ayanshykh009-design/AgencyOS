@@ -46,6 +46,18 @@ class AgentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("idx_agent_runs_org_created", "organization_id", "created_at"),
         Index("idx_agent_runs_org_workflow", "organization_id", "workflow_id"),
         Index("idx_agent_runs_created_retention", "created_at"),
+        Index(
+            "uq_agent_runs_org_idempotency",
+            "organization_id",
+            "idempotency_key",
+            unique=True,
+            postgresql_where="idempotency_key IS NOT NULL",
+        ),
+        Index(
+            "idx_agent_runs_cancel_pending",
+            "cancel_requested_at",
+            postgresql_where="cancel_requested_at IS NOT NULL",
+        ),
     )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(
@@ -76,6 +88,11 @@ class AgentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     started_at: Mapped[datetime | None] = mapped_column()
     finished_at: Mapped[datetime | None] = mapped_column()
+    cancel_requested_at: Mapped[datetime | None] = mapped_column()
+    cancelled_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    idempotency_key: Mapped[str | None] = mapped_column()
 
     organization: Mapped[Organization] = relationship(back_populates="agent_runs")
     workflow: Mapped[Workflow | None] = relationship()

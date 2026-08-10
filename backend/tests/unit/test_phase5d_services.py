@@ -136,14 +136,14 @@ async def test_agent_create_run_persists_and_commit() -> None:
     session, service, _ = _service(AgentService, "_states")
     run = await service.create_run(
         ORG_ID,
-        agent_name="a",
+        agent_name="founder_assistant",
         status=AgentRunStatus.QUEUED,
         trigger=AgentRunTrigger.MANUAL,
         workflow_id=None,
         input_={},
     )
     assert run.organization_id == ORG_ID
-    assert run.agent_name == "a"
+    assert run.agent_name == "founder_assistant"
     assert session.committed is True
     assert any(isinstance(o, AgentRun) for o in session.added)
 
@@ -157,7 +157,7 @@ async def test_agent_update_run_not_found_404() -> None:
     )
     service._runs = runs
     with pytest.raises(AppError) as exc:
-        await service.update_run(ORG_ID, uuid.uuid4(), status=AgentRunStatus.SUCCEEDED)
+        await service.update_run(ORG_ID, uuid.uuid4())
     assert exc.value.status_code == 404
 
 

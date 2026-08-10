@@ -1,4 +1,9 @@
-"""Agent run schemas (per-run execution records)."""
+"""Agent run schemas (per-run execution records).
+
+Status is runtime-owned: ``AgentRunUpdate`` intentionally exposes no ``status``
+field, so clients can never force a run through the state machine. The runtime
+moves runs via guarded transitions in the service/repository, never via PATCH.
+"""
 from __future__ import annotations
 
 import uuid
@@ -22,10 +27,13 @@ class AgentRunBase(BaseModel):
 
 class AgentRunCreate(AgentRunBase):
     organization_id: uuid.UUID
+    # Idempotency key: re-creating with the same (org, key) returns the existing
+    # run instead of queuing a duplicate.
+    idempotency_key: str | None = Field(default=None, max_length=200)
 
 
 class AgentRunUpdate(BaseModel):
-    status: AgentRunStatus | None = None
+    # NOTE: status is intentionally absent — the runtime owns all transitions.
     output: dict[str, Any] | None = None
     error: str | None = None
     duration_ms: int | None = Field(default=None, ge=0)
@@ -45,6 +53,9 @@ class AgentRunRead(AgentRunBase):
     cost: Decimal
     started_at: datetime | None = None
     finished_at: datetime | None = None
+    cancel_requested_at: datetime | None = None
+    cancelled_by_user_id: uuid.UUID | None = None
+    idempotency_key: str | None = None
     created_at: datetime
     updated_at: datetime
 

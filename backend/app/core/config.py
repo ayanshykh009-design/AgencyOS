@@ -214,6 +214,17 @@ class Settings(BaseSettings):
     # Agent run records are pruned after this many days (configurable).
     AGENT_RUN_RETENTION_DAYS: int = 90
 
+    # --- M5 Agent Runtime worker ---
+    # Sweep cadence: seconds between polls of the queued agent-run buckets.
+    AGENT_RUN_POLL_INTERVAL_SECONDS: int = 5
+    # Max queued runs drained in a single sweep (bounded per poll).
+    AGENT_RUN_BATCH_SIZE: int = 10
+    # Max candidate organizations visited by the fair-drain sweep in one poll.
+    AGENT_RUN_ORGS_PER_SWEEP: int = 20
+    # Seconds a running agent run may spend before the worker re-converges it
+    # as failed (guards against executors that hang without raising).
+    AGENT_RUN_TIMEOUT_SECONDS: int = 300
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS_ORIGINS into a list of allowed origins."""
@@ -289,6 +300,14 @@ class Settings(BaseSettings):
             raise RuntimeError("GROWTH_METRICS_RETENTION_DAYS must be >= 1")
         if self.AGENT_RUN_RETENTION_DAYS < 1:
             raise RuntimeError("AGENT_RUN_RETENTION_DAYS must be >= 1")
+        if self.AGENT_RUN_POLL_INTERVAL_SECONDS < 1:
+            raise RuntimeError("AGENT_RUN_POLL_INTERVAL_SECONDS must be >= 1")
+        if self.AGENT_RUN_BATCH_SIZE < 1:
+            raise RuntimeError("AGENT_RUN_BATCH_SIZE must be >= 1")
+        if self.AGENT_RUN_ORGS_PER_SWEEP < 1:
+            raise RuntimeError("AGENT_RUN_ORGS_PER_SWEEP must be >= 1")
+        if self.AGENT_RUN_TIMEOUT_SECONDS < 1:
+            raise RuntimeError("AGENT_RUN_TIMEOUT_SECONDS must be >= 1")
 
     def _validate_csp(self) -> None:
         # Lazy import: csp.py reads this module's settings singleton, so it

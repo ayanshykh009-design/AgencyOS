@@ -733,9 +733,75 @@ def test_worker_health_retention_prunes_dead_instances(migrated_db) -> None:
     migrated_db.commit()
 
 
-def test_no_migration_0019_exists() -> None:
-    """M4 adds no schema migration: 0018 is the final AI-layer migration."""
-    assert not list(MIGRATIONS_DIR.glob("0019_*.sql"))
+def test_migration_0019_agent_runtime_additive_idempotent(migrated_db) -> None:
+    """0019 adds queue-hardening columns + partial indexes to agent_runs.
+
+    Re-applying must be a no-op that does not touch existing rows.
+    """
+    org_id = str(uuid.uuid4())
+    _insert_org(migrated_db, org_id)
+    with migrated_db.cursor() as cur:
+        for column in ("cancel_requested_at", "cancelled_by_user_id", "idempotency_key"):
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = 'public' AND table_name = 'agent_runs' "
+                "AND column_name = %s)",
+                (column,),
+            )
+            assert cur.fetchone()[0] is True
+        for index in ("uq_agent_runs_org_idempotency", "idx_agent_runs_cancel_pending"):
+            cur.execute(
+                "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' "
+                "AND tablename = 'agent_runs' AND indexname = %s)",
+                (index,),
+            )
+            assert cur.fetchone()[0] is True
+        cur.execute(
+            "INSERT INTO public.agent_runs "
+            "(organization_id, agent_name, idempotency_key) "
+            "VALUES (%s, %s, %s) RETURNING id, status, cancel_requested_at",
+            (org_id, "founder_assistant", "runtime-idem-key-1"),
+        )
+        run_id, status, cancel_requested_at = cur.fetchone()
+        assert status == "queued"
+        assert cancel_requested_at is None
+
+        migration_0019 = (MIGRATIONS_DIR / "0019_phase5d_agent_runtime.sql").read_text(
+            encoding="utf-8"
+        )
+        # Re-applying 0019 must be a safe no-op and must not touch existing rows.
+        cur.execute(migration_0019)
+        cur.execute(
+            "SELECT status, idempotency_key FROM public.agent_runs WHERE id = %s",
+            (run_id,),
+        )
+        assert cur.fetchone() == ("queued", "runtime-idem-key-1")
+    migrated_db.commit()
+
+
+def test_migration_0019_idempotency_unique_per_org(migrated_db) -> None:
+    """Duplicate agent-run idempotency keys are rejected within one org."""
+    org_a = str(uuid.uuid4())
+    org_b = str(uuid.uuid4())
+    _insert_org(migrated_db, org_a)
+    _insert_org(migrated_db, org_b)
+    with migrated_db.cursor() as cur:
+        for org in (org_a, org_b):
+            cur.execute(
+                "INSERT INTO public.agent_runs "
+                "(organization_id, agent_name, idempotency_key) "
+                "VALUES (%s, 'outreach_agent', 'shared-key')",
+                (org,),
+            )
+        # Same org + same key -> unique violation (mirrors uq_agent_runs_org_idempotency).
+        with pytest.raises(errors.UniqueViolation):
+            cur.execute(
+                "INSERT INTO public.agent_runs "
+                "(organization_id, agent_name, idempotency_key) "
+                "VALUES (%s, 'outreach_agent', 'shared-key')",
+                (org_a,),
+            )
+    migrated_db.rollback()
 
 
 def test_migration_0018_unchanged_sha256() -> None:
