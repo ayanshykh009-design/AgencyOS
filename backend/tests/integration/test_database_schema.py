@@ -8,6 +8,7 @@ disposable database that is dropped on teardown.
 from __future__ import annotations
 
 import os
+import re
 import uuid
 from pathlib import Path
 
@@ -21,6 +22,7 @@ from app.core.config import settings  # noqa: E402
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "database" / "migrations"
 POLICIES_DIR = Path(__file__).resolve().parents[3] / "database" / "supabase" / "policies"
+SCHEMA_DIR = Path(__file__).resolve().parents[3] / "database" / "schema"
 ADMIN_URL = os.getenv(
     "TEST_POSTGRES_URL",
     settings.DATABASE_URL.replace("+asyncpg", "").rsplit("/", 1)[0] + "/postgres",
@@ -802,6 +804,57 @@ def test_migration_0019_idempotency_unique_per_org(migrated_db) -> None:
                 (org_a,),
             )
     migrated_db.rollback()
+
+
+def _agent_runs_additions_0019() -> tuple[set[str], set[str]]:
+    """Column and index names migration 0019 adds to ``public.agent_runs``.
+
+    Derived from the migration (the schema source of truth) so the mirror
+    parity guard tracks migration edits instead of hardcoding identifiers.
+    """
+    text = (MIGRATIONS_DIR / "0019_phase5d_agent_runtime.sql").read_text(
+        encoding="utf-8"
+    )
+    statements = "\n".join(
+        line for line in text.splitlines() if not line.strip().startswith("--")
+    )
+    columns = set(re.findall(r"ADD COLUMN IF NOT EXISTS\s+([a-z_]+)", statements))
+    indexes = set(
+        re.findall(r"CREATE (?:UNIQUE )?INDEX IF NOT EXISTS\s+([a-z_]+)", statements)
+    )
+    return columns, indexes
+
+
+def test_agent_runs_schema_mirror_matches_0019() -> None:
+    """The readable schema mirror must declare every M5/0019 addition.
+
+    ``database/schema/agent_runs.sql`` is the canonical readable mirror of the
+    agent_runs migrations (docs/database.md). This guard derives the additions
+    from migration 0019 itself and requires the mirror to declare each one, so
+    a future migration edit cannot silently leave the mirror stale.
+    """
+    added_columns, added_indexes = _agent_runs_additions_0019()
+    assert added_columns and added_indexes, "0019 must declare the guarded additions"
+
+    mirror = (SCHEMA_DIR / "agent_runs.sql").read_text(encoding="utf-8")
+    table_body = re.search(
+        r"CREATE TABLE IF NOT EXISTS public\.agent_runs \((?P<body>.*?)\n\);",
+        mirror,
+        re.DOTALL,
+    )
+    assert table_body, "schema mirror must define public.agent_runs"
+    body = table_body.group("body")
+
+    for column in sorted(added_columns):
+        assert re.search(rf"(?m)^  {re.escape(column)}\b", body), (
+            f"schema mirror missing column {column!r} added by migration 0019"
+        )
+
+    for index in sorted(added_indexes):
+        assert re.search(
+            rf"CREATE (?:UNIQUE )?INDEX IF NOT EXISTS {re.escape(index)}\b",
+            mirror,
+        ), f"schema mirror missing index {index!r} created by migration 0019"
 
 
 def test_migration_0018_unchanged_sha256() -> None:

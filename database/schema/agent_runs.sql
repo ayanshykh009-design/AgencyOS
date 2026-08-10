@@ -13,6 +13,10 @@ CREATE TABLE IF NOT EXISTS public.agent_runs (
   cost            numeric(18, 6) NOT NULL DEFAULT 0,
   started_at      timestamptz,
   finished_at     timestamptz,
+  -- M5 (0019): runtime-owned cancellation + idempotent re-queue support.
+  cancel_requested_at  timestamptz,
+  cancelled_by_user_id uuid REFERENCES public.users (id) ON DELETE SET NULL,
+  idempotency_key      text,
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT chk_agent_runs_agent_name_not_blank CHECK (length(btrim(agent_name)) > 0),
@@ -32,6 +36,14 @@ CREATE INDEX IF NOT EXISTS idx_agent_runs_org_workflow
 -- Configurable-retention sweep.
 CREATE INDEX IF NOT EXISTS idx_agent_runs_created_retention
   ON public.agent_runs (created_at);
+-- Re-queueing a run with the same (org, key) must not create a duplicate run.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_agent_runs_org_idempotency
+  ON public.agent_runs (organization_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+-- Worker cancellation sweep targets cancel-flagged runs (bounded lookup).
+CREATE INDEX IF NOT EXISTS idx_agent_runs_cancel_pending
+  ON public.agent_runs (cancel_requested_at)
+  WHERE cancel_requested_at IS NOT NULL;
 
 DROP TRIGGER IF EXISTS trg_agent_runs_updated_at ON public.agent_runs;
 CREATE TRIGGER trg_agent_runs_updated_at

@@ -90,6 +90,17 @@ model, the Pydantic schemas, and this doc in the same change.
 
 See the ERD in [diagrams/database-erd.md](diagrams/database-erd.md).
 
+## Agent runtime indexes (`agent_runs`)
+
+`agent_runs` history is retained for `AGENT_RUN_RETENTION_DAYS` (default 90).
+The M5 worker runs a recurring cancellation sweep — `get_cancel_requested`
+selects `status = 'running'` rows with `cancel_requested_at` set, in
+`cancel_requested_at` order. The partial index `idx_agent_runs_cancel_pending`
+on `cancel_requested_at` (`WHERE cancel_requested_at IS NOT NULL`) keeps that
+recurring lookup bounded to the rows that actually requested cancellation
+rather than scanning the full retained run history. It is a runtime
+polling/query-efficiency requirement of the M5 worker.
+
 ## Enum types
 
 Defined in `database/migrations/enums/` and materialized by `0001_core_enums.sql`:
