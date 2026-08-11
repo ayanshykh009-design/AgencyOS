@@ -17,6 +17,8 @@ from app.models.close_reason import CloseReason
 from app.models.conversation import Conversation
 from app.models.conversation_message import ConversationMessage
 from app.models.credential import Credential
+from app.models.delivery import Delivery
+from app.models.delivery_event import DeliveryEvent
 from app.models.execution_event import ExecutionEvent
 from app.models.follow_up import FollowUp
 from app.models.growth_forecast import GrowthForecast
@@ -59,6 +61,8 @@ __all__ = [
     "Conversation",
     "ConversationMessage",
     "Credential",
+    "Delivery",
+    "DeliveryEvent",
     "ExecutionEvent",
     "FollowUp",
     "GrowthForecast",

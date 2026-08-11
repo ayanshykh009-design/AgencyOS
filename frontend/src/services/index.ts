@@ -75,6 +75,22 @@ export {
   updateCredential,
   deleteCredential,
 } from "./credentials";
+export {
+  listDeliveries,
+  getDelivery,
+  createDelivery,
+  listDeliveryEvents,
+  retryDelivery,
+  cancelDelivery,
+} from "./deliveries";
+export {
+  listNotifications,
+  getNotification,
+  getUnreadCount,
+  getNotificationTypeCounts,
+  markNotificationRead,
+  setNotificationRead,
+} from "./notifications";
 export type { LoginInput } from "./auth";
 export type { LeadQuery, DuplicateQuery } from "./leads";
 export type { BrainRunInput } from "./ai";
@@ -86,3 +102,5 @@ export type { WorkflowTriggerQuery } from "./workflow-triggers";
 export type { WorkflowExecutionQuery } from "./workflow-executions";
 export type { WorkflowEventQuery } from "./workflow-events";
 export type { CredentialQuery } from "./credentials";
+export type { DeliveryQuery } from "./deliveries";
+export type { NotificationQuery, UnreadCount, NotificationTypeCounts } from "./notifications";

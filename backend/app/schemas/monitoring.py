@@ -65,6 +65,21 @@ class RetentionStatisticsResponse(BaseModel):
     workers_pruned: int
 
 
+class DeliveryStatisticsResponse(BaseModel):
+    """Platform-wide delivery outbox statistics (monitoring)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    queued: int
+    processing: int
+    retrying: int
+    delivered: int
+    failed: int
+    cancelled: int
+    active: int
+    terminal: int
+
+
 class AutomationLifecycleResponse(BaseModel):
     """Automation lifecycle statistics (pause/resume events)."""
     model_config = ConfigDict(from_attributes=True)

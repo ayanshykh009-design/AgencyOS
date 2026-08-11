@@ -17,7 +17,7 @@ class WorkerHealth(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "worker_health"
     __table_args__ = (
         CheckConstraint(
-            "worker_type IN ('execution', 'credential')",
+            "worker_type IN ('execution', 'credential', 'delivery', 'agent', 'memory')",
             name="chk_worker_health_type",
         ),
         UniqueConstraint(

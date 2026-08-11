@@ -1,7 +1,9 @@
 -- worker_health: per-instance heartbeat rows for the automation workers (Phase 5C)
 CREATE TABLE IF NOT EXISTS public.worker_health (
   id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  worker_type       text NOT NULL CHECK (worker_type IN ('execution', 'credential')),
+  worker_type       text NOT NULL
+                    CONSTRAINT chk_worker_health_type
+                    CHECK (worker_type IN ('execution', 'credential', 'delivery', 'approval_gate', 'agent', 'memory')),
   instance_id       uuid NOT NULL,
   pid               integer NOT NULL,
   hostname          text NOT NULL DEFAULT '',

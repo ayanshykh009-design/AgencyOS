@@ -46,6 +46,11 @@ class ApprovalRequest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             postgresql_where="status = 'pending'",
         ),
         Index("idx_approval_requests_execution", "workflow_execution_id"),
+        Index(
+            "idx_approval_requests_gate_handled",
+            "status",
+            postgresql_where="gate_handled_at IS NULL AND workflow_execution_id IS NOT NULL",
+        ),
     )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(
@@ -83,6 +88,7 @@ class ApprovalRequest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     decided_at: Mapped[datetime | None] = mapped_column()
     decision_note: Mapped[str | None] = mapped_column(Text)
+    gate_handled_at: Mapped[datetime | None] = mapped_column()
 
     organization: Mapped[Organization] = relationship(back_populates="approval_requests")
     workflow: Mapped[Workflow | None] = relationship()

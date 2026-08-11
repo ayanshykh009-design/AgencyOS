@@ -25,7 +25,8 @@ One file per endpoint group, e.g.:
 - `workflow-executions.md` — execution queue, history, retries, timeline
 - `workflow-events.md` — event publishing for event-driven triggers
 - `automation-control.md` — global pause/resume kill switch (admin-only)
-- `monitoring.md` — operator monitoring: workers, statistics, queue depth
+- `monitoring.md` — operator monitoring: workers, statistics, queue depth, delivery counts
+- `deliveries.md` — M6 delivery outbox: enqueue, timeline, retry, cancel
 - `credentials.md` — org-scoped secrets (envelope-encrypted) for integrations
 
 Each file documents: request/response schemas, auth requirements, error codes,

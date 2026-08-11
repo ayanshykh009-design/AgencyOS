@@ -94,3 +94,64 @@ class ApprovalRequestRepository(TenantRepository[ApprovalRequest]):
         )
         result = cast(CursorResult, await self._session.execute(stmt))
         return (result.rowcount or 0) > 0
+
+    # -- approval gate (M6) ----------------------------------------------
+
+    async def exists_pending_gate(
+        self, organization_id: uuid.UUID, workflow_execution_id: uuid.UUID
+    ) -> bool:
+        """Whether an execution currently waits on a pending approval gate.
+
+        Used by the execution worker to skip draining gated executions.
+        """
+        stmt = (
+            select(ApprovalRequest.id)
+            .where(
+                ApprovalRequest.organization_id == organization_id,
+                ApprovalRequest.workflow_execution_id == workflow_execution_id,
+                ApprovalRequest.status == ApprovalRequestStatus.PENDING,
+            )
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def list_unhandled_gates(self, *, limit: int = 200) -> list[ApprovalRequest]:
+        """Terminal requests linked to an execution whose gate is still open.
+
+        The gate worker sweeps these and applies the decision to the linked
+        execution (approve -> requeue; deny/expire/cancel -> cancel), then
+        stamps ``gate_handled_at``.
+        """
+        stmt = (
+            select(ApprovalRequest)
+            .where(
+                ApprovalRequest.gate_handled_at.is_(None),
+                ApprovalRequest.workflow_execution_id.is_not(None),
+                ApprovalRequest.status.in_(
+                    (
+                        ApprovalRequestStatus.APPROVED,
+                        ApprovalRequestStatus.DENIED,
+                        ApprovalRequestStatus.EXPIRED,
+                        ApprovalRequestStatus.CANCELLED,
+                    )
+                ),
+            )
+            .order_by(ApprovalRequest.decided_at)
+            .limit(min(limit, 500))
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def claim_gate(self, request_id: uuid.UUID, *, handled_at: datetime) -> bool:
+        """Atomically stamp ``gate_handled_at``; False when already handled."""
+        stmt = (
+            update(ApprovalRequest)
+            .where(
+                ApprovalRequest.id == request_id,
+                ApprovalRequest.gate_handled_at.is_(None),
+            )
+            .values(gate_handled_at=handled_at)
+        )
+        result = cast(CursorResult, await self._session.execute(stmt))
+        return (result.rowcount or 0) > 0

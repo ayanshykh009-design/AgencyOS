@@ -373,3 +373,61 @@ class InsightStatus(StrEnum):
     ACTIVE = "active"
     ACKNOWLEDGED = "acknowledged"
     DISMISSED = "dismissed"
+
+
+class DeliveryChannel(StrEnum):
+    """Transport a delivery is sent over.
+
+    M6 ships the ``dashboard`` provider only; ``email``/``whatsapp``/``push``
+    are declared for the frozen M1 surface and fail closed until their
+    providers land in later milestones.
+    """
+
+    DASHBOARD = "dashboard"
+    EMAIL = "email"
+    WHATSAPP = "whatsapp"
+    PUSH = "push"
+
+
+class DeliveryStatus(StrEnum):
+    """Lifecycle of a single delivery (outbox state machine).
+
+    Mirrors ``public.delivery_status``. The state machine is
+    ``queued -> processing -> delivered/failed/cancelled`` with
+    ``processing -> retrying -> queued/cancelled`` for scheduled retries;
+    ``failed``/``cancelled`` re-enter ``queued`` only through an explicit
+    manual retry. Transitions are owned by the delivery worker and its
+    guarded transitions, not by callers.
+    """
+
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    DELIVERED = "delivered"
+    RETRYING = "retrying"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class DeliveryEventType(StrEnum):
+    """Closed set of append-only delivery timeline labels.
+
+    Mirrors ``public.delivery_event_type`` (database/migrations/enums/13_delivery.sql).
+    ``queued``/``claimed``/``delivered``/``retrying``/``failed``/``cancelled``
+    are the state-machine transitions; ``provider_dispatched``/
+    ``provider_returned`` bracket a provider attempt; ``timed_out`` marks an
+    attempt that exceeded the active provider timeout; ``recovery_guard`` is
+    stamped before a stale row is recovered. ``superseded`` is reserved for a
+    later milestone (a newer delivery replacing an older one).
+    """
+
+    QUEUED = "queued"
+    CLAIMED = "claimed"
+    PROVIDER_DISPATCHED = "provider_dispatched"
+    PROVIDER_RETURNED = "provider_returned"
+    DELIVERED = "delivered"
+    RETRYING = "retrying"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    TIMED_OUT = "timed_out"
+    RECOVERY_GUARD = "recovery_guard"
+    SUPERSEDED = "superseded"

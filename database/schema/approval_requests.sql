@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.approval_requests (
   decided_by_user_id    uuid REFERENCES public.users (id) ON DELETE SET NULL,
   decided_at            timestamptz,
   decision_note         text,
+  gate_handled_at       timestamptz,
   created_at            timestamptz NOT NULL DEFAULT now(),
   updated_at            timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT chk_approval_requests_title_not_blank CHECK (length(btrim(title)) > 0)
@@ -30,6 +31,10 @@ CREATE INDEX IF NOT EXISTS idx_approval_requests_pending_expiry
 -- FK support (execution-gated approvals).
 CREATE INDEX IF NOT EXISTS idx_approval_requests_execution
   ON public.approval_requests (workflow_execution_id);
+-- Gate-worker sweep: terminal requests whose gate has not been handled yet.
+CREATE INDEX IF NOT EXISTS idx_approval_requests_gate_handled
+  ON public.approval_requests (status)
+  WHERE gate_handled_at IS NULL AND workflow_execution_id IS NOT NULL;
 
 DROP TRIGGER IF EXISTS trg_approval_requests_updated_at ON public.approval_requests;
 CREATE TRIGGER trg_approval_requests_updated_at

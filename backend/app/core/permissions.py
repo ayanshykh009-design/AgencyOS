@@ -93,6 +93,10 @@ class Permission(StrEnum):
     GROWTH_MANAGE = "growth_manage"
     AGENT_READ = "agent_read"
     AGENT_MANAGE = "agent_manage"
+    # M6 Founder Communication & Delivery Layer
+    DELIVERY_READ = "delivery_read"
+    DELIVERY_WRITE = "delivery_write"
+    DELIVERY_MANAGE = "delivery_manage"
 
 
 PERMISSION_MATRIX: dict[Permission, set[UserRole]] = {
@@ -138,6 +142,10 @@ PERMISSION_MATRIX: dict[Permission, set[UserRole]] = {
     Permission.GROWTH_MANAGE: _ADMIN_ONLY,
     Permission.AGENT_READ: _READ,
     Permission.AGENT_MANAGE: _ADMIN_ONLY,
+    # M6 Founder Communication & Delivery Layer
+    Permission.DELIVERY_READ: _READ,
+    Permission.DELIVERY_WRITE: _WRITE,
+    Permission.DELIVERY_MANAGE: _ADMIN_ONLY,
 }
 
 

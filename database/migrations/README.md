@@ -22,6 +22,10 @@ AgencyOS schema. Naming: `NNNN_description.sql` (e.g. `0001_core_enums.sql`).
 | `0015_credential_key_versions.sql` | `credential_key_versions`, `credentials.key_version`/`last_rotated_at`, partial unique per-version index |
 | `0016_search_trigram_indexes.sql` | `pg_trgm` GIN indexes for leading-wildcard lead/task search |
 | `0017_automation_hardening.sql` | `execution_event_type` enum, `execution_events` (append-only timeline), `worker_health` (heartbeats), `system_settings` (kill switch), `workflow_executions` hardening columns (`cancel_requested_at`, `cancelled_by_user_id`, `idempotency_key` + indexes), `automation_paused`/`automation_resumed` activity events |
+| `0018_phase5d_database_layer.sql` | Phase 5D AI layer: `ai_memories`, `knowledge_items`, `agent_runs`, `agent_state`, `notifications`, `approval_requests`, `approval_logs`, `briefings`, `growth_metrics`, `growth_forecasts`, `business_insights` + their enums |
+| `0019_phase5d_agent_runtime.sql` | Phase 5D agent runtime: `agent_runs` queue-hardening columns (`idempotency_key`, `cancel_requested_at`, `started_at`/`finished_at` + partial indexes) |
+| `0020_m6_delivery.sql` | Phase M6 delivery outbox: `delivery_channel`/`delivery_status`/`delivery_event_type` enums, `deliveries`, `delivery_events` (append-only timeline) + indexes |
+| `0021_m6_delivery_hardening.sql` | Phase M6 hardening: `approval_requests.gate_handled_at` + gate-sweep index, `worker_health.worker_type` extended to admit `delivery`/`agent`/`memory` |
 
 Rules:
 

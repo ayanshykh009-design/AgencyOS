@@ -1,8 +1,8 @@
 # Notifications
 
-Per-user in-app inbox. Delivery workers land in M6 — these endpoints read
-and acknowledge inbox rows. All endpoints are JWT-authenticated. Reads require
-`notification_read`; creation requires `notification_write`.
+Per-user in-app inbox; M6 delivery workers create and deliver inbox rows. All
+endpoints are JWT-authenticated. Reads require `notification_read`; creation
+requires `notification_write`.
 
 ## GET /api/v1/notifications
 

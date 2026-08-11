@@ -19,6 +19,8 @@ from app.repositories.conversation import (
     ConversationRepository,
 )
 from app.repositories.credential import CredentialRepository
+from app.repositories.delivery import DeliveryRepository
+from app.repositories.delivery_event import DeliveryEventRepository
 from app.repositories.execution_event import ExecutionEventRepository
 from app.repositories.growth_forecast import GrowthForecastRepository
 from app.repositories.growth_metric import GrowthMetricRepository
@@ -56,6 +58,8 @@ __all__ = [
     "ConversationMessageRepository",
     "ConversationRepository",
     "CredentialRepository",
+    "DeliveryEventRepository",
+    "DeliveryRepository",
     "ExecutionEventRepository",
     "FollowUpRepository",
     "GrowthForecastRepository",

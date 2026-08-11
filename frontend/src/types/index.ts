@@ -741,3 +741,109 @@ export interface QueueMetrics {
   completed_24h: number;
   failed_24h: number;
 }
+
+// Phase M6: Founder Communication & Delivery layer (backend app/schemas/delivery.py).
+
+/** Lifecycle of a single delivery (backend DeliveryStatus). */
+export type DeliveryStatus =
+  "queued" | "processing" | "delivered" | "retrying" | "failed" | "cancelled";
+
+/** Transport a delivery is sent over (backend DeliveryChannel). */
+export type DeliveryChannel = "dashboard" | "email" | "whatsapp" | "push";
+
+/** Append-only delivery timeline label (backend DeliveryEventType). */
+export type DeliveryEventType =
+  | "queued"
+  | "claimed"
+  | "provider_dispatched"
+  | "provider_returned"
+  | "delivered"
+  | "retrying"
+  | "failed"
+  | "cancelled"
+  | "timed_out"
+  | "recovery_guard"
+  | "superseded";
+
+/** A single outbox delivery (backend DeliveryRead). */
+export interface Delivery {
+  id: string;
+  organization_id: string;
+  channel: DeliveryChannel;
+  recipient_user_id: string | null;
+  notification_id: string | null;
+  approval_request_id: string | null;
+  subject: string;
+  body: string;
+  action_url: string | null;
+  status: DeliveryStatus;
+  attempts: number;
+  max_attempts: number;
+  next_attempt_at: string | null;
+  attempt_started_at: string | null;
+  cancel_requested_at: string | null;
+  cancelled_by_user_id: string | null;
+  last_error: string | null;
+  provider_metadata: Record<string, unknown>;
+  payload: Record<string, unknown>;
+  idempotency_key: string | null;
+  scheduled_for: string;
+  delivered_at: string | null;
+  failed_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Payload to enqueue a new delivery (backend DeliveryCreate). */
+export interface DeliveryCreateInput {
+  channel: DeliveryChannel;
+  recipient_user_id?: string | null;
+  notification_id?: string | null;
+  approval_request_id?: string | null;
+  subject: string;
+  body: string;
+  action_url?: string | null;
+  payload?: Record<string, unknown>;
+  max_attempts?: number;
+  scheduled_for?: string | null;
+  idempotency_key?: string | null;
+}
+
+/** A single delivery timeline event (backend DeliveryEventRead). */
+export interface DeliveryEvent {
+  id: string;
+  organization_id: string;
+  delivery_id: string;
+  event_type: DeliveryEventType;
+  attempt: number;
+  metadata: Record<string, unknown>;
+  occurred_at: string;
+  created_at: string;
+}
+
+/** Category of an in-app notification (backend NotificationType). */
+export type NotificationType =
+  | "approval_request"
+  | "approval_result"
+  | "workflow_event"
+  | "agent_event"
+  | "system"
+  | "briefing"
+  | "insight";
+
+/** An in-app inbox notification (backend NotificationRead). */
+export interface Notification {
+  id: string;
+  organization_id: string;
+  user_id: string | null;
+  type: NotificationType;
+  title: string;
+  body: string;
+  action_url: string | null;
+  metadata: Record<string, unknown>;
+  is_read: boolean;
+  read_at: string | null;
+  created_at: string;
+  updated_at: string;
+}

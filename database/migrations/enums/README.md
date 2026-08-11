@@ -11,6 +11,8 @@ correct order — **keep the migration and these files in sync.**
 | `03_activity.sql`     | `activity_event_type`                          |
 | `04_identity.sql`     | `user_role`                                    |
 | `05_conversation.sql` | `conversation_sender`                          |
+| `12_phase5d.sql`      | `memory_type`, `memory_scope`, `agent_run_status`, `agent_run_trigger`, `agent_state_status`, `agent_health`, `notification_type`, `approval_request_status`, `approval_log_action`, `briefing_type`, `insight_type`, `insight_severity`, `insight_status` |
+| `13_delivery.sql`     | `delivery_channel`, `delivery_status`, `delivery_event_type` |
 
 Rules:
 

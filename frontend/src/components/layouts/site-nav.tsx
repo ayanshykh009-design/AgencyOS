@@ -22,6 +22,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     label: "Workspace",
     items: [
       { href: ROUTES.dashboard, label: "Dashboard", permission: "lead_read" },
+      { href: ROUTES.inbox, label: "Inbox", permission: "notification_read" },
       { href: ROUTES.leads, label: "Leads", permission: "lead_read" },
       { href: ROUTES.pipeline, label: "Pipeline", permission: "lead_read" },
       { href: ROUTES.tasks, label: "Tasks", permission: "task_read" },
@@ -40,6 +41,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       { href: ROUTES.workflows, label: "Workflows", permission: "automation_read" },
       { href: ROUTES.triggers, label: "Triggers", permission: "automation_read" },
       { href: ROUTES.executions, label: "Executions", permission: "automation_read" },
+      { href: ROUTES.deliveries, label: "Deliveries", permission: "delivery_read" },
       { href: ROUTES.credentials, label: "Credentials", permission: "credential_read" },
     ],
   },

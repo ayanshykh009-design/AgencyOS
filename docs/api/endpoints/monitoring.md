@@ -82,6 +82,14 @@ workflow name and execution status/duration attached.
 `automation_read`. Per-organization pending/queued/running depth across all
 organizations (feeds the fair-drain health view).
 
+## GET /api/v1/monitoring/delivery-statistics
+
+`automation_manage` (admin-only, consistent with operational summaries).
+Platform-wide delivery outbox counts across all organizations: `queued`,
+`processing`, `retrying`, `delivered`, `failed`, `cancelled`, plus derived
+`active` (queued/processing/retrying) and `terminal` (delivered/failed/
+cancelled) totals.
+
 ## GET /api/v1/monitoring/monitoring-information
 
 `automation_read`. Comprehensive system, database, worker, and queue

@@ -14,6 +14,7 @@ from app.core.permissions import Permission, require_permission
 from app.models.enums import ExecutionStatus
 from app.schemas.monitoring import (
     AutomationLifecycleResponse,
+    DeliveryStatisticsResponse,
     ExecutionHistoryResponse,
     ExecutionStatisticsResponse,
     ExecutionTimelineEvent,
@@ -77,6 +78,28 @@ async def get_execution_statistics(
     service = OperationalMonitoringService(db)
     stats = await service.get_execution_statistics(hours)
     return ExecutionStatisticsResponse(**stats)
+
+
+@router.get(
+    "/delivery-statistics",
+    response_model=DeliveryStatisticsResponse,
+    summary="Platform-wide delivery outbox statistics",
+    dependencies=[_admin],
+)
+async def get_delivery_statistics(
+    db: DbSession,
+    current_user: CurrentUser,
+) -> DeliveryStatisticsResponse:
+    """Get platform-wide delivery outbox statistics (all organizations).
+
+    Returns counts by delivery status plus active/terminal totals. Gated by
+    ``automation_manage`` (admin-only, consistent with operational summaries).
+    """
+    from app.services.delivery_service import DeliveryService
+
+    service = DeliveryService(db)
+    stats = await service.platform_statistics()
+    return DeliveryStatisticsResponse(**stats)
 
 
 @router.get(

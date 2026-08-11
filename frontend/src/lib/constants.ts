@@ -18,6 +18,8 @@ export const ROUTES = {
   triggers: "/triggers",
   executions: "/executions",
   credentials: "/credentials",
+  deliveries: "/deliveries",
+  inbox: "/inbox",
 } as const;
 
 export const STORAGE_KEYS = {

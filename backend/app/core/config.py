@@ -225,6 +225,39 @@ class Settings(BaseSettings):
     # as failed (guards against executors that hang without raising).
     AGENT_RUN_TIMEOUT_SECONDS: int = 300
 
+    # --- M6 Founder Communication & Delivery Layer ---
+    # Feature flag for the delivery subsystem.
+    DELIVERY_ENABLED: bool = True
+    # Max queued deliveries drained in a single sweep (bounded per poll).
+    DELIVERY_BATCH_SIZE: int = 10
+    # Sweep cadence: seconds between polls of the queued/retry buckets.
+    DELIVERY_POLL_INTERVAL_SECONDS: int = 5
+    # Active provider timeout (seconds). Hard limit on provider dispatch.
+    DELIVERY_ACTIVE_TIMEOUT_SECONDS: int = 30
+    # Stale worker recovery window (seconds). A PROCESSING row older than this
+    # is re-queued by the recovery sweep. Must be > DELIVERY_ACTIVE_TIMEOUT_SECONDS.
+    DELIVERY_RECOVERY_SECONDS: int = 300
+    # Max undrained (QUEUED + PROCESSING) deliveries per organization.
+    DELIVERY_MAX_PENDING_PER_ORG: int = 500
+    # Max candidate organizations visited by the fair-drain sweep in one poll.
+    DELIVERY_ORGS_PER_SWEEP: int = 20
+    # Default max delivery attempts.
+    DELIVERY_MAX_ATTEMPTS: int = 4
+    # Retry backoff base seconds: 10s, 20s, 40s (exponential).
+    DELIVERY_RETRY_BASE_SECONDS: int = 10
+    # Max serialized delivery payload size (bytes); 0 disables the check.
+    DELIVERY_MAX_PAYLOAD_BYTES: int = 65536
+    # Per-session statement timeout applied to worker sessions (seconds).
+    DELIVERY_STATEMENT_TIMEOUT_SECONDS: int = 30
+    # Delivery event retention (days).
+    DELIVERY_EVENT_RETENTION_DAYS: int = 90
+    # Delivery event retention batch size.
+    DELIVERY_RETENTION_BATCH: int = 1000
+    # Cadence (seconds) between retention sweep ticks.
+    DELIVERY_RETENTION_INTERVAL_SECONDS: int = 3600
+    # Feature flag: prune old delivery_events rows.
+    DELIVERY_RETENTION_ENABLED: bool = True
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS_ORIGINS into a list of allowed origins."""
@@ -309,6 +342,36 @@ class Settings(BaseSettings):
         if self.AGENT_RUN_TIMEOUT_SECONDS < 1:
             raise RuntimeError("AGENT_RUN_TIMEOUT_SECONDS must be >= 1")
 
+    def _validate_m6_delivery(self) -> None:
+        if self.DELIVERY_BATCH_SIZE < 1:
+            raise RuntimeError("DELIVERY_BATCH_SIZE must be >= 1")
+        if self.DELIVERY_ORGS_PER_SWEEP < 1:
+            raise RuntimeError("DELIVERY_ORGS_PER_SWEEP must be >= 1")
+        if self.DELIVERY_MAX_PENDING_PER_ORG < 1:
+            raise RuntimeError("DELIVERY_MAX_PENDING_PER_ORG must be >= 1")
+        if self.DELIVERY_STATEMENT_TIMEOUT_SECONDS < 1:
+            raise RuntimeError("DELIVERY_STATEMENT_TIMEOUT_SECONDS must be >= 1")
+        if self.DELIVERY_ACTIVE_TIMEOUT_SECONDS < 1:
+            raise RuntimeError("DELIVERY_ACTIVE_TIMEOUT_SECONDS must be >= 1")
+        if self.DELIVERY_RECOVERY_SECONDS < 1:
+            raise RuntimeError("DELIVERY_RECOVERY_SECONDS must be >= 1")
+        if self.DELIVERY_MAX_ATTEMPTS < 1:
+            raise RuntimeError("DELIVERY_MAX_ATTEMPTS must be >= 1")
+        if self.DELIVERY_RETRY_BASE_SECONDS < 1:
+            raise RuntimeError("DELIVERY_RETRY_BASE_SECONDS must be >= 1")
+        if self.DELIVERY_MAX_PAYLOAD_BYTES < 0:
+            raise RuntimeError("DELIVERY_MAX_PAYLOAD_BYTES must be >= 0")
+        if self.DELIVERY_EVENT_RETENTION_DAYS < 1:
+            raise RuntimeError("DELIVERY_EVENT_RETENTION_DAYS must be >= 1")
+        if self.DELIVERY_RETENTION_BATCH < 1:
+            raise RuntimeError("DELIVERY_RETENTION_BATCH must be >= 1")
+        if self.DELIVERY_RETENTION_INTERVAL_SECONDS < 1:
+            raise RuntimeError("DELIVERY_RETENTION_INTERVAL_SECONDS must be >= 1")
+        if self.DELIVERY_RECOVERY_SECONDS <= self.DELIVERY_ACTIVE_TIMEOUT_SECONDS:
+            raise RuntimeError(
+                "DELIVERY_RECOVERY_SECONDS must be > DELIVERY_ACTIVE_TIMEOUT_SECONDS"
+            )
+
     def _validate_csp(self) -> None:
         # Lazy import: csp.py reads this module's settings singleton, so it
         # cannot be imported at module load time without a cycle.
@@ -324,6 +387,7 @@ class Settings(BaseSettings):
         self._validate_redis_url()
         self._validate_enc_key()
         self._validate_phase5d()
+        self._validate_m6_delivery()
         self._validate_csp()
 
     def validate_for_production(self) -> None:
@@ -341,6 +405,7 @@ class Settings(BaseSettings):
         self._validate_redis_url()
         self._validate_enc_key()
         self._validate_phase5d()
+        self._validate_m6_delivery()
         self._validate_csp()
 
 

@@ -1,8 +1,11 @@
 // Shared formatting helpers for the UI (dates, currency, names).
 import type {
   CredentialType,
+  DeliveryChannel,
+  DeliveryStatus,
   ExecutionStatus,
   Lead,
+  NotificationType,
   TaskPriority,
   TaskStatus,
   WorkflowStatus,
@@ -159,3 +162,65 @@ export const CREDENTIAL_TYPE_LABELS: Record<CredentialType, string> = {
   api_key: "API key",
   basic_auth: "Basic auth",
 };
+
+export const DELIVERY_STATUS_LABELS: Record<DeliveryStatus, string> = {
+  queued: "Queued",
+  processing: "Processing",
+  delivered: "Delivered",
+  retrying: "Retrying",
+  failed: "Failed",
+  cancelled: "Cancelled",
+};
+
+export function deliveryStatusTone(status: DeliveryStatus): BadgeTone {
+  switch (status) {
+    case "delivered":
+      return "green";
+    case "processing":
+      return "blue";
+    case "retrying":
+      return "amber";
+    case "failed":
+      return "red";
+    case "cancelled":
+      return "gray";
+    default:
+      return "purple";
+  }
+}
+
+export const DELIVERY_CHANNEL_LABELS: Record<DeliveryChannel, string> = {
+  dashboard: "Dashboard",
+  email: "Email",
+  whatsapp: "WhatsApp",
+  push: "Push",
+};
+
+export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
+  approval_request: "Approval request",
+  approval_result: "Approval result",
+  workflow_event: "Workflow event",
+  agent_event: "Agent event",
+  system: "System",
+  briefing: "Briefing",
+  insight: "Insight",
+};
+
+export function notificationTypeTone(type: NotificationType): BadgeTone {
+  switch (type) {
+    case "approval_request":
+      return "amber";
+    case "approval_result":
+      return "green";
+    case "workflow_event":
+      return "blue";
+    case "agent_event":
+      return "purple";
+    case "briefing":
+      return "blue";
+    case "insight":
+      return "purple";
+    default:
+      return "gray";
+  }
+}

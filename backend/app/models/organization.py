@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from app.models.briefing import Briefing
     from app.models.business_insight import BusinessInsight
     from app.models.credential import Credential
+    from app.models.delivery import Delivery
     from app.models.growth_forecast import GrowthForecast
     from app.models.growth_metric import GrowthMetric
     from app.models.knowledge_item import KnowledgeItem
@@ -82,6 +83,7 @@ class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     business_insights: Mapped[list[BusinessInsight]] = relationship(
         back_populates="organization"
     )
+    deliveries: Mapped[list[Delivery]] = relationship(back_populates="organization")
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<Organization id={self.id} slug={self.slug!r}>"
