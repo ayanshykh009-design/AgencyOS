@@ -3,6 +3,7 @@
 Guards: an actor may only manage strictly less-privileged peers, and the
 last active owner can never be demoted or deactivated (prevents lockout).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -33,9 +34,7 @@ class UserService:
     async def list(
         self, organization_id: uuid.UUID, *, limit: int = 100, offset: int = 0
     ) -> list[User]:
-        return await self._users.list_by_org(
-            organization_id, limit=limit, offset=offset
-        )
+        return await self._users.list_by_org(organization_id, limit=limit, offset=offset)
 
     async def get(self, organization_id: uuid.UUID, user_id: uuid.UUID) -> User:
         return await self._users.get_or_404(organization_id, user_id)
@@ -91,9 +90,7 @@ class UserService:
         role_changed = "role" in data and UserRole(data["role"]) != user.role
         if role_changed:
             new_role = UserRole(data["role"])
-            await self._ensure_owner_safety(
-                organization_id, user, new_role=new_role
-            )
+            await self._ensure_owner_safety(organization_id, user, new_role=new_role)
             self._logs.add(
                 ActivityLog(
                     organization_id=organization_id,
@@ -102,8 +99,7 @@ class UserService:
                     entity_type="user",
                     entity_id=user.id,
                     description=(
-                        f"Changed role of {user.email} "
-                        f"from {user.role.value} to {new_role.value}"
+                        f"Changed role of {user.email} from {user.role.value} to {new_role.value}"
                     ),
                     metadata_={"from": user.role.value, "to": new_role.value},
                     occurred_at=utcnow(),
@@ -116,9 +112,7 @@ class UserService:
         if "is_active" in data:
             is_active = bool(data["is_active"])
             if is_active != user.is_active:
-                await self._ensure_owner_safety(
-                    organization_id, user, activating=is_active
-                )
+                await self._ensure_owner_safety(organization_id, user, activating=is_active)
                 self._logs.add(
                     ActivityLog(
                         organization_id=organization_id,
@@ -127,8 +121,7 @@ class UserService:
                         entity_type="user",
                         entity_id=user.id,
                         description=(
-                            f"{'Reactivated' if is_active else 'Deactivated'} "
-                            f"{user.email}"
+                            f"{'Reactivated' if is_active else 'Deactivated'} {user.email}"
                         ),
                         metadata_={"active": is_active},
                         occurred_at=utcnow(),
@@ -192,9 +185,7 @@ class UserService:
         deactivated = activating is False
         if not (demoted or deactivated):
             return
-        active_owners = await self._users.count_active_role(
-            organization_id, UserRole.OWNER
-        )
+        active_owners = await self._users.count_active_role(organization_id, UserRole.OWNER)
         # This owner is active and about to cease being an active owner, so
         # at least one other active owner must remain.
         if active_owners < 2:

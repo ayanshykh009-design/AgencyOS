@@ -1,4 +1,5 @@
 """Declarative base and shared mixins for all ORM models."""
+
 import uuid
 from datetime import datetime
 
@@ -19,9 +20,7 @@ class UUIDPrimaryKeyMixin:
 class TimestampMixin:
     """Add created_at / updated_at audit columns."""
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

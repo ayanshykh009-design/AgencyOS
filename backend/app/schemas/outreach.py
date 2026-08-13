@@ -1,4 +1,5 @@
 """Outreach API schemas: message templates, attempts, follow-ups, manual queue."""
+
 from __future__ import annotations
 
 from datetime import datetime

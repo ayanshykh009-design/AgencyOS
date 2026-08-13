@@ -1,4 +1,5 @@
 """Agent state schemas (per-agent health bookkeeping)."""
+
 from __future__ import annotations
 
 import uuid

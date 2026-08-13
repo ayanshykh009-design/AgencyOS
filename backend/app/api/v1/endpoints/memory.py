@@ -1,4 +1,5 @@
 """Memory endpoints: AI memory + durable knowledge items."""
+
 from __future__ import annotations
 
 import uuid
@@ -72,9 +73,7 @@ async def create_memory(
     service = MemoryService(db)
     data = body.model_dump(exclude={"organization_id"})
     metadata = _metadata_from_dump(data)
-    memory = await service.create_memory(
-        current_user.organization_id, metadata_=metadata, **data
-    )
+    memory = await service.create_memory(current_user.organization_id, metadata_=metadata, **data)
     return AiMemoryRead.model_validate(memory)
 
 
@@ -113,9 +112,7 @@ async def search_knowledge(
     limit: int = Query(default=50, ge=1, le=200),
 ) -> KnowledgeItemListResponse:
     service = MemoryService(db)
-    items = await service.search_knowledge(
-        current_user.organization_id, query=q, limit=limit
-    )
+    items = await service.search_knowledge(current_user.organization_id, query=q, limit=limit)
     return KnowledgeItemListResponse(
         items=[KnowledgeItemRead.model_validate(k) for k in items], total=len(items)
     )
@@ -136,9 +133,7 @@ async def create_knowledge(
     service = MemoryService(db)
     data = body.model_dump(exclude={"organization_id"})
     metadata = _metadata_from_dump(data)
-    item = await service.create_knowledge(
-        current_user.organization_id, metadata_=metadata, **data
-    )
+    item = await service.create_knowledge(current_user.organization_id, metadata_=metadata, **data)
     return KnowledgeItemRead.model_validate(item)
 
 
@@ -174,9 +169,7 @@ async def update_knowledge(
     data = body.model_dump(exclude_unset=True)
     metadata = data.pop("metadata_", None)
     kwargs = {**({"metadata_": metadata} if metadata is not None else {})}
-    item = await service.update_knowledge(
-        current_user.organization_id, item_id, **data, **kwargs
-    )
+    item = await service.update_knowledge(current_user.organization_id, item_id, **data, **kwargs)
     return KnowledgeItemRead.model_validate(item)
 
 
@@ -186,9 +179,7 @@ async def update_knowledge(
     summary="Delete a knowledge item",
     dependencies=[_write],
 )
-async def delete_knowledge(
-    item_id: uuid.UUID, db: DbSession, current_user: CurrentUser
-) -> None:
+async def delete_knowledge(item_id: uuid.UUID, db: DbSession, current_user: CurrentUser) -> None:
     service = MemoryService(db)
     await service.delete_knowledge(current_user.organization_id, item_id)
 
@@ -225,9 +216,7 @@ async def update_memory(
     data = body.model_dump(exclude_unset=True)
     metadata = data.pop("metadata_", None)
     kwargs = {**({"metadata_": metadata} if metadata is not None else {})}
-    memory = await service.update_memory(
-        current_user.organization_id, memory_id, **data, **kwargs
-    )
+    memory = await service.update_memory(current_user.organization_id, memory_id, **data, **kwargs)
     return AiMemoryRead.model_validate(memory)
 
 
@@ -237,8 +226,6 @@ async def update_memory(
     summary="Delete an AI memory",
     dependencies=[_write],
 )
-async def delete_memory(
-    memory_id: uuid.UUID, db: DbSession, current_user: CurrentUser
-) -> None:
+async def delete_memory(memory_id: uuid.UUID, db: DbSession, current_user: CurrentUser) -> None:
     service = MemoryService(db)
     await service.delete_memory(current_user.organization_id, memory_id)

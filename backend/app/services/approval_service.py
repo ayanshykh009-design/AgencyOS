@@ -5,6 +5,7 @@ request and the approve/deny transition plus its audit log. Gating workers and
 notification delivery land in M6; this service owns the transactional state
 machine (pending -> approved/denied/expired/cancelled).
 """
+
 from __future__ import annotations
 
 import uuid

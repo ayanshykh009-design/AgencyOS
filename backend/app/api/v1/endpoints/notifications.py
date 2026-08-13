@@ -1,4 +1,5 @@
 """Notification endpoints: per-user in-app inbox."""
+
 from __future__ import annotations
 
 import uuid
@@ -55,9 +56,7 @@ async def list_notifications(
     summary="Unread badge count for the current user",
     dependencies=[_read],
 )
-async def unread_count(
-    db: DbSession, current_user: CurrentUser
-) -> NotificationUnreadCount:
+async def unread_count(db: DbSession, current_user: CurrentUser) -> NotificationUnreadCount:
     service = NotificationService(db)
     count = await service.unread_count(current_user.organization_id, current_user.id)
     return NotificationUnreadCount(count=count)
@@ -69,9 +68,7 @@ async def unread_count(
     summary="Notification counts grouped by type",
     dependencies=[_read],
 )
-async def counts_by_type(
-    db: DbSession, current_user: CurrentUser
-) -> NotificationTypeCounts:
+async def counts_by_type(db: DbSession, current_user: CurrentUser) -> NotificationTypeCounts:
     service = NotificationService(db)
     counts = await service.counts_by_type(current_user.organization_id)
     return NotificationTypeCounts(counts=counts)
@@ -92,9 +89,7 @@ async def create_notification(
     service = NotificationService(db)
     data = body.model_dump(exclude={"organization_id"})
     metadata = data.pop("metadata", None) or {}
-    notification = await service.create(
-        current_user.organization_id, metadata_=metadata, **data
-    )
+    notification = await service.create(current_user.organization_id, metadata_=metadata, **data)
     return NotificationRead.model_validate(notification)
 
 

@@ -87,6 +87,10 @@ model, the Pydantic schemas, and this doc in the same change.
 | 40| `growth_metrics`       | Periodized growth/performance rows (retention via `GROWTH_METRICS_RETENTION_DAYS`) |
 | 41| `growth_forecasts`     | Deterministic growth forecasts (horizon + confidence band) |
 | 42| `business_insights`    | Generated business insights (triage lifecycle, polymorphic source ref) |
+| 43| `growth_analyses`      | Deterministic analysis snapshots (one row per type + window; `status` `completed`/`failed`) |
+| 44| `growth_recommendations` | Evidence-backed recommendations (triage lifecycle, source analysis ref) |
+| 45| `growth_scenarios`     | Saved what-if projections (assumption deltas + result) |
+| 46| `growth_health_weights`| Versioned active health-weight sets (one active row per org) |
 
 See the ERD in [diagrams/database-erd.md](diagrams/database-erd.md).
 

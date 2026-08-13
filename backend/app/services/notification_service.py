@@ -3,6 +3,7 @@
 Thin orchestration over the M2 repository. The actual notification delivery
 (worker) lands in M6; this service only records and reads inbox rows.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -50,9 +51,7 @@ class NotificationService:
             )
         return notification
 
-    async def unread_count(
-        self, organization_id: uuid.UUID, user_id: uuid.UUID
-    ) -> int:
+    async def unread_count(self, organization_id: uuid.UUID, user_id: uuid.UUID) -> int:
         return await self._notifications.count_unread(organization_id, user_id)
 
     async def counts_by_type(self, organization_id: uuid.UUID) -> dict[NotificationType, int]:

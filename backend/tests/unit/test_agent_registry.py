@@ -1,8 +1,8 @@
 """Unit tests for the canonical M5 agent registry.
 
-The registry is a closed set: exactly 7 executable agents, one registered-only
-agent (``growth_agent`` — execution lands in M7), and 4 future-only agent
-names. The runtime refuses anything outside the executable set, and the
+The registry is a closed set: exactly 8 executable agents (including
+``growth_agent`` as of M7), no registered-only agents, and 4 future-only
+agent names. The runtime refuses anything outside the executable set, and the
 registry validates its own integrity (no duplicate names, well-formed
 metadata, and supported goals that the deterministic planner actually knows).
 """
@@ -31,9 +31,10 @@ EXECUTABLE_AGENTS = {
     "outreach_agent",
     "workflow_agent",
     "notification_agent",
+    "growth_agent",
 }
 
-REGISTERED_ONLY_AGENTS = {"growth_agent"}
+REGISTERED_ONLY_AGENTS: set[str] = set()
 
 FUTURE_AGENTS = {"finance", "hr", "calendar", "voice"}
 
@@ -48,10 +49,10 @@ def test_executable_agents_exact_set() -> None:
     assert set(list_executable()) == EXECUTABLE_AGENTS
 
 
-def test_registered_only_agent_is_growth() -> None:
+def test_growth_agent_is_executable() -> None:
     growth = get_agent("growth_agent")
     assert growth is not None
-    assert growth.category is AgentCategory.REGISTERED
+    assert growth.category is AgentCategory.EXECUTABLE
 
 
 def test_future_agents_are_future_category() -> None:
@@ -61,8 +62,8 @@ def test_future_agents_are_future_category() -> None:
         assert agent.category is AgentCategory.FUTURE
 
 
-def test_growth_agent_not_executable() -> None:
-    assert not is_executable("growth_agent")
+def test_growth_agent_is_executable_name() -> None:
+    assert is_executable("growth_agent")
 
 
 def test_future_agents_not_executable() -> None:
@@ -119,11 +120,9 @@ def test_require_executable_unknown_raises_404() -> None:
     assert exc.value.code == "agent.unknown"
 
 
-def test_require_executable_registered_raises_409() -> None:
-    with pytest.raises(AppError) as exc:
-        require_executable("growth_agent")
-    assert exc.value.status_code == 409
-    assert exc.value.code == "agent.not_executable"
+def test_require_executable_growth_returns_definition() -> None:
+    definition = require_executable("growth_agent")
+    assert definition.name == "growth_agent"
 
 
 def test_require_executable_future_raises_409() -> None:

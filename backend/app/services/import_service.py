@@ -1,4 +1,5 @@
 """Import service: CSV import job lifecycle + per-row error recording."""
+
 from __future__ import annotations
 
 import uuid
@@ -44,9 +45,7 @@ class ImportService:
         limit: int = 50,
         offset: int = 0,
     ) -> list[ImportJob]:
-        return await self._jobs.list(
-            organization_id, status=status, limit=limit, offset=offset
-        )
+        return await self._jobs.list(organization_id, status=status, limit=limit, offset=offset)
 
     async def list_errors(
         self, organization_id: uuid.UUID, job_id: uuid.UUID

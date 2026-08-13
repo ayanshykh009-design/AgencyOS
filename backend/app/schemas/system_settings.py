@@ -1,4 +1,5 @@
 """SystemSetting schemas (operator key/value settings)."""
+
 from __future__ import annotations
 
 import uuid

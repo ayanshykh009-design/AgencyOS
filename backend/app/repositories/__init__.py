@@ -5,6 +5,7 @@ Routers and services never touch SQL or ORM sessions directly.
 
 Naming convention: <domain>_repository.py (e.g. prospect_repository.py).
 """
+
 from app.repositories.activity_log import ActivityLogRepository
 from app.repositories.agent_run import AgentRunRepository
 from app.repositories.agent_state import AgentStateRepository
@@ -22,8 +23,13 @@ from app.repositories.credential import CredentialRepository
 from app.repositories.delivery import DeliveryRepository
 from app.repositories.delivery_event import DeliveryEventRepository
 from app.repositories.execution_event import ExecutionEventRepository
+from app.repositories.growth_analysis import GrowthAnalysisRepository
+from app.repositories.growth_context import GrowthContextRepository
 from app.repositories.growth_forecast import GrowthForecastRepository
+from app.repositories.growth_health_weight import GrowthHealthWeightRepository
 from app.repositories.growth_metric import GrowthMetricRepository
+from app.repositories.growth_recommendation import GrowthRecommendationRepository
+from app.repositories.growth_scenario import GrowthScenarioRepository
 from app.repositories.import_job import ImportJobRepository, ImportRowErrorRepository
 from app.repositories.knowledge_item import KnowledgeItemRepository
 from app.repositories.lead import LeadRepository
@@ -62,8 +68,13 @@ __all__ = [
     "DeliveryRepository",
     "ExecutionEventRepository",
     "FollowUpRepository",
+    "GrowthAnalysisRepository",
+    "GrowthContextRepository",
     "GrowthForecastRepository",
+    "GrowthHealthWeightRepository",
     "GrowthMetricRepository",
+    "GrowthRecommendationRepository",
+    "GrowthScenarioRepository",
     "ImportJobRepository",
     "ImportRowErrorRepository",
     "KnowledgeItemRepository",

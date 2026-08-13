@@ -1,4 +1,5 @@
 """WorkerHealth schemas (automation worker heartbeats)."""
+
 from __future__ import annotations
 
 import uuid

@@ -10,6 +10,7 @@ so a mis-served page cannot downgrade to HTTP.
 Config is validated at startup (``app/core/config.py``), so an invalid
 ``CSP_CONNECT_ORIGINS`` value fails fast at boot rather than at request time.
 """
+
 from __future__ import annotations
 
 import re

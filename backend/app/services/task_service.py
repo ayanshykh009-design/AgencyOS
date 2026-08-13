@@ -7,6 +7,7 @@ template); completing a one-off task closes it with ``completed_at``. Every
 mutation is mirrored into the activity trail (TASK_CREATED / TASK_UPDATED /
 TASK_COMPLETED / TASK_DELETED) so task history is auditable.
 """
+
 from __future__ import annotations
 
 import calendar
@@ -41,9 +42,7 @@ class TaskService:
 
     # -- reads ----------------------------------------------------------
 
-    async def get(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> Task:
+    async def get(self, organization_id: uuid.UUID, task_id: uuid.UUID) -> Task:
         return await self._tasks.get_or_404(organization_id, task_id)
 
     async def list_tasks(
@@ -100,9 +99,7 @@ class TaskService:
         self, organization_id: uuid.UUID, *, before: datetime | None = None
     ) -> list[Task]:
         """Return open tasks whose reminder time has arrived."""
-        return await self._tasks.list_due_for_reminder(
-            organization_id, before=before or utcnow()
-        )
+        return await self._tasks.list_due_for_reminder(organization_id, before=before or utcnow())
 
     # -- mutations ------------------------------------------------------
 
@@ -198,9 +195,7 @@ class TaskService:
                 task.lead_id = lead_id
                 changed = True
         if assignee_user_id is not None:
-            await self._validate_links(
-                organization_id, assignee_user_id=assignee_user_id
-            )
+            await self._validate_links(organization_id, assignee_user_id=assignee_user_id)
             if task.assignee_user_id != assignee_user_id:
                 task.assignee_user_id = assignee_user_id
                 changed = True
@@ -283,9 +278,7 @@ class TaskService:
                 entity_type="task",
                 entity_id=task.id,
                 description=(
-                    "Recurring task occurrence completed"
-                    if recurred
-                    else "Task completed"
+                    "Recurring task occurrence completed" if recurred else "Task completed"
                 ),
                 metadata_={"recurred": recurred},
                 occurred_at=utcnow(),
@@ -294,9 +287,7 @@ class TaskService:
         await commit_with_retry(self._session)
         return task
 
-    async def delete(
-        self, organization_id: uuid.UUID, actor: User, task_id: uuid.UUID
-    ) -> None:
+    async def delete(self, organization_id: uuid.UUID, actor: User, task_id: uuid.UUID) -> None:
         task = await self._tasks.get_or_404(organization_id, task_id)
         await self._tasks.delete(task)
         self._activity.add(
@@ -337,9 +328,7 @@ class TaskService:
         if lead_id is not None:
             await self._leads.get_or_404(organization_id, lead_id)
         if assignee_user_id is not None:
-            assignee = await self._users.get_or_404(
-                organization_id, assignee_user_id
-            )
+            assignee = await self._users.get_or_404(organization_id, assignee_user_id)
             if not assignee.is_active:
                 raise AppError(
                     code="task.invalid_assignee",
@@ -357,9 +346,7 @@ class TaskService:
             )
 
     @staticmethod
-    def _validate_recurrence(
-        frequency: RecurrenceFrequency | None, interval: int | None
-    ) -> None:
+    def _validate_recurrence(frequency: RecurrenceFrequency | None, interval: int | None) -> None:
         if frequency is None and interval is not None:
             raise AppError(
                 code="task.recurrence_requires_frequency",
@@ -384,9 +371,7 @@ class TaskService:
         return True
 
     @staticmethod
-    def _advance_time(
-        when: datetime, frequency: RecurrenceFrequency, interval: int
-    ) -> datetime:
+    def _advance_time(when: datetime, frequency: RecurrenceFrequency, interval: int) -> datetime:
         """Shift a timestamp by ``interval`` of ``frequency`` (calendar-aware)."""
         if frequency is RecurrenceFrequency.DAILY:
             return when + timedelta(days=interval)

@@ -4,6 +4,7 @@ Pipeline transitions (status/stage/close reason) are delegated to
 ``PipelineService.reconcile`` so win/loss bookkeeping and activity events
 have a single source of truth.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -75,9 +76,7 @@ class LeadService:
 
     # -- writes ---------------------------------------------------------
 
-    async def create(
-        self, organization_id: uuid.UUID, data: dict[str, Any]
-    ) -> Lead:
+    async def create(self, organization_id: uuid.UUID, data: dict[str, Any]) -> Lead:
         lead = Lead(
             organization_id=organization_id,
             lead_source_id=data.get("lead_source_id"),
@@ -112,9 +111,7 @@ class LeadService:
             emit_events=False,
         )
         if lead.owner_user_id is None:
-            await AssignmentService(self._session).auto_assign(
-                organization_id, lead
-            )
+            await AssignmentService(self._session).auto_assign(organization_id, lead)
         await commit_with_retry(self._session)
         return lead
 
@@ -126,10 +123,23 @@ class LeadService:
     ) -> Lead:
         lead = await self._leads.get_or_404(organization_id, lead_id)
         allowed = {
-            "first_name", "last_name", "company", "position", "location",
-            "linkedin_url", "email", "phone", "whatsapp", "website", "notes",
-            "status", "score", "lead_source_id", "owner_user_id",
-            "stage_id", "deal_value",
+            "first_name",
+            "last_name",
+            "company",
+            "position",
+            "location",
+            "linkedin_url",
+            "email",
+            "phone",
+            "whatsapp",
+            "website",
+            "notes",
+            "status",
+            "score",
+            "lead_source_id",
+            "owner_user_id",
+            "stage_id",
+            "deal_value",
         }
         for field in allowed:
             if field in data:
@@ -151,9 +161,7 @@ class LeadService:
         return lead
 
     async def soft_delete(self, organization_id: uuid.UUID, lead_id: uuid.UUID) -> None:
-        deleted = await self._leads.soft_delete(
-            organization_id, lead_id, now=utcnow()
-        )
+        deleted = await self._leads.soft_delete(organization_id, lead_id, now=utcnow())
         if not deleted:
             raise AppError(
                 code="lead.not_found",

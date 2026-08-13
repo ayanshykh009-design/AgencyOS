@@ -1,4 +1,5 @@
 """Outreach endpoints: message templates, attempts, follow-ups, manual queue."""
+
 from __future__ import annotations
 
 import uuid
@@ -29,6 +30,7 @@ _admin_only = require_role(UserRole.OWNER, UserRole.ADMIN)
 
 
 # -- message templates ---------------------------------------------------
+
 
 @router.get(
     "/messages",
@@ -104,14 +106,13 @@ async def update_message(
     summary="Delete a message template",
     dependencies=[Depends(_admin_only)],
 )
-async def delete_message(
-    message_id: uuid.UUID, db: DbSession, current_user: CurrentUser
-):
+async def delete_message(message_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
     service = OutreachService(db)
     await service.delete_message(current_user.organization_id, message_id)
 
 
 # -- attempts -----------------------------------------------------------
+
 
 @router.get(
     "/leads/{lead_id}/attempts",
@@ -122,9 +123,7 @@ async def list_lead_attempts(
     lead_id: uuid.UUID, db: DbSession, current_user: CurrentUser
 ) -> list[OutreachAttemptRead]:
     service = OutreachService(db)
-    attempts = await service.list_attempts_for_lead(
-        current_user.organization_id, lead_id
-    )
+    attempts = await service.list_attempts_for_lead(current_user.organization_id, lead_id)
     return [OutreachAttemptRead.model_validate(a) for a in attempts]
 
 
@@ -166,6 +165,7 @@ async def update_attempt(
 
 # -- follow-ups ---------------------------------------------------------
 
+
 @router.get(
     "/leads/{lead_id}/follow-ups",
     response_model=list[FollowUpRead],
@@ -175,9 +175,7 @@ async def list_lead_follow_ups(
     lead_id: uuid.UUID, db: DbSession, current_user: CurrentUser
 ) -> list[FollowUpRead]:
     service = OutreachService(db)
-    follow_ups = await service.list_follow_ups_for_lead(
-        current_user.organization_id, lead_id
-    )
+    follow_ups = await service.list_follow_ups_for_lead(current_user.organization_id, lead_id)
     return [FollowUpRead.model_validate(f) for f in follow_ups]
 
 
@@ -216,6 +214,7 @@ async def update_follow_up(
 
 
 # -- manual queue -------------------------------------------------------
+
 
 @router.get(
     "/manual",

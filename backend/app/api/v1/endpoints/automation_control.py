@@ -5,6 +5,7 @@ Exports a thin HTTP layer around ``AutomationControlService`` that enforces
 the ``ActivityLog`` table. Follows the pattern established elsewhere (e.g.,
 ``workflow_executions.py``).
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING

@@ -1,4 +1,5 @@
 """Workflow service: CRUD, activation, and business rules."""
+
 from __future__ import annotations
 
 import uuid
@@ -66,9 +67,7 @@ class WorkflowService:
     async def list_active(self, organization_id: uuid.UUID) -> list[Workflow]:
         return await self._repo.list_active(organization_id)
 
-    async def get_or_404(
-        self, organization_id: uuid.UUID, workflow_id: uuid.UUID
-    ) -> Workflow:
+    async def get_or_404(self, organization_id: uuid.UUID, workflow_id: uuid.UUID) -> Workflow:
         return await self._repo.get_or_404(organization_id, workflow_id)
 
     @staticmethod
@@ -85,9 +84,7 @@ class WorkflowService:
                 status_code=400,
             ) from exc
 
-    async def create(
-        self, data: WorkflowCreate, *, created_by_user_id: uuid.UUID
-    ) -> Workflow:
+    async def create(self, data: WorkflowCreate, *, created_by_user_id: uuid.UUID) -> Workflow:
         if data.organization_id is None:
             raise AppError(
                 code="workflow.organization_required",
@@ -349,7 +346,5 @@ class WorkflowService:
     ) -> object:
         return await self._trigger_service.update(organization_id, trigger_id, data)
 
-    async def delete_trigger(
-        self, organization_id: uuid.UUID, trigger_id: uuid.UUID
-    ) -> None:
+    async def delete_trigger(self, organization_id: uuid.UUID, trigger_id: uuid.UUID) -> None:
         await self._trigger_service.delete(organization_id, trigger_id)

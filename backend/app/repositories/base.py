@@ -8,6 +8,7 @@ leak rows across tenants.
 Repositories are constructed with an :class:`AsyncSession` and never commit;
 services own the transaction boundary (commit/rollback + retries).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -31,9 +32,7 @@ class TenantRepository(Generic[ModelT]):
 
     # -- reads ---------------------------------------------------------
 
-    async def get(
-        self, organization_id: uuid.UUID, entity_id: uuid.UUID
-    ) -> ModelT | None:
+    async def get(self, organization_id: uuid.UUID, entity_id: uuid.UUID) -> ModelT | None:
         """Fetch one entity within an organization, or None."""
         stmt = select(self._model).where(
             self._model.organization_id == organization_id,  # type: ignore[attr-defined]
@@ -76,9 +75,7 @@ class TenantRepository(Generic[ModelT]):
         """Queue an instance for insertion (flushed by the service)."""
         self._session.add(instance)
 
-    async def delete(
-        self, organization_id: uuid.UUID, entity_id: uuid.UUID
-    ) -> bool:
+    async def delete(self, organization_id: uuid.UUID, entity_id: uuid.UUID) -> bool:
         """Delete one entity; returns False when it does not exist."""
         instance = await self.get(organization_id, entity_id)
         if instance is None:
@@ -88,9 +85,7 @@ class TenantRepository(Generic[ModelT]):
 
     # -- convenience ----------------------------------------------------
 
-    async def get_or_404(
-        self, organization_id: uuid.UUID, entity_id: uuid.UUID
-    ) -> ModelT:
+    async def get_or_404(self, organization_id: uuid.UUID, entity_id: uuid.UUID) -> ModelT:
         """Fetch an entity or raise the standard not-found error."""
         from app.core.errors import AppError
 

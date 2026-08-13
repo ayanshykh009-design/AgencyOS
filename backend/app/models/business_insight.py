@@ -3,6 +3,7 @@
 ``source_table`` / ``source_row_id`` is an optional polymorphic reference to
 the domain row an insight derives from (lead, workflow, metric, ...).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -24,9 +25,7 @@ class BusinessInsight(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "business_insights"
     __table_args__ = (
-        CheckConstraint(
-            "length(btrim(title)) > 0", name="chk_business_insights_title_not_blank"
-        ),
+        CheckConstraint("length(btrim(title)) > 0", name="chk_business_insights_title_not_blank"),
         CheckConstraint(
             "length(btrim(summary)) > 0", name="chk_business_insights_summary_not_blank"
         ),

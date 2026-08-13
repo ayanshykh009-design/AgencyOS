@@ -7,6 +7,7 @@ Everything else requires a session and the invite-management permission.
 NOTE: intentionally does NOT use ``from __future__ import annotations``;
 slowapi's ``@limiter.limit`` wrapper breaks FastAPI's forward-ref resolution.
 """
+
 import uuid
 
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -67,9 +68,7 @@ async def list_invites(
     offset: int = Query(default=0, ge=0),
 ) -> Page[TeamInviteRead]:
     service = TeamService(db)
-    invites = await service.list_invites(
-        current_user.organization_id, limit=limit, offset=offset
-    )
+    invites = await service.list_invites(current_user.organization_id, limit=limit, offset=offset)
     return Page(
         items=[TeamInviteRead.model_validate(i) for i in invites],
         total=len(invites),
@@ -86,9 +85,7 @@ async def revoke_invite(
     invite_id: uuid.UUID, db: DbSession, current_user: CurrentUser
 ) -> TeamInviteRead:
     service = TeamService(db)
-    invite = await service.revoke_invite(
-        current_user.organization_id, current_user, invite_id
-    )
+    invite = await service.revoke_invite(current_user.organization_id, current_user, invite_id)
     return TeamInviteRead.model_validate(invite)
 
 
@@ -97,16 +94,12 @@ async def revoke_invite(
     response_model=TeamInviteLookup,
     summary="Resolve invite details for the acceptance screen",
 )
-async def lookup_invite(
-    token: str, db: DbSession
-) -> TeamInviteLookup:
+async def lookup_invite(token: str, db: DbSession) -> TeamInviteLookup:
     """Return non-sensitive invite details for a token (no session)."""
     service = TeamService(db)
     invite = await service.lookup_invite(token)
     data = TeamInviteLookup.model_validate(invite)
-    data.organization_name = await service.organization_name(
-        invite.organization_id
-    )
+    data.organization_name = await service.organization_name(invite.organization_id)
     return data
 
 
@@ -116,9 +109,7 @@ async def lookup_invite(
     summary="Accept an invite and create the account",
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
-async def accept_invite(
-    request: Request, body: TeamInviteAccept, db: DbSession
-) -> TeamInviteRead:
+async def accept_invite(request: Request, body: TeamInviteAccept, db: DbSession) -> TeamInviteRead:
     """Validate the token, create the user, and return the consumed invite."""
     service = TeamService(db)
     invite = await service.accept_invite(

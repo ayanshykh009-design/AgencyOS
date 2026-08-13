@@ -14,6 +14,7 @@ Phase 5B introduces key-versioned envelope encryption:
   identifier (SHA-256 of the derived key) for the credential_key_versions
   registry.
 """
+
 from __future__ import annotations
 
 import base64
@@ -111,7 +112,7 @@ def _parse_envelope(value: str) -> tuple[str, bytes] | None:
     if not match:
         return None
     try:
-        blob = base64.b64decode(value[match.end():], validate=True)
+        blob = base64.b64decode(value[match.end() :], validate=True)
     except (ValueError, TypeError):
         return None
     if len(blob) < _MIN_BLOB_LENGTH:

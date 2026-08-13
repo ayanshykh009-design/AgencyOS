@@ -1,4 +1,5 @@
 """OutreachAttempt model — one message send with delivery tracking."""
+
 from __future__ import annotations
 
 import uuid

@@ -4,6 +4,7 @@ Services orchestrate repositories and own the transaction boundary. This
 module provides the small plumbing they all share: a commit helper with
 retry-on-serialization/deadlock, and a UTC clock.
 """
+
 from __future__ import annotations
 
 import logging

@@ -5,6 +5,7 @@ Normalized dedup columns (``email_normalized``, ``phone_normalized``,
 ``Computed`` so they are read-only on the application side. Unique partial
 indexes in ``__table_args__`` mirror the database-level duplicate protection.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -120,14 +121,10 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     research: Mapped[LeadResearch | None] = relationship(back_populates="lead", uselist=False)
     outreach_attempts: Mapped[list[OutreachAttempt]] = relationship(back_populates="lead")
     follow_ups: Mapped[list[FollowUp]] = relationship(back_populates="lead")
-    manual_outreach_queue: Mapped[list[ManualOutreachQueue]] = relationship(
-        back_populates="lead"
-    )
+    manual_outreach_queue: Mapped[list[ManualOutreachQueue]] = relationship(back_populates="lead")
     conversations: Mapped[list[Conversation]] = relationship(back_populates="lead")
     activity_logs: Mapped[list[ActivityLog]] = relationship(back_populates="lead")
-    assignment_logs: Mapped[list[LeadAssignmentLog]] = relationship(
-        back_populates="lead"
-    )
+    assignment_logs: Mapped[list[LeadAssignmentLog]] = relationship(back_populates="lead")
     tasks: Mapped[list[Task]] = relationship(back_populates="lead")
     lead_notes: Mapped[list[Note]] = relationship(back_populates="lead")
 

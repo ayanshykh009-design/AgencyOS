@@ -1,4 +1,5 @@
 """LeadResearch model — enrichment output, one row per lead."""
+
 from __future__ import annotations
 
 import uuid

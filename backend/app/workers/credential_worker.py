@@ -13,6 +13,7 @@ skipped (never re-encrypted into garbage).
 
 Runs as a standalone loop (``python -m app.workers.credential_worker``).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -41,18 +42,12 @@ class CredentialWorker:
 
         async with async_session_factory() as session:
             service = CredentialService(session)
-            await service.upsert_key_version(
-                current, provider.key_fingerprint(current)
-            )
+            await service.upsert_key_version(current, provider.key_fingerprint(current))
             previous = provider.previous_key_version()
             if previous is not None:
-                await service.upsert_key_version(
-                    previous, provider.key_fingerprint(previous)
-                )
+                await service.upsert_key_version(previous, provider.key_fingerprint(previous))
 
-            batch = await service.list_stale_key(
-                current, settings.CREDENTIAL_REKEY_BATCH
-            )
+            batch = await service.list_stale_key(current, settings.CREDENTIAL_REKEY_BATCH)
             rekeyed = 0
             for credential in batch:
                 try:

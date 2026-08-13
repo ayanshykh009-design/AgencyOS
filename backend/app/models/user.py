@@ -1,4 +1,5 @@
 """User model — agency team member scoped to one organization."""
+
 from __future__ import annotations
 
 import uuid

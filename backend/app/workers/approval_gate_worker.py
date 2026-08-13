@@ -10,6 +10,7 @@ Stamps ``gate_handled_at`` to guarantee idempotent processing.
 
 Runs as a standalone loop (``python -m app.workers.approval_gate_worker``).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -29,9 +30,7 @@ logger = logging.getLogger("agencyos.communication.gate")
 # Identity for this worker instance, stable across the process
 INSTANCE_ID = uuid.uuid4()
 
-_HEARTBEAT_COUNTERS = (
-    "approval_gate_handled_total",
-)
+_HEARTBEAT_COUNTERS = ("approval_gate_handled_total",)
 
 
 class ApprovalGateWorker:

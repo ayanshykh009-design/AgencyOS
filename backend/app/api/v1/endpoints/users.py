@@ -1,4 +1,5 @@
 """User endpoints (org-scoped user management)."""
+
 from __future__ import annotations
 
 import uuid
@@ -26,12 +27,8 @@ async def list_users(
     offset: int = Query(default=0, ge=0),
 ) -> Page[UserRead]:
     service = UserService(db)
-    users = await service.list(
-        current_user.organization_id, limit=limit, offset=offset
-    )
-    return Page(
-        items=[UserRead.model_validate(u) for u in users], total=len(users)
-    )
+    users = await service.list(current_user.organization_id, limit=limit, offset=offset)
+    return Page(items=[UserRead.model_validate(u) for u in users], total=len(users))
 
 
 @router.get(
@@ -39,9 +36,7 @@ async def list_users(
     response_model=UserRead,
     summary="Get a user",
 )
-async def get_user(
-    user_id: uuid.UUID, db: DbSession, current_user: CurrentUser
-) -> UserRead:
+async def get_user(user_id: uuid.UUID, db: DbSession, current_user: CurrentUser) -> UserRead:
     service = UserService(db)
     user = await service.get(current_user.organization_id, user_id)
     return UserRead.model_validate(user)
@@ -54,9 +49,7 @@ async def get_user(
     summary="Create a user",
     dependencies=[Depends(require_permission(Permission.TEAM_MANAGE))],
 )
-async def create_user(
-    body: UserCreate, db: DbSession, current_user: CurrentUser
-) -> UserRead:
+async def create_user(body: UserCreate, db: DbSession, current_user: CurrentUser) -> UserRead:
     service = UserService(db)
     data = body.model_dump()
     user = await service.create(current_user.organization_id, current_user, data)

@@ -1,4 +1,5 @@
 """Monitoring schemas for operational visibility."""
+
 from __future__ import annotations
 
 import uuid
@@ -10,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 
 class OperationalSummaryResponse(BaseModel):
     """Comprehensive operational summary for production dashboards."""
+
     model_config = ConfigDict(from_attributes=True)
 
     timestamp: datetime
@@ -23,6 +25,7 @@ class OperationalSummaryResponse(BaseModel):
 
 class ExecutionStatisticsResponse(BaseModel):
     """Execution statistics for time window analysis."""
+
     model_config = ConfigDict(from_attributes=True)
 
     window_hours: int
@@ -34,6 +37,7 @@ class ExecutionStatisticsResponse(BaseModel):
 
 class WorkerStatisticsResponse(BaseModel):
     """Worker health and activity statistics."""
+
     model_config = ConfigDict(from_attributes=True)
 
     window_hours: int
@@ -47,6 +51,7 @@ class WorkerStatisticsResponse(BaseModel):
 
 class ScheduleStatisticsResponse(BaseModel):
     """Schedule dispatch statistics."""
+
     model_config = ConfigDict(from_attributes=True)
 
     window_hours: int
@@ -58,6 +63,7 @@ class ScheduleStatisticsResponse(BaseModel):
 
 class RetentionStatisticsResponse(BaseModel):
     """Retention worker statistics."""
+
     model_config = ConfigDict(from_attributes=True)
 
     window_hours: int
@@ -82,6 +88,7 @@ class DeliveryStatisticsResponse(BaseModel):
 
 class AutomationLifecycleResponse(BaseModel):
     """Automation lifecycle statistics (pause/resume events)."""
+
     model_config = ConfigDict(from_attributes=True)
 
     automation_paused_events: int
@@ -91,6 +98,7 @@ class AutomationLifecycleResponse(BaseModel):
 
 class HeartbeatVisibilityResponse(BaseModel):
     """Worker heartbeat visibility for monitoring."""
+
     model_config = ConfigDict(from_attributes=True)
 
     instance_id: uuid.UUID
@@ -105,6 +113,7 @@ class HeartbeatVisibilityResponse(BaseModel):
 
 class ExecutionTimelineEvent(BaseModel):
     """Single execution timeline event (cross-organization)."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -119,6 +128,7 @@ class ExecutionTimelineEvent(BaseModel):
 
 class ExecutionTimelineResponse(BaseModel):
     """Execution timeline across organizations."""
+
     model_config = ConfigDict(from_attributes=True)
 
     events: list[ExecutionTimelineEvent]
@@ -126,6 +136,7 @@ class ExecutionTimelineResponse(BaseModel):
 
 class ExecutionHistoryEntry(BaseModel):
     """Single execution history row (cross-organization)."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -142,6 +153,7 @@ class ExecutionHistoryEntry(BaseModel):
 
 class ExecutionHistoryResponse(BaseModel):
     """Paginated execution history across organizations."""
+
     model_config = ConfigDict(from_attributes=True)
 
     entries: list[ExecutionHistoryEntry]
@@ -150,6 +162,7 @@ class ExecutionHistoryResponse(BaseModel):
 
 class OrganizationQueue(BaseModel):
     """Per-organization queue metrics."""
+
     model_config = ConfigDict(from_attributes=True)
 
     organization_id: uuid.UUID
@@ -161,6 +174,7 @@ class OrganizationQueue(BaseModel):
 
 class QueueStatusResponse(BaseModel):
     """Aggregate queue status across all organizations."""
+
     model_config = ConfigDict(from_attributes=True)
 
     total_queued: int
@@ -172,6 +186,7 @@ class QueueStatusResponse(BaseModel):
 
 class SystemHealth(BaseModel):
     """System-level health and configuration summary."""
+
     model_config = ConfigDict(from_attributes=True)
 
     healthy: bool
@@ -192,6 +207,7 @@ class SystemHealth(BaseModel):
 
 class DatabaseHealth(BaseModel):
     """Database connection and pool health."""
+
     model_config = ConfigDict(from_attributes=True)
 
     connected: bool
@@ -202,6 +218,7 @@ class DatabaseHealth(BaseModel):
 
 class WorkerHealthSummary(BaseModel):
     """Worker fleet health summary."""
+
     model_config = ConfigDict(from_attributes=True)
 
     total: int
@@ -212,6 +229,7 @@ class WorkerHealthSummary(BaseModel):
 
 class QueueMetrics(BaseModel):
     """Queue processing metrics."""
+
     model_config = ConfigDict(from_attributes=True)
 
     total_queued: int
@@ -222,6 +240,7 @@ class QueueMetrics(BaseModel):
 
 class MonitoringInformationResponse(BaseModel):
     """Comprehensive monitoring information payload."""
+
     model_config = ConfigDict(from_attributes=True)
 
     system: SystemHealth

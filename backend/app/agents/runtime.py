@@ -14,6 +14,7 @@ All persistence goes through ``AgentService`` guarded transitions; executors
 never touch run rows. Unexpected exceptions are sanitized (no stack traces)
 before persisting ``agent_runs.error``.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -87,16 +88,12 @@ class AgentRuntime:
                 timeout=settings.AGENT_RUN_TIMEOUT_SECONDS,
             )
         except TimeoutError:
-            return await self._finish(
-                service, run, error="Agent run exceeded its time budget"
-            )
+            return await self._finish(service, run, error="Agent run exceeded its time budget")
         except Exception as exc:  # noqa: BLE001 - any executor failure lands FAILED
             return await self._finish(service, run, error=self._sanitize(exc))
         if result.success:
             return await self._finish(service, run, output=result.output, cost=result.cost)
-        return await self._finish(
-            service, run, error=result.error or "Agent execution failed"
-        )
+        return await self._finish(service, run, error=result.error or "Agent execution failed")
 
     @staticmethod
     def _goal_for(run: AgentRun) -> str:
@@ -116,9 +113,7 @@ class AgentRuntime:
         """Land the run on a terminal state; ``None`` if already finalised."""
         try:
             if error is not None:
-                return await service.fail_run(
-                    run.organization_id, run.id, error=error
-                )
+                return await service.fail_run(run.organization_id, run.id, error=error)
             return await service.complete_run(
                 run.organization_id,
                 run.id,

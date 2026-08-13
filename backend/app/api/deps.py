@@ -8,6 +8,7 @@ Dependencies are reusable injectables for route handlers:
 
 Only dependency plumbing belongs here — never business rules.
 """
+
 from __future__ import annotations
 
 import uuid

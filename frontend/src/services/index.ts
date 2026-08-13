@@ -91,6 +91,22 @@ export {
   markNotificationRead,
   setNotificationRead,
 } from "./notifications";
+export {
+  listAnalyses,
+  getAnalysis,
+  runAnalysis,
+  runAllAnalyses,
+  listRecommendations,
+  recommendationCounts,
+  updateRecommendation,
+  listScenarios,
+  getScenario,
+  createScenario,
+  deleteScenario,
+  getHealthWeights,
+  upsertHealthWeights,
+  runForecast,
+} from "./growth";
 export type { LoginInput } from "./auth";
 export type { LeadQuery, DuplicateQuery } from "./leads";
 export type { BrainRunInput } from "./ai";
@@ -104,3 +120,4 @@ export type { WorkflowEventQuery } from "./workflow-events";
 export type { CredentialQuery } from "./credentials";
 export type { DeliveryQuery } from "./deliveries";
 export type { NotificationQuery, UnreadCount, NotificationTypeCounts } from "./notifications";
+export type { GrowthAnalysisQuery, GrowthRecommendationQuery, GrowthScenarioQuery } from "./growth";

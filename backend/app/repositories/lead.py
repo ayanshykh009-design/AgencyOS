@@ -1,4 +1,5 @@
 """Lead repository: search, filter, dedup-aware creation, soft delete."""
+
 from __future__ import annotations
 
 import uuid
@@ -32,9 +33,7 @@ class LeadRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_or_404(
-        self, organization_id: uuid.UUID, lead_id: uuid.UUID
-    ) -> Lead:
+    async def get_or_404(self, organization_id: uuid.UUID, lead_id: uuid.UUID) -> Lead:
         lead = await self.get(organization_id, lead_id)
         if lead is None:
             raise AppError(
@@ -177,9 +176,7 @@ class LeadRepository:
         result = await self._session.execute(stmt)
         return {status: int(count) for status, count in result.all()}
 
-    async def list_unassigned(
-        self, organization_id: uuid.UUID, *, limit: int = 500
-    ) -> list[Lead]:
+    async def list_unassigned(self, organization_id: uuid.UUID, *, limit: int = 500) -> list[Lead]:
         """Return non-deleted leads without an owner (for assignment sweeps)."""
         stmt = (
             select(Lead)
@@ -237,9 +234,7 @@ class LeadRepository:
         result = await self._session.execute(stmt)
         return {stage_id: int(count) for stage_id, count in result.all()}
 
-    async def count_in_stage(
-        self, organization_id: uuid.UUID, stage_id: uuid.UUID
-    ) -> int:
+    async def count_in_stage(self, organization_id: uuid.UUID, stage_id: uuid.UUID) -> int:
         """Count non-deleted leads currently in a stage."""
         stmt = (
             select(func.count(Lead.id))
@@ -318,9 +313,7 @@ class LeadRepository:
         result = await self._session.execute(stmt)
         return cast(CursorResult, result).rowcount or 0
 
-    async def soft_delete(
-        self, organization_id: uuid.UUID, lead_id: uuid.UUID, *, now
-    ) -> bool:
+    async def soft_delete(self, organization_id: uuid.UUID, lead_id: uuid.UUID, *, now) -> bool:
         """Soft-delete a lead; returns False when it does not exist."""
         lead = await self.get(organization_id, lead_id)
         if lead is None:

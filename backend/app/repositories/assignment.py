@@ -1,4 +1,5 @@
 """Repositories for lead assignment rules and history."""
+
 from __future__ import annotations
 
 import uuid

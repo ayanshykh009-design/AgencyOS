@@ -6,6 +6,7 @@ Phase 5A ships two adapters:
 
 The adapter is selected based on the workflow's ``execution_mode`` field.
 """
+
 from __future__ import annotations
 
 import logging
@@ -163,9 +164,7 @@ class BuiltinAdapter(ExecutionAdapter):
                 "failed": ExecutionEventType.STEP_FAILED,
             }.get(event)
             if event_type is not None:
-                pending.append(
-                    (event_type, {"step_index": index, "step_id": step_id})
-                )
+                pending.append((event_type, {"step_index": index, "step_id": step_id}))
 
         try:
             result = run_builtin_definition(definition, input_data, on_step=_on_step)

@@ -1,4 +1,5 @@
 """Conversation model — a reply thread with a lead."""
+
 from __future__ import annotations
 
 import uuid
@@ -22,7 +23,9 @@ class Conversation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "conversations"
     __table_args__ = (
         UniqueConstraint(
-            "organization_id", "channel", "external_thread_id",
+            "organization_id",
+            "channel",
+            "external_thread_id",
             name="uq_conversations_external_thread",
         ),
         Index(

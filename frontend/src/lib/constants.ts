@@ -20,6 +20,7 @@ export const ROUTES = {
   credentials: "/credentials",
   deliveries: "/deliveries",
   inbox: "/inbox",
+  growth: "/growth",
 } as const;
 
 export const STORAGE_KEYS = {

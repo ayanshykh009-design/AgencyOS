@@ -10,6 +10,7 @@ The pipeline is an overlay on the fixed ``lead_status`` lifecycle:
 All status/stage/close-reason transitions flow through :meth:`reconcile`,
 which is the single source of truth for win/loss events.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -117,9 +118,7 @@ class PipelineService:
         await self._ensure_defaults(organization_id)
         await commit_with_retry(self._session)
         stages = await self._stages.list(organization_id)
-        stages.sort(
-            key=lambda s: (_LIFECYCLE_ORDER[s.lifecycle], s.position, str(s.id))
-        )
+        stages.sort(key=lambda s: (_LIFECYCLE_ORDER[s.lifecycle], s.position, str(s.id)))
         by_stage = await self._leads.list_by_stages(
             organization_id, [s.id for s in stages], limit_per_stage=limit_per_stage
         )
@@ -196,15 +195,11 @@ class PipelineService:
         await commit_with_retry(self._session)
         return stage
 
-    async def delete_stage(
-        self, organization_id: uuid.UUID, stage_id: uuid.UUID
-    ) -> None:
+    async def delete_stage(self, organization_id: uuid.UUID, stage_id: uuid.UUID) -> None:
         stage = await self._stages.get_or_404(organization_id, stage_id)
         alternatives = [
             s
-            for s in await self._stages.list(
-                organization_id, lifecycle=stage.lifecycle
-            )
+            for s in await self._stages.list(organization_id, lifecycle=stage.lifecycle)
             if s.id != stage.id
         ]
         in_stage = await self._leads.count_in_stage(organization_id, stage.id)
@@ -218,9 +213,7 @@ class PipelineService:
                 status_code=400,
             )
         if in_stage:
-            await self._leads.bulk_move_stage(
-                organization_id, stage.id, alternatives[0].id
-            )
+            await self._leads.bulk_move_stage(organization_id, stage.id, alternatives[0].id)
         await self._stages.delete(stage)
         await commit_with_retry(self._session)
 
@@ -284,9 +277,7 @@ class PipelineService:
         self, organization_id: uuid.UUID, close_reason_id: uuid.UUID
     ) -> None:
         reason = await self._reasons.get_or_404(organization_id, close_reason_id)
-        used = await self._leads.count_using_close_reason(
-            organization_id, close_reason_id
-        )
+        used = await self._leads.count_using_close_reason(organization_id, close_reason_id)
         if used:
             raise AppError(
                 code="pipeline.close_reason_in_use",
@@ -466,12 +457,8 @@ class PipelineService:
             bucket = bucket_of(lead.status)
             if current is None or current.lifecycle is not bucket:
                 hint = lead.status.value if bucket is StageLifecycle.OPEN else None
-                return await self._stages.get_default(
-                    organization_id, bucket, name_hint=hint
-                )
+                return await self._stages.get_default(organization_id, bucket, name_hint=hint)
             return current
         if current is not None:
             return current
-        return await self._stages.get_default(
-            organization_id, bucket_of(lead.status)
-        )
+        return await self._stages.get_default(organization_id, bucket_of(lead.status))

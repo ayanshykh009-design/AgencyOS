@@ -3,6 +3,7 @@
 All endpoints are JWT-authenticated. Reads require ``delivery_read``; writes
 require ``delivery_write``; admin actions require ``delivery_manage``.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -46,7 +47,7 @@ async def list_deliveries(
     offset: int = Query(default=0, ge=0),
 ) -> DeliveryListResponse:
     service = DeliveryService(db)
-    items = await service.list(
+    items = await service.list_deliveries(
         current_user.organization_id,
         status=status,
         channel=channel,

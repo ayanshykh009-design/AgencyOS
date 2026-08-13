@@ -9,6 +9,7 @@ worker can never clobber a terminal row.
 
 Terminal statuses (``succeeded | failed | cancelled``) never revert.
 """
+
 from __future__ import annotations
 
 from app.core.errors import AppError

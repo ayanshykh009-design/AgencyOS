@@ -7,6 +7,7 @@ statement built from WITH (CTE) blocks, so the whole snapshot arrives in a
 single round trip. Predicates mirror the individual repository methods they
 replace (``LeadRepository.funnel``, ``TaskRepository.count_*``, etc.).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -190,9 +191,7 @@ class DashboardRepository:
         activity: list[dict[str, Any]] = list(row["activity_items"])
 
         return {
-            "funnel": {
-                column: int(row[column]) for column in _FUNNEL_COLUMNS
-            },
+            "funnel": {column: int(row[column]) for column in _FUNNEL_COLUMNS},
             "users": {
                 "total": int(row["users_total"]),
                 "active": int(row["users_active"]),

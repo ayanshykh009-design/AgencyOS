@@ -1,4 +1,5 @@
 """Workflow endpoints: CRUD, activation, and manual run."""
+
 from __future__ import annotations
 
 import uuid
@@ -38,6 +39,7 @@ _manage = Depends(require_permission(Permission.WORKFLOW_MANAGE))
 
 
 # Workflow CRUD ---------------------------------------------------------------
+
 
 @router.get(
     "",
@@ -155,9 +157,7 @@ async def activate_workflow(
     current_user: CurrentUser,
 ) -> WorkflowRead:
     service = WorkflowService(db)
-    workflow = await service.activate(
-        current_user.organization_id, workflow_id, actor=current_user
-    )
+    workflow = await service.activate(current_user.organization_id, workflow_id, actor=current_user)
     return WorkflowRead.model_validate(workflow)
 
 
@@ -173,9 +173,7 @@ async def pause_workflow(
     current_user: CurrentUser,
 ) -> WorkflowRead:
     service = WorkflowService(db)
-    workflow = await service.pause(
-        current_user.organization_id, workflow_id, actor=current_user
-    )
+    workflow = await service.pause(current_user.organization_id, workflow_id, actor=current_user)
     return WorkflowRead.model_validate(workflow)
 
 
@@ -191,9 +189,7 @@ async def archive_workflow(
     current_user: CurrentUser,
 ) -> WorkflowRead:
     service = WorkflowService(db)
-    workflow = await service.archive(
-        current_user.organization_id, workflow_id, actor=current_user
-    )
+    workflow = await service.archive(current_user.organization_id, workflow_id, actor=current_user)
     return WorkflowRead.model_validate(workflow)
 
 
@@ -209,12 +205,11 @@ async def delete_workflow(
     current_user: CurrentUser,
 ):
     service = WorkflowService(db)
-    await service.delete(
-        current_user.organization_id, workflow_id, actor=current_user
-    )
+    await service.delete(current_user.organization_id, workflow_id, actor=current_user)
 
 
 # Nested triggers -------------------------------------------------------------
+
 
 @router.get(
     "/{workflow_id}/triggers",
@@ -271,6 +266,7 @@ async def create_trigger(
 ) -> WorkflowTriggerRead:
     if body.workflow_id != workflow_id:
         from app.core.errors import AppError
+
         raise AppError(
             code="workflow_trigger.workflow_id_mismatch",
             message="workflow_id in body must match path parameter",
@@ -324,6 +320,7 @@ async def delete_trigger(
 
 # Nested executions -----------------------------------------------------------
 
+
 @router.get(
     "/{workflow_id}/executions",
     response_model=WorkflowExecutionListResponse,
@@ -345,6 +342,7 @@ async def list_workflow_executions(
     exec_status = ExecutionStatus(status) if status else None
     # Use the execution service for listing
     from app.services.workflow_execution_service import WorkflowExecutionService
+
     exec_service = WorkflowExecutionService(db)
     executions = await exec_service.list_executions(
         current_user.organization_id,

@@ -1,4 +1,5 @@
 """ConversationMessage model — append-only thread history."""
+
 from __future__ import annotations
 
 import uuid
@@ -22,9 +23,7 @@ class ConversationMessage(UUIDPrimaryKeyMixin, Base):
 
     __tablename__ = "conversation_messages"
     __table_args__ = (
-        CheckConstraint(
-            "length(btrim(body)) > 0", name="chk_conversation_messages_body_not_blank"
-        ),
+        CheckConstraint("length(btrim(body)) > 0", name="chk_conversation_messages_body_not_blank"),
     )
 
     conversation_id: Mapped[uuid.UUID] = mapped_column(

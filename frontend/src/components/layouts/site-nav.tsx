@@ -33,6 +33,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { href: ROUTES.search, label: "Search", permission: "search" },
       { href: ROUTES.ai, label: "AI", permission: "lead_read" },
+      { href: ROUTES.growth, label: "Growth", permission: "growth_read" },
     ],
   },
   {

@@ -15,6 +15,7 @@ QUEUED/RETRYING/RUNNING, and only one runner claims a schedule tick).
 Runs as a standalone loop (``python -m app.workers.execution_worker``) or as a
 single sweep from a scheduler.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -77,9 +78,7 @@ class ExecutionWorker:
         ).observe(time.perf_counter() - start, {"phase": phase})
 
     @classmethod
-    async def heartbeat(
-        cls, *, loop_ok: bool = True, last_error: str | None = None
-    ) -> None:
+    async def heartbeat(cls, *, loop_ok: bool = True, last_error: str | None = None) -> None:
         """Upsert this instance's heartbeat row (own session, self-contained).
 
         Written every loop iteration and once more on shutdown. Best-effort:
@@ -138,9 +137,7 @@ class ExecutionWorker:
                         continue
                     workflows = {
                         w.id: w
-                        for w in await workflow_repo.get_many(
-                            [e.workflow_id for e in executions]
-                        )
+                        for w in await workflow_repo.get_many([e.workflow_id for e in executions])
                     }
                     for execution in executions:
                         workflow = workflows.get(execution.workflow_id)
@@ -164,9 +161,7 @@ class ExecutionWorker:
                             continue
 
                         try:
-                            started = await service.start(
-                                execution.organization_id, execution.id
-                            )
+                            started = await service.start(execution.organization_id, execution.id)
                         except AppError:
                             logger.info(
                                 "skipping execution %s (cancelled or claimed concurrently)",
@@ -207,9 +202,7 @@ class ExecutionWorker:
                                 timeout_seconds=settings.EXECUTION_TIMEOUT_SECONDS,
                             )
                             try:
-                                await service.timeout(
-                                    started.organization_id, started.id
-                                )
+                                await service.timeout(started.organization_id, started.id)
                             except AppError:
                                 logger.warning(
                                     "timeout transition skipped for %s (state changed)",

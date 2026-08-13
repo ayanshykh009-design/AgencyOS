@@ -6,6 +6,7 @@ provider (``EnvKeyProvider``) derives keys from the ``CREDENTIALS_ENC_KEY`` /
 cloud KMS (AWS/Azure/GCP) can be added by implementing ``KmsProvider`` and
 switching ``get_kms_provider`` — callers depend only on this interface.
 """
+
 from __future__ import annotations
 
 import logging

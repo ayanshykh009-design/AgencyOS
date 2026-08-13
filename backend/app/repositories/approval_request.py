@@ -3,6 +3,7 @@
 Pending requests auto-expire (deny) at ``expires_at``; the sweep query
 returns expired-pending rows for the service to transition and log.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -36,9 +37,7 @@ class ApprovalRequestRepository(TenantRepository[ApprovalRequest]):
         offset: int = 0,
     ) -> list[ApprovalRequest]:
         """List approval requests, optionally filtered by status, newest first."""
-        stmt = select(ApprovalRequest).where(
-            ApprovalRequest.organization_id == organization_id
-        )
+        stmt = select(ApprovalRequest).where(ApprovalRequest.organization_id == organization_id)
         if status is not None:
             stmt = stmt.where(ApprovalRequest.status == status)
         stmt = stmt.order_by(ApprovalRequest.created_at.desc()).limit(limit).offset(offset)

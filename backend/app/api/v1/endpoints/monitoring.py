@@ -3,6 +3,7 @@
 Provides comprehensive monitoring APIs for automation infrastructure including
 worker health, execution statistics, operational summaries, and runtime metrics.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -242,9 +243,7 @@ async def get_execution_timeline(
     db: DbSession,
     current_user: CurrentUser,
     hours: int = Query(default=24, ge=1, le=168, description="Time window in hours"),
-    status: ExecutionStatus | None = Query(
-        default=None, description="Filter by execution status"
-    ),
+    status: ExecutionStatus | None = Query(default=None, description="Filter by execution status"),
     workflow: str | None = Query(
         default=None, description="Filter by workflow name (partial match)"
     ),
@@ -274,18 +273,14 @@ async def get_execution_history(
     page: int = Query(default=1, ge=1, description="Page number (1-based)"),
     page_size: int = Query(default=50, ge=1, le=200, description="Results per page"),
     hours: int = Query(default=24, ge=1, le=168, description="Time window in hours"),
-    status: ExecutionStatus | None = Query(
-        default=None, description="Filter by execution status"
-    ),
+    status: ExecutionStatus | None = Query(default=None, description="Filter by execution status"),
     workflow: str | None = Query(
         default=None, description="Filter by workflow name (partial match)"
     ),
 ) -> ExecutionHistoryResponse:
     """Get paginated execution history across all organizations."""
     service = OperationalMonitoringService(db)
-    data = await service.get_execution_history(
-        page, page_size, hours, status, workflow
-    )
+    data = await service.get_execution_history(page, page_size, hours, status, workflow)
     return ExecutionHistoryResponse(**data)
 
 

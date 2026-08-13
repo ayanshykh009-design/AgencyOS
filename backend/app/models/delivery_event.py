@@ -3,6 +3,7 @@
 Records every state-machine transition for a delivery (see
 ``DeliveryEventType``). Rows are never updated or deleted by feature code.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -58,9 +59,7 @@ class DeliveryEvent(UUIDPrimaryKeyMixin, Base):
     metadata_: Mapped[dict] = mapped_column(
         "metadata", JSONB, default=dict, server_default="{}", nullable=False
     )
-    occurred_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
-    )
+    occurred_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
     delivery: Mapped[Delivery] = relationship(back_populates="events")

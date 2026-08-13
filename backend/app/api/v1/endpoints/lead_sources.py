@@ -1,4 +1,5 @@
 """LeadSource endpoints (org-scoped CRUD)."""
+
 from __future__ import annotations
 
 import uuid
@@ -26,9 +27,7 @@ async def list_sources(
     include_inactive: bool = True,
 ) -> list[LeadSourceRead]:
     service = LeadSourceService(db)
-    sources = await service.list(
-        current_user.organization_id, include_inactive=include_inactive
-    )
+    sources = await service.list(current_user.organization_id, include_inactive=include_inactive)
     return [LeadSourceRead.model_validate(s) for s in sources]
 
 

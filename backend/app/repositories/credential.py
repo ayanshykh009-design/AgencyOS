@@ -1,4 +1,5 @@
 """Credential repository (org-scoped CRUD + key-version registry)."""
+
 from __future__ import annotations
 
 import builtins
@@ -118,9 +119,7 @@ class CredentialRepository:
         result = cast(CursorResult, await self._session.execute(stmt))
         return bool(result.rowcount)
 
-    async def list_stale_key(
-        self, current_version: str, limit: int
-    ) -> builtins.list[Credential]:
+    async def list_stale_key(self, current_version: str, limit: int) -> builtins.list[Credential]:
         """Credentials encrypted under an older key version (rekey candidates).
 
         Oldest-updated first so a rotation completes rows that stalled earlier.
@@ -145,9 +144,7 @@ class CredentialRepository:
         return int(result.scalar_one())
 
     async def get_key_version(self, version: str) -> CredentialKeyVersion | None:
-        stmt = select(CredentialKeyVersion).where(
-            CredentialKeyVersion.version == version
-        )
+        stmt = select(CredentialKeyVersion).where(CredentialKeyVersion.version == version)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -155,9 +152,7 @@ class CredentialRepository:
         """Insert (or refresh the fingerprint of) a key-version registry row."""
         row = await self.get_key_version(version)
         if row is None:
-            self._session.add(
-                CredentialKeyVersion(version=version, key_fingerprint=fingerprint)
-            )
+            self._session.add(CredentialKeyVersion(version=version, key_fingerprint=fingerprint))
         else:
             row.key_fingerprint = fingerprint
 

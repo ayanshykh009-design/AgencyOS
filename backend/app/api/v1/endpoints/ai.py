@@ -4,6 +4,7 @@ NOTE: intentionally does NOT use ``from __future__ import annotations``.
 slowapi's ``functools.wraps`` copies string annotations and FastAPI then
 resolves them against slowapi's globals, producing unresolved ForwardRefs.
 """
+
 from fastapi import APIRouter, Depends, Request
 
 from app.api.deps import CurrentUser, DbSession

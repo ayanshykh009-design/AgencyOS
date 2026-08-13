@@ -6,6 +6,7 @@ named permissions. Every new endpoint that needs authorization picks one of
 the permission names here via :func:`require_permission` — never hand-rolled
 role checks inside route handlers.
 """
+
 from __future__ import annotations
 
 from collections.abc import Callable, Coroutine

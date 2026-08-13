@@ -1,4 +1,5 @@
 """WorkflowTrigger repository (org-scoped CRUD)."""
+
 from __future__ import annotations
 
 import uuid
@@ -214,9 +215,7 @@ class WorkflowTriggerRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def count_by_workflow(
-        self, organization_id: uuid.UUID, workflow_id: uuid.UUID
-    ) -> int:
+    async def count_by_workflow(self, organization_id: uuid.UUID, workflow_id: uuid.UUID) -> int:
         stmt = (
             select(func.count(WorkflowTrigger.id))
             .where(

@@ -1,4 +1,5 @@
 """Activity endpoints: append-only audit trail (read-only for clients)."""
+
 from __future__ import annotations
 
 import uuid

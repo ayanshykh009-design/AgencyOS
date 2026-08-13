@@ -1,4 +1,5 @@
 """User repository."""
+
 from __future__ import annotations
 
 import uuid
@@ -29,11 +30,7 @@ class UserRepository:
 
     async def get_active_by_email(self, email: str) -> User | None:
         """Return an active user by email (global lookup)."""
-        stmt = (
-            select(User)
-            .where(User.email == email.lower(), User.is_active.is_(True))
-            .limit(1)
-        )
+        stmt = select(User).where(User.email == email.lower(), User.is_active.is_(True)).limit(1)
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -69,9 +66,7 @@ class UserRepository:
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
 
-    async def count_active_role(
-        self, organization_id: uuid.UUID, role: UserRole
-    ) -> int:
+    async def count_active_role(self, organization_id: uuid.UUID, role: UserRole) -> int:
         stmt = select(func.count(User.id)).where(
             User.organization_id == organization_id,
             User.role == role,

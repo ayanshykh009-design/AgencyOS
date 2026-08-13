@@ -4,6 +4,7 @@ One row per (organization, agent_name), maintained by the runtime as runs
 complete. Aggregate counters (queue_depth, total_runs, averages) are
 server-side rolling values; they are never client-computed.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -31,9 +32,7 @@ class AgentState(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
         CheckConstraint("queue_depth >= 0", name="chk_agent_state_queue_depth_nonneg"),
         CheckConstraint("total_runs >= 0", name="chk_agent_state_total_runs_nonneg"),
-        CheckConstraint(
-            "average_runtime_ms >= 0", name="chk_agent_state_avg_runtime_nonneg"
-        ),
+        CheckConstraint("average_runtime_ms >= 0", name="chk_agent_state_avg_runtime_nonneg"),
         CheckConstraint("average_cost >= 0", name="chk_agent_state_avg_cost_nonneg"),
         Index("uq_agent_state_org_agent", "organization_id", "agent_name", unique=True),
         Index("idx_agent_state_status_health", "status", "health"),

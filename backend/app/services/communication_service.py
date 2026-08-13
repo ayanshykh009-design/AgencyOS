@@ -4,6 +4,7 @@ Read-only aggregation over the Phase 5D inbox surfaces (notifications,
 approvals, briefings, insights). No AI or delivery logic — this is the
 aggregate digest the founder communication layer exposes.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -39,13 +40,9 @@ class CommunicationService:
         self._insights = BusinessInsightRepository(session)
         self._briefings = BriefingRepository(session)
 
-    async def summary(
-        self, organization_id: uuid.UUID, user_id: uuid.UUID
-    ) -> CommunicationSummary:
+    async def summary(self, organization_id: uuid.UUID, user_id: uuid.UUID) -> CommunicationSummary:
         return CommunicationSummary(
-            unread_notifications=await self._notifications.count_unread(
-                organization_id, user_id
-            ),
+            unread_notifications=await self._notifications.count_unread(organization_id, user_id),
             pending_approvals=await self._approvals.count_pending(organization_id),
             active_insights=await self._insights.count_open(organization_id),
             latest_briefing=await self._briefings.latest_by_type(

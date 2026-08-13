@@ -13,6 +13,7 @@ bounded to keep the total in ``[0, 1]``:
 sorted by descending score. Callers bound the candidate pool first
 (``AiMemoryRepository.list_ranked``) so the sort stays cheap.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

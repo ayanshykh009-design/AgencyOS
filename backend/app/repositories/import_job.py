@@ -1,4 +1,5 @@
 """ImportJob repository: jobs and per-row errors."""
+
 from __future__ import annotations
 
 import uuid
@@ -24,9 +25,7 @@ class ImportJobRepository:
             return None
         return job
 
-    async def get_or_404(
-        self, organization_id: uuid.UUID, job_id: uuid.UUID
-    ) -> ImportJob:
+    async def get_or_404(self, organization_id: uuid.UUID, job_id: uuid.UUID) -> ImportJob:
         job = await self.get(organization_id, job_id)
         if job is None:
             raise AppError(
@@ -36,9 +35,7 @@ class ImportJobRepository:
             )
         return job
 
-    async def claim(
-        self, organization_id: uuid.UUID, job_id: uuid.UUID
-    ) -> ImportJob | None:
+    async def claim(self, organization_id: uuid.UUID, job_id: uuid.UUID) -> ImportJob | None:
         """Atomically claim a PENDING job via ``SELECT ... FOR UPDATE``.
 
         Locks the row so only one runner can transition PENDING -> PROCESSING.
@@ -70,9 +67,7 @@ class ImportJobRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> list[ImportJob]:
-        stmt = select(ImportJob).where(
-            ImportJob.organization_id == organization_id
-        )
+        stmt = select(ImportJob).where(ImportJob.organization_id == organization_id)
         if status is not None:
             stmt = stmt.where(ImportJob.status == status)
         stmt = stmt.order_by(ImportJob.created_at.desc()).limit(limit).offset(offset)

@@ -100,9 +100,7 @@ class GeminiClient:
                 )
                 continue
             contents.append(
-                self._types.Content(
-                    role=_role(m.role), parts=[self._types.PartFromText(m.content)]
-                )
+                self._types.Content(role=_role(m.role), parts=[self._types.PartFromText(m.content)])
             )
         return contents
 

@@ -1,4 +1,5 @@
 """Dashboard service: aggregates repository data for the UI."""
+
 from __future__ import annotations
 
 import uuid

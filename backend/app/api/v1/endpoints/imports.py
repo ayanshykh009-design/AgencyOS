@@ -4,6 +4,7 @@ The CSV file is stored under ``UPLOAD_DIR`` and processed by the background
 import worker (app/workers/import_worker.py). Jobs are org-scoped and only one
 active import per organization is allowed at a time.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -107,9 +108,7 @@ async def list_imports(
     response_model=ImportJobRead,
     summary="Get an import job",
 )
-async def get_import(
-    job_id: uuid.UUID, db: DbSession, current_user: CurrentUser
-) -> ImportJobRead:
+async def get_import(job_id: uuid.UUID, db: DbSession, current_user: CurrentUser) -> ImportJobRead:
     service = ImportService(db)
     job = await service.get(current_user.organization_id, job_id)
     return ImportJobRead.model_validate(job)

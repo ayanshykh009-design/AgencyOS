@@ -4,6 +4,7 @@ Normalized dedup keys (``email_normalized``, ``phone_normalized``,
 ``website_domain``) are read-only: they are computed by PostgreSQL and never
 accepted from clients.
 """
+
 from __future__ import annotations
 
 import re

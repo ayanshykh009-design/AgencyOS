@@ -1,4 +1,5 @@
 """OutreachMessage model — reusable per-channel message templates."""
+
 from __future__ import annotations
 
 import uuid

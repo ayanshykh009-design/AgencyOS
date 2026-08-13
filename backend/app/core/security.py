@@ -6,6 +6,7 @@ Production-grade building blocks:
 
 Consumed by auth services and app/api/deps.py. No business logic here.
 """
+
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from secrets import token_urlsafe
@@ -42,8 +43,7 @@ def create_access_token(
     payload: dict[str, Any] = {
         "sub": subject,
         "iat": now,
-        "exp": now
-        + timedelta(minutes=expires_minutes or settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        "exp": now + timedelta(minutes=expires_minutes or settings.ACCESS_TOKEN_EXPIRE_MINUTES),
         "iss": settings.JWT_ISSUER,
         "aud": settings.JWT_AUDIENCE,
     }

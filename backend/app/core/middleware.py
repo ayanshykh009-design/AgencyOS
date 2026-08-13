@@ -3,6 +3,7 @@
 Keep middleware generic — no business logic. Middleware is composed in
 app/main.py (order matters: last added = outermost).
 """
+
 import logging
 import time
 import uuid

@@ -1,4 +1,5 @@
 """LeadSource model — where leads come from (per organization)."""
+
 from __future__ import annotations
 
 import uuid

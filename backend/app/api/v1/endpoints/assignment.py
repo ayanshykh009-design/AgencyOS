@@ -1,4 +1,5 @@
 """Assignment endpoints: rule management, manual assign, history, sweep."""
+
 from __future__ import annotations
 
 import uuid
@@ -26,9 +27,7 @@ router = APIRouter()
     response_model=AssignmentRuleRead | None,
     summary="Get the organization's assignment rule",
 )
-async def get_rule(
-    db: DbSession, current_user: CurrentUser
-) -> AssignmentRuleRead | None:
+async def get_rule(db: DbSession, current_user: CurrentUser) -> AssignmentRuleRead | None:
     service = AssignmentService(db)
     rule = await service.get_rule(current_user.organization_id)
     return AssignmentRuleRead.model_validate(rule) if rule else None
@@ -63,9 +62,7 @@ async def put_rule(
     summary="Assign every unassigned lead per the active rule",
     dependencies=[Depends(require_permission(Permission.LEAD_ASSIGN))],
 )
-async def assign_unassigned(
-    db: DbSession, current_user: CurrentUser
-) -> dict[str, int]:
+async def assign_unassigned(db: DbSession, current_user: CurrentUser) -> dict[str, int]:
     service = AssignmentService(db)
     count = await service.assign_unassigned(current_user.organization_id)
     return {"assigned": count}

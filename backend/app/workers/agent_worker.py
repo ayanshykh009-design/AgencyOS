@@ -23,6 +23,7 @@ accumulates until the runtime is enabled.
 Runs as a standalone loop (``python -m app.workers.agent_worker``) or as a
 single sweep from a scheduler.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -69,9 +70,7 @@ class AgentWorker:
         ).observe(time.perf_counter() - start, {"phase": phase})
 
     @classmethod
-    async def heartbeat(
-        cls, *, loop_ok: bool = True, last_error: str | None = None
-    ) -> None:
+    async def heartbeat(cls, *, loop_ok: bool = True, last_error: str | None = None) -> None:
         """Upsert this instance's heartbeat row (own session, self-contained).
 
         Written every loop iteration and once more on shutdown. Best-effort:
@@ -92,9 +91,7 @@ class AgentWorker:
             logger.exception("worker heartbeat failed")
 
     @classmethod
-    async def process_queued(
-        cls, batch_size: int | None = None
-    ) -> int:
+    async def process_queued(cls, batch_size: int | None = None) -> int:
         """Run QUEUED agent runs through the runtime (fair drain).
 
         Candidate organizations are selected oldest-first and each org's queue
@@ -142,9 +139,7 @@ class AgentWorker:
         with span("agent.worker.cancels"):
             async with async_session_factory() as session:
                 service = AgentService(session)
-                runs = await service.get_cancel_requested(
-                    limit or settings.AGENT_RUN_BATCH_SIZE
-                )
+                runs = await service.get_cancel_requested(limit or settings.AGENT_RUN_BATCH_SIZE)
                 cancelled = 0
                 for run in runs:
                     try:

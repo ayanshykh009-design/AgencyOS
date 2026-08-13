@@ -8,6 +8,7 @@ channels whose providers have not shipped yet (fail closed).
 M6 ships the ``dashboard`` provider only; ``email``/``whatsapp``/``push`` stay
 unavailable until their providers land in later milestones.
 """
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -38,9 +39,7 @@ class DeliveryProviderRegistry:
         return set(cls._providers)
 
     @classmethod
-    def get(
-        cls, channel: DeliveryChannel, session: AsyncSession
-    ) -> DeliveryProvider:
+    def get(cls, channel: DeliveryChannel, session: AsyncSession) -> DeliveryProvider:
         provider_cls = cls._providers.get(channel)
         if provider_cls is None:
             raise DeliveryProviderUnavailable(
@@ -54,9 +53,7 @@ class DeliveryProviderRegistry:
 DeliveryProviderRegistry.register(InAppProvider)
 
 
-def get_provider(
-    channel: DeliveryChannel, session: AsyncSession
-) -> DeliveryProvider:
+def get_provider(channel: DeliveryChannel, session: AsyncSession) -> DeliveryProvider:
     """Return a session-bound provider for ``channel`` (fail closed)."""
     return DeliveryProviderRegistry.get(channel, session)
 

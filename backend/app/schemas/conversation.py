@@ -1,4 +1,5 @@
 """Conversation API schemas: threads and thread messages."""
+
 from __future__ import annotations
 
 from datetime import datetime

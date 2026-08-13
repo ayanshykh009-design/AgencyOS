@@ -4,6 +4,7 @@ Thin orchestration over :class:`WorkerHealthRepository` so workers and the
 monitoring endpoints share one place that owns heartbeat semantics (staleness
 window, metadata assembly) while the repository owns the SQL.
 """
+
 from __future__ import annotations
 
 import os

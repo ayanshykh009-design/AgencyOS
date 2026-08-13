@@ -1,4 +1,5 @@
 """Task repository: org-scoped data access with filters and a reminder sweep."""
+
 from __future__ import annotations
 
 import uuid
@@ -37,9 +38,7 @@ class TaskRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_or_404(
-        self, organization_id: uuid.UUID, task_id: uuid.UUID
-    ) -> Task:
+    async def get_or_404(self, organization_id: uuid.UUID, task_id: uuid.UUID) -> Task:
         task = await self.get(organization_id, task_id)
         if task is None:
             raise AppError(
@@ -76,9 +75,11 @@ class TaskRepository:
         )
         column = getattr(Task, sort, Task.due_at)
         order_col = column.asc() if order == "asc" else column.desc()
-        stmt = stmt.order_by(order_col, Task.created_at).limit(
-            min(limit, _MAX_PAGE_SIZE)
-        ).offset(offset)
+        stmt = (
+            stmt.order_by(order_col, Task.created_at)
+            .limit(min(limit, _MAX_PAGE_SIZE))
+            .offset(offset)
+        )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
@@ -166,9 +167,7 @@ class TaskRepository:
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
 
-    async def count_overdue(
-        self, organization_id: uuid.UUID, *, before: datetime
-    ) -> int:
+    async def count_overdue(self, organization_id: uuid.UUID, *, before: datetime) -> int:
         """Count open tasks whose due date has passed."""
         stmt = (
             select(func.count(Task.id))
@@ -205,9 +204,7 @@ class TaskRepository:
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
 
-    async def count_completed_since(
-        self, organization_id: uuid.UUID, *, since: datetime
-    ) -> int:
+    async def count_completed_since(self, organization_id: uuid.UUID, *, since: datetime) -> int:
         """Count tasks completed at or after ``since``."""
         stmt = (
             select(func.count(Task.id))

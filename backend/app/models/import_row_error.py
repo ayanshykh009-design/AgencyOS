@@ -1,4 +1,5 @@
 """ImportRowError model — append-only per-row import failures."""
+
 from __future__ import annotations
 
 import uuid
@@ -22,9 +23,7 @@ class ImportRowError(UUIDPrimaryKeyMixin, Base):
     __table_args__ = (
         CheckConstraint("row_number >= 1", name="chk_import_row_errors_row_number"),
         CheckConstraint("length(btrim(error_code)) > 0", name="chk_import_row_errors_code"),
-        CheckConstraint(
-            "length(btrim(error_message)) > 0", name="chk_import_row_errors_message"
-        ),
+        CheckConstraint("length(btrim(error_message)) > 0", name="chk_import_row_errors_message"),
     )
 
     import_job_id: Mapped[uuid.UUID] = mapped_column(

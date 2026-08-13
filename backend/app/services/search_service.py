@@ -1,4 +1,5 @@
 """Search service: combines org-scoped text search across domain objects."""
+
 from __future__ import annotations
 
 import uuid
@@ -29,9 +30,7 @@ class SearchService:
         limit: int = 10,
     ) -> dict:
         """Run the query against each store and return per-type result lists."""
-        leads, tasks, notes = await self._search_all(
-            organization_id, query=query, limit=limit
-        )
+        leads, tasks, notes = await self._search_all(organization_id, query=query, limit=limit)
         return {
             "query": query,
             "leads": leads,

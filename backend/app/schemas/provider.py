@@ -1,4 +1,5 @@
 """ProviderUsage API schemas (usage accounting, no credentials)."""
+
 from __future__ import annotations
 
 from datetime import date, datetime

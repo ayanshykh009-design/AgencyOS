@@ -1,4 +1,5 @@
 """Search API schemas: unified results across leads, tasks, and notes."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field

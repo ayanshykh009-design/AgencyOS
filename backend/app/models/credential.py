@@ -1,4 +1,5 @@
 """Credential model — encrypted credential storage for integrations."""
+
 from __future__ import annotations
 
 import uuid
@@ -46,9 +47,7 @@ class Credential(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Envelope-encryption key version. "0" marks rows stored before key
     # versioning existed (plaintext or legacy envelope) — the rekey worker
     # upgrades them to the current version.
-    key_version: Mapped[str] = mapped_column(
-        Text, nullable=False, default="0", server_default="0"
-    )
+    key_version: Mapped[str] = mapped_column(Text, nullable=False, default="0", server_default="0")
     last_rotated_at: Mapped[datetime | None] = mapped_column()
 
     created_by: Mapped[User] = relationship()

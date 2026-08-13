@@ -1,4 +1,5 @@
 """WorkflowEvent model — append-only event log for trigger matching."""
+
 from __future__ import annotations
 
 import uuid
@@ -35,9 +36,7 @@ class WorkflowEvent(UUIDPrimaryKeyMixin, Base):
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     event_type: Mapped[str] = mapped_column(Text, nullable=False)
-    payload: Mapped[dict] = mapped_column(
-        JSONB, default=dict, server_default="{}", nullable=False
-    )
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
     consumed: Mapped[bool] = mapped_column(default=False, nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column()
     occurred_at: Mapped[datetime] = mapped_column(nullable=False, index=True)

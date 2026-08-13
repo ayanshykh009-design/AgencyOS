@@ -95,7 +95,9 @@ def test_list_filters_org_status_channel_recipient_and_caps_limit() -> None:
     repo = _repo(session)
 
     async def run() -> None:
-        rows = await repo.list(ORG_ID, status="queued", channel="dashboard", limit=500)
+        rows = await repo.list_deliveries(
+            ORG_ID, status="queued", channel="dashboard", limit=500
+        )
         assert len(rows) == 1
 
     import asyncio

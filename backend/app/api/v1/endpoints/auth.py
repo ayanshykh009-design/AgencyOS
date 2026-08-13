@@ -7,6 +7,7 @@ slowapi's ``functools.wraps`` copies string annotations and FastAPI then
 resolves them against slowapi's globals, producing unresolved ForwardRefs.
 Real (non-string) annotations keep ``get_type_hints`` working.
 """
+
 from fastapi import APIRouter, Request, status
 
 from app.api.deps import CurrentUser, DbSession
@@ -71,6 +72,7 @@ async def logout(db: DbSession, current_user: CurrentUser):
     """Log the user out of every device session."""
     service = AuthService(db)
     await service.logout(current_user.id)
+
 
 @router.get(
     "/me",

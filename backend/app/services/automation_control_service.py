@@ -7,6 +7,7 @@ loop iteration so a crash or rollout can only freeze for up to
 
 Implements the Operator Controls layer defined in ``docs/phase5c-plan.md``.
 """
+
 from __future__ import annotations
 
 import uuid

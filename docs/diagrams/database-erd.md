@@ -28,6 +28,10 @@ erDiagram
     organizations ||--o{ briefings : "owns"
     organizations ||--o{ growth_metrics : "owns"
     organizations ||--o{ growth_forecasts : "owns"
+    organizations ||--o{ growth_analyses : "owns"
+    organizations ||--o{ growth_recommendations : "owns"
+    organizations ||--o{ growth_scenarios : "owns"
+    organizations ||--o{ growth_health_weights : "owns"
     organizations ||--o{ business_insights : "owns"
 
     users ||--o{ leads : "owns/assigns"
@@ -57,6 +61,8 @@ erDiagram
     workflows ||--o{ approval_requests : "gated by"
     workflow_executions ||--o{ approval_requests : "gated by"
     approval_requests ||--o{ approval_logs : "audited by"
+    growth_analyses ||--o{ growth_recommendations : "sources"
+    growth_forecasts ||--o{ growth_scenarios : "projects from"
 ```
 
 ## Relationships at a glance
@@ -89,6 +95,10 @@ erDiagram
 - **Agent state**: `uq_agent_state_org_agent (organization_id, agent_name)`.
 - **Growth metrics**: `uq_growth_metrics_org_type_period
   (organization_id, metric_type, period_start, period_end)`.
+- **M7 growth**: `growth_analyses` unique per
+  `(organization_id, analysis_type, period_start, period_end)`; one active
+  `growth_health_weights` row per org (`uq_growth_health_weights_org_active`);
+  `growth_scenarios` names unique per org.
 - **Non-negative + ranged checks** on scores, priorities, sizes, and token
   counts throughout.
 
@@ -105,5 +115,9 @@ erDiagram
 `notification_type`; `approval_requests.status` → `approval_request_status`;
 `approval_logs.action` → `approval_log_action`; `briefings.briefing_type` →
 `briefing_type`; `business_insights.insight_type`/`severity`/`status` →
-`insight_type`/`insight_severity`/`insight_status`. See
+`insight_type`/`insight_severity`/`insight_status`. Phase M7:
+`growth_analyses.analysis_type`/`status` →
+`growth_analysis_type`/`growth_analysis_status`;
+`growth_recommendations.priority`/`confidence`/`status` →
+`recommendation_priority`/`recommendation_status`. See
 `database/migrations/enums/`.

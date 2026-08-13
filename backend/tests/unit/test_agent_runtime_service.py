@@ -90,10 +90,10 @@ async def test_create_run_rejects_unknown_agent_404() -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_run_rejects_registered_only_agent_409() -> None:
+async def test_create_run_rejects_future_only_agent_409() -> None:
     session, service, runs = _service()
     with pytest.raises(AppError) as exc:
-        await service.create_run(ORG_ID, agent_name="growth_agent", input_={})
+        await service.create_run(ORG_ID, agent_name="finance", input_={})
     assert exc.value.status_code == 409
     assert exc.value.code == "agent.not_executable"
 

@@ -9,6 +9,7 @@ under a ``=== MEMORY CONTEXT ===`` header. Budgeting is explicit:
 - entries are included in descending relevance (they arrive pre-ranked), so a
   tight budget only ever cuts the tail — never the most relevant context.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

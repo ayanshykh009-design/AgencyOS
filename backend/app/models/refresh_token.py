@@ -3,6 +3,7 @@
 Only the SHA-256 digest of the opaque token is persisted; the raw token is
 returned to the client exactly once and never stored.
 """
+
 from __future__ import annotations
 
 import uuid

@@ -11,6 +11,7 @@ Strategies (one per org, stored in ``lead_assignment_rules``):
 Every ownership change appends a ``LeadAssignmentLog`` and an activity
 entry, so reassignment history is fully auditable.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -90,9 +91,7 @@ class AssignmentService:
         rule = await self._rules.get(organization_id)
         if rule is None or not rule.enabled or rule.strategy is AssignmentStrategy.MANUAL:
             return
-        if rule.strategy is AssignmentStrategy.RULES and not self._matches_conditions(
-            rule, lead
-        ):
+        if rule.strategy is AssignmentStrategy.RULES and not self._matches_conditions(rule, lead):
             return
         to_user = await self._next_candidate(organization_id, rule)
         if to_user is None:
@@ -134,9 +133,7 @@ class AssignmentService:
     ) -> Lead:
         """Manually (re)assign a lead or clear its owner."""
         if to_user_id is not None:
-            candidates = await self._users.list_assignable(
-                organization_id, user_ids=[to_user_id]
-            )
+            candidates = await self._users.list_assignable(organization_id, user_ids=[to_user_id])
             if not candidates:
                 raise AppError(
                     code="assignment.invalid_target",
@@ -163,11 +160,7 @@ class AssignmentService:
                 event_type=ActivityEventType.LEAD_ASSIGNED,
                 entity_type="lead",
                 entity_id=lead.id,
-                description=(
-                    "Reassigned lead"
-                    if to_user_id is not None
-                    else "Unassigned lead"
-                ),
+                description=("Reassigned lead" if to_user_id is not None else "Unassigned lead"),
                 metadata_={
                     "to_user_id": str(to_user_id) if to_user_id else None,
                     "method": "manual",
@@ -223,9 +216,7 @@ class AssignmentService:
         limit: int = 100,
         offset: int = 0,
     ) -> list[LeadAssignmentLog]:
-        return await self._logs.list(
-            organization_id, lead_id=lead_id, limit=limit, offset=offset
-        )
+        return await self._logs.list(organization_id, lead_id=lead_id, limit=limit, offset=offset)
 
     # -- helpers --------------------------------------------------------
 
@@ -235,19 +226,14 @@ class AssignmentService:
         candidates = await self._candidates(organization_id, rule)
         return self._next_from_candidates(rule, candidates)
 
-    async def _candidates(
-        self, organization_id: uuid.UUID, rule: LeadAssignmentRule
-    ) -> list[User]:
+    async def _candidates(self, organization_id: uuid.UUID, rule: LeadAssignmentRule) -> list[User]:
         return await self._users.list_assignable(
             organization_id,
-            user_ids=[uuid.UUID(str(uid)) for uid in (rule.target_user_ids or [])]
-            or None,
+            user_ids=[uuid.UUID(str(uid)) for uid in (rule.target_user_ids or [])] or None,
         )
 
     @staticmethod
-    def _next_from_candidates(
-        rule: LeadAssignmentRule, candidates: list[User]
-    ) -> User | None:
+    def _next_from_candidates(rule: LeadAssignmentRule, candidates: list[User]) -> User | None:
         if not candidates:
             return None
         idx = (rule.last_assigned_index + 1) % len(candidates)

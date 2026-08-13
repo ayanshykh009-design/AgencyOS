@@ -1,4 +1,5 @@
 """WorkflowExecution endpoints: queue, list, get, start, retry, cancel."""
+
 from __future__ import annotations
 
 import uuid
@@ -125,9 +126,7 @@ async def list_execution_events(
     events = await service.list_by_execution(
         current_user.organization_id, execution_id, limit=limit, offset=offset
     )
-    total = await service.count_by_execution(
-        current_user.organization_id, execution_id
-    )
+    total = await service.count_by_execution(current_user.organization_id, execution_id)
     return ExecutionEventListResponse(
         items=[ExecutionEventRead.model_validate(e) for e in events],
         total=total,

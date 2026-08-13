@@ -1,4 +1,5 @@
 """Task endpoints: CRUD, completion, recurrence, and due-reminder sweep."""
+
 from __future__ import annotations
 
 import uuid
@@ -172,9 +173,7 @@ async def complete_task(
     current_user: CurrentUser,
 ) -> TaskRead:
     service = TaskService(db)
-    task = await service.complete(
-        current_user.organization_id, current_user, task_id
-    )
+    task = await service.complete(current_user.organization_id, current_user, task_id)
     return TaskRead.model_validate(task)
 
 
@@ -184,8 +183,6 @@ async def complete_task(
     summary="Delete a task",
     dependencies=[_manage],
 )
-async def delete_task(
-    task_id: uuid.UUID, db: DbSession, current_user: CurrentUser
-):
+async def delete_task(task_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
     service = TaskService(db)
     await service.delete(current_user.organization_id, current_user, task_id)

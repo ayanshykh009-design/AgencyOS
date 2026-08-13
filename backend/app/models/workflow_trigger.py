@@ -1,4 +1,5 @@
 """WorkflowTrigger model — how a workflow is triggered (manual/event/schedule)."""
+
 from __future__ import annotations
 
 import uuid
@@ -23,9 +24,7 @@ class WorkflowTrigger(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "workflow_triggers"
     __table_args__ = (
-        CheckConstraint(
-            "length(btrim(name)) > 0", name="chk_workflow_triggers_name_not_blank"
-        ),
+        CheckConstraint("length(btrim(name)) > 0", name="chk_workflow_triggers_name_not_blank"),
         Index("idx_workflow_triggers_org_workflow", "organization_id", "workflow_id"),
         Index(
             "idx_workflow_triggers_event_type",
@@ -60,9 +59,7 @@ class WorkflowTrigger(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     # Last dispatch timestamp (UTC). NULL until the first successful dispatch;
     # used for idempotent cron-tick dedup across worker instances/restarts.
     last_fired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    config: Mapped[dict] = mapped_column(
-        JSONB, default=dict, server_default="{}", nullable=False
-    )
+    config: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
     enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
 
     workflow: Mapped[Workflow] = relationship(back_populates="triggers")

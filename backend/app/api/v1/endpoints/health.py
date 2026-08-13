@@ -6,6 +6,7 @@
 
 No business logic here.
 """
+
 from fastapi import APIRouter, status
 
 from app.core.config import settings

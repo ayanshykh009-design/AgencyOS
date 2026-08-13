@@ -6,6 +6,7 @@ Long-term memories are durable and never auto-deleted. ``source_id`` is a
 polymorphic reference to the domain row a memory derives from (conversation,
 lead, workflow, etc.) and carries no foreign key.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -28,16 +29,12 @@ class AiMemory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "ai_memories"
     __table_args__ = (
-        CheckConstraint(
-            "length(btrim(content)) > 0", name="chk_ai_memories_content_not_blank"
-        ),
+        CheckConstraint("length(btrim(content)) > 0", name="chk_ai_memories_content_not_blank"),
         CheckConstraint(
             "title IS NULL OR length(btrim(title)) > 0",
             name="chk_ai_memories_title_not_blank",
         ),
-        CheckConstraint(
-            "importance BETWEEN 1 AND 5", name="chk_ai_memories_importance_range"
-        ),
+        CheckConstraint("importance BETWEEN 1 AND 5", name="chk_ai_memories_importance_range"),
         Index("idx_ai_memories_org_type", "organization_id", "memory_type"),
         Index("idx_ai_memories_org_created", "organization_id", "created_at"),
         Index("idx_ai_memories_source_id", "source_id"),
@@ -70,9 +67,7 @@ class AiMemory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     organization: Mapped[Organization] = relationship(back_populates="ai_memories")
-    knowledge_items: Mapped[list[KnowledgeItem]] = relationship(
-        back_populates="source_memory"
-    )
+    knowledge_items: Mapped[list[KnowledgeItem]] = relationship(back_populates="source_memory")
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<AiMemory id={self.id} type={self.memory_type} scope={self.scope}>"

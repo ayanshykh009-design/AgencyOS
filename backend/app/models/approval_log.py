@@ -4,6 +4,7 @@ Append-only: rows are created once and never updated or deleted (no
 ``updated_at`` column, no update/delete RLS policies). Mirrors the
 ``ExecutionEvent`` append-only pattern.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -50,9 +51,7 @@ class ApprovalLog(UUIDPrimaryKeyMixin, Base):
         nullable=False,
     )
     note: Mapped[str | None] = mapped_column(Text)
-    occurred_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
-    )
+    occurred_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
     organization: Mapped[Organization] = relationship(back_populates="approval_logs")

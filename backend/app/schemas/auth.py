@@ -3,6 +3,7 @@
 Phase 2 implements first-party email/password auth backed by the JWT
 primitives in ``app/core/security.py`` and rotation-based refresh tokens.
 """
+
 from pydantic import BaseModel, EmailStr, Field
 
 from app.schemas.user import UserRead
@@ -22,9 +23,7 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
     full_name: str = Field(min_length=1, max_length=255)
     organization_name: str = Field(min_length=1, max_length=255)
-    organization_slug: str = Field(
-        min_length=1, max_length=63, pattern=r"^[a-z0-9][a-z0-9-]*$"
-    )
+    organization_slug: str = Field(min_length=1, max_length=63, pattern=r"^[a-z0-9][a-z0-9-]*$")
 
 
 class TokenResponse(BaseModel):

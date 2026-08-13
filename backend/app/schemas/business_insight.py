@@ -1,4 +1,5 @@
 """Business insight schemas (generated insight rows)."""
+
 from __future__ import annotations
 
 import uuid

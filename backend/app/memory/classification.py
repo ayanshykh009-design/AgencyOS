@@ -12,6 +12,7 @@ These derive cleanly (all 8 are reachable), are stable (the mapping is a pure
 function of stored columns), and are readable by name. They are used to
 segment memory retrieval and to label provenance in ``docs/api/endpoints/memory.md``.
 """
+
 from __future__ import annotations
 
 import re
@@ -19,9 +20,7 @@ from enum import StrEnum
 
 from app.models.enums import MemoryScope, MemoryType
 
-KNOWLEDGE_CATEGORIES: frozenset[str] = frozenset(
-    {"founder", "business", "crm", "knowledge"}
-)
+KNOWLEDGE_CATEGORIES: frozenset[str] = frozenset({"founder", "business", "crm", "knowledge"})
 
 
 class CanonicalMemoryType(StrEnum):

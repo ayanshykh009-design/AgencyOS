@@ -1,4 +1,5 @@
 """Note repository: org-scoped data access for lead notes."""
+
 from __future__ import annotations
 
 import uuid
@@ -30,9 +31,7 @@ class NoteRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_or_404(
-        self, organization_id: uuid.UUID, note_id: uuid.UUID
-    ) -> Note:
+    async def get_or_404(self, organization_id: uuid.UUID, note_id: uuid.UUID) -> Note:
         note = await self.get(organization_id, note_id)
         if note is None:
             raise AppError(
@@ -64,9 +63,7 @@ class NoteRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def count_by_lead(
-        self, organization_id: uuid.UUID, lead_id: uuid.UUID
-    ) -> int:
+    async def count_by_lead(self, organization_id: uuid.UUID, lead_id: uuid.UUID) -> int:
         stmt = (
             select(func.count(Note.id))
             .where(Note.organization_id == organization_id, Note.lead_id == lead_id)

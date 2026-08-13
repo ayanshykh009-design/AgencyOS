@@ -1,4 +1,5 @@
 """Conversation endpoints: threads and thread messages."""
+
 from __future__ import annotations
 
 import uuid
@@ -45,9 +46,7 @@ async def list_for_lead(
     lead_id: uuid.UUID, db: DbSession, current_user: CurrentUser
 ) -> list[ConversationRead]:
     service = ConversationService(db)
-    conversations = await service.list_for_lead(
-        current_user.organization_id, lead_id
-    )
+    conversations = await service.list_for_lead(current_user.organization_id, lead_id)
     return [ConversationRead.model_validate(c) for c in conversations]
 
 
@@ -134,7 +133,5 @@ async def add_message(
     service = ConversationService(db)
     data = body.model_dump()
     data["organization_id"] = current_user.organization_id
-    message = await service.add_message(
-        current_user.organization_id, conversation_id, data
-    )
+    message = await service.add_message(current_user.organization_id, conversation_id, data)
     return ConversationMessageRead.model_validate(message)

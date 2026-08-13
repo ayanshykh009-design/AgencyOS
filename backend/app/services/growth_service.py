@@ -4,6 +4,7 @@ Thin orchestration over the M2 repositories. The *business forecast engine*
 (generating forecasts) lands in M5 — this service only records and reads
 periodized rows and forecast snapshots.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -69,9 +70,7 @@ class GrowthService:
     async def metric_types(self, organization_id: uuid.UUID) -> list[str]:
         return await self._metrics.list_types(organization_id)
 
-    async def get_metric(
-        self, organization_id: uuid.UUID, metric_id: uuid.UUID
-    ) -> GrowthMetric:
+    async def get_metric(self, organization_id: uuid.UUID, metric_id: uuid.UUID) -> GrowthMetric:
         return await self._metrics.get_or_404(organization_id, metric_id)
 
     # -- forecasts ------------------------------------------------------

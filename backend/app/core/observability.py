@@ -4,6 +4,7 @@ Enabled with OTEL_ENABLED=true; traces are exported via OTLP/HTTP to
 OTEL_ENDPOINT. All imports are lazy so the app still starts if the
 instrumentation packages are not installed.
 """
+
 import logging
 from contextlib import AbstractContextManager, nullcontext
 from typing import Any

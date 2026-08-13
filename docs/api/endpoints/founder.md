@@ -1,7 +1,7 @@
 # Founder
 
 Generated founder briefings and business insights. *Generation* of these
-artifacts lands in M7 (growth agent); these endpoints curate/read them and
+artifacts is driven by the M7 growth agent; these endpoints curate/read them and
 triage insight status. All endpoints are JWT-authenticated. Reads and triage
 use `growth_read` (manager+); create/update/delete use `growth_manage`
 (admin/owner only).

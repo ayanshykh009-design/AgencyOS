@@ -9,6 +9,7 @@ Two persistence paths coexist:
 
 Feature code must consume these via repositories (app/repositories/).
 """
+
 import logging
 from collections.abc import AsyncGenerator
 from functools import lru_cache
@@ -37,9 +38,7 @@ engine = create_async_engine(
 )
 
 # Session factory used by repositories / FastAPI dependencies.
-async_session_factory = async_sessionmaker(
-    bind=engine, class_=AsyncSession, expire_on_commit=False
-)
+async_session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

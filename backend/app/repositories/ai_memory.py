@@ -11,6 +11,7 @@ retrieval pipeline: ``find_duplicate``, ``list_expired_working``,
 indexes (``idx_ai_memories_org_type``, ``idx_ai_memories_org_created``,
 ``idx_ai_memories_working_ttl``).
 """
+
 from __future__ import annotations
 
 import uuid

@@ -1,4 +1,5 @@
 """Approval schemas (gated requests + immutable audit log)."""
+
 from __future__ import annotations
 
 import uuid

@@ -1,4 +1,5 @@
 """WorkflowEvent service: publish events, match triggers, queue executions."""
+
 from __future__ import annotations
 
 import json
@@ -97,9 +98,7 @@ class WorkflowEventService:
         if max_payload_bytes is None:
             max_payload_bytes = settings.EVENT_MAX_PAYLOAD_BYTES
 
-        payload_size = len(
-            json.dumps(data.payload, separators=(",", ":"), ensure_ascii=False)
-        )
+        payload_size = len(json.dumps(data.payload, separators=(",", ":"), ensure_ascii=False))
         if payload_size > max_payload_bytes:
             raise AppError(
                 code="event.payload_too_large",
@@ -204,7 +203,5 @@ class WorkflowEventService:
             consumed=consumed,
         )
 
-    async def mark_consumed(
-        self, organization_id: uuid.UUID, event_ids: list[uuid.UUID]
-    ) -> int:
+    async def mark_consumed(self, organization_id: uuid.UUID, event_ids: list[uuid.UUID]) -> int:
         return await self._event_repo.mark_consumed(organization_id, event_ids)

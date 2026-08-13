@@ -1,4 +1,5 @@
 """Audit endpoints: enriched, admin-only read of the activity trail."""
+
 from __future__ import annotations
 
 import uuid
@@ -23,9 +24,7 @@ def _read(entry: object) -> ActivityLogRead:
     user = getattr(entry, "user", None)
     if user is not None:
         model.actor_user_id = getattr(user, "id", None)
-        model.actor_name = getattr(user, "full_name", None) or getattr(
-            user, "email", None
-        )
+        model.actor_name = getattr(user, "full_name", None) or getattr(user, "email", None)
     return model
 
 

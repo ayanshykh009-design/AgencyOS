@@ -1,4 +1,5 @@
 """ActivityLog repository (append-only audit trail)."""
+
 from __future__ import annotations
 
 import uuid
@@ -31,9 +32,7 @@ class ActivityLogRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> list[ActivityLog]:
-        stmt = select(ActivityLog).where(
-            ActivityLog.organization_id == organization_id
-        )
+        stmt = select(ActivityLog).where(ActivityLog.organization_id == organization_id)
         if lead_id is not None:
             stmt = stmt.where(ActivityLog.lead_id == lead_id)
         if user_id is not None:
@@ -101,9 +100,7 @@ class ActivityLogRepository:
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
 
-    async def count_by_event_type(
-        self, event_type: ActivityEventType, since: datetime
-    ) -> int:
+    async def count_by_event_type(self, event_type: ActivityEventType, since: datetime) -> int:
         """Count events of one type occurred at/after ``since`` (all orgs).
 
         Used for operator-level lifecycle statistics where the acting

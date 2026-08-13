@@ -1,4 +1,5 @@
 """Outreach service: message templates, attempts, follow-ups, manual queue."""
+
 from __future__ import annotations
 
 import uuid
@@ -89,9 +90,7 @@ class OutreachService:
             await self._messages.handle_integrity_error(exc)
         return message
 
-    async def delete_message(
-        self, organization_id: uuid.UUID, message_id: uuid.UUID
-    ) -> None:
+    async def delete_message(self, organization_id: uuid.UUID, message_id: uuid.UUID) -> None:
         message = await self._messages.get_or_404(organization_id, message_id)
         await self._session.delete(message)
         await commit_with_retry(self._session)
@@ -134,8 +133,14 @@ class OutreachService:
     ) -> OutreachAttempt:
         attempt = await self._attempts.get_or_404(organization_id, attempt_id)
         for field in (
-            "status", "scheduled_at", "sent_at", "delivered_at",
-            "external_id", "error_code", "error_message", "metadata",
+            "status",
+            "scheduled_at",
+            "sent_at",
+            "delivered_at",
+            "external_id",
+            "error_code",
+            "error_message",
+            "metadata",
         ):
             if field in data:
                 setattr(attempt, field, data[field])
@@ -149,9 +154,7 @@ class OutreachService:
     ) -> list[FollowUp]:
         return await self._follow_ups.list_for_lead(organization_id, lead_id)
 
-    async def create_follow_up(
-        self, organization_id: uuid.UUID, data: dict[str, Any]
-    ) -> FollowUp:
+    async def create_follow_up(self, organization_id: uuid.UUID, data: dict[str, Any]) -> FollowUp:
         follow_up = FollowUp(
             organization_id=organization_id,
             lead_id=data["lead_id"],
@@ -228,8 +231,14 @@ class OutreachService:
     ) -> ManualOutreachQueue:
         task = await self._manual.get_or_404(organization_id, task_id)
         for field in (
-            "status", "priority", "due_at", "subject", "body",
-            "notes", "assigned_user_id", "completed_at",
+            "status",
+            "priority",
+            "due_at",
+            "subject",
+            "body",
+            "notes",
+            "assigned_user_id",
+            "completed_at",
         ):
             if field in data:
                 setattr(task, field, data[field])

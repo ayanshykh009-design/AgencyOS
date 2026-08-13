@@ -21,6 +21,7 @@
 
 Keep workers dependency-injected (import repositories, never endpoints).
 """
+
 from app.workers.agent_worker import AgentWorker
 from app.workers.approval_gate_worker import ApprovalGateWorker
 from app.workers.delivery_worker import DeliveryWorker

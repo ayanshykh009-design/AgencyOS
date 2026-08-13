@@ -1,4 +1,5 @@
 """Pipeline API schemas: stages, close reasons, and the Kanban board."""
+
 from __future__ import annotations
 
 from datetime import datetime

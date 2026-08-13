@@ -4,6 +4,7 @@ Notes are always attached to a lead; every create/update/delete mirrors into
 the activity trail (NOTE_CREATED / NOTE_UPDATED / NOTE_DELETED) so note
 timelines are auditable and reconstructible per lead.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -39,9 +40,7 @@ class NoteService:
         offset: int = 0,
     ) -> list[Note]:
         await self._leads.get_or_404(organization_id, lead_id)
-        return await self._notes.list_by_lead(
-            organization_id, lead_id, limit=limit, offset=offset
-        )
+        return await self._notes.list_by_lead(organization_id, lead_id, limit=limit, offset=offset)
 
     async def get(self, organization_id: uuid.UUID, note_id: uuid.UUID) -> Note:
         return await self._notes.get_or_404(organization_id, note_id)
@@ -115,9 +114,7 @@ class NoteService:
         await commit_with_retry(self._session)
         return note
 
-    async def delete(
-        self, organization_id: uuid.UUID, actor: User, note_id: uuid.UUID
-    ) -> None:
+    async def delete(self, organization_id: uuid.UUID, actor: User, note_id: uuid.UUID) -> None:
         note = await self._notes.get_or_404(organization_id, note_id)
         await self._notes.delete(note)
         self._activity.add(

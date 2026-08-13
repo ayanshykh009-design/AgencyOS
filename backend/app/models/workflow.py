@@ -1,4 +1,5 @@
 """Workflow model — tenant-scoped workflow registry with execution config."""
+
 from __future__ import annotations
 
 import uuid
@@ -44,9 +45,7 @@ class Workflow(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     version: Mapped[int] = mapped_column(default=1, nullable=False)
     execution_mode: Mapped[str] = mapped_column(Text, default="n8n", nullable=False)
-    config: Mapped[dict] = mapped_column(
-        JSONB, default=dict, server_default="{}", nullable=False
-    )
+    config: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )

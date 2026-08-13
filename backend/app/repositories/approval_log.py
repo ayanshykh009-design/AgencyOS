@@ -2,6 +2,7 @@
 
 Append-only: rows are created and queried, never updated or deleted.
 """
+
 from __future__ import annotations
 
 import uuid

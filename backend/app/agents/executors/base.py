@@ -7,6 +7,7 @@ run identity, goal, input, plus the lazily-built brain dependencies) and calls
 touch the HTTP layer and never mutate agent run rows directly — the runtime
 owns all persistence.
 """
+
 from __future__ import annotations
 
 import uuid

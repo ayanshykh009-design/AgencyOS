@@ -3,6 +3,7 @@
 Rows are pruned after ``NOTIFICATION_RETENTION_DAYS`` by the retention sweep
 on ``created_at``. ``read_at`` / ``is_read`` mark manual acknowledgement.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -26,12 +27,8 @@ class Notification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "notifications"
     __table_args__ = (
-        CheckConstraint(
-            "length(btrim(title)) > 0", name="chk_notifications_title_not_blank"
-        ),
-        CheckConstraint(
-            "length(btrim(body)) > 0", name="chk_notifications_body_not_blank"
-        ),
+        CheckConstraint("length(btrim(title)) > 0", name="chk_notifications_title_not_blank"),
+        CheckConstraint("length(btrim(body)) > 0", name="chk_notifications_body_not_blank"),
         Index("idx_notifications_org_user_read", "organization_id", "user_id", "is_read"),
         Index(
             "idx_notifications_user_unread",
@@ -45,9 +42,7 @@ class Notification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     organization_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    user_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("users.id", ondelete="SET NULL")
-    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     type: Mapped[NotificationType] = mapped_column(
         Enum(NotificationType, name="notification_type", native_enum=True, validate_strings=True),
         nullable=False,

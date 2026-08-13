@@ -1,4 +1,5 @@
 """LeadSource repository (tenant-scoped CRUD)."""
+
 from __future__ import annotations
 
 import uuid
@@ -19,15 +20,12 @@ class LeadSourceRepository:
 
     async def get(self, organization_id: uuid.UUID, source_id: uuid.UUID) -> LeadSource | None:
         stmt = select(LeadSource).where(
-            LeadSource.id == source_id,
-            LeadSource.organization_id == organization_id
+            LeadSource.id == source_id, LeadSource.organization_id == organization_id
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_or_404(
-        self, organization_id: uuid.UUID, source_id: uuid.UUID
-    ) -> LeadSource:
+    async def get_or_404(self, organization_id: uuid.UUID, source_id: uuid.UUID) -> LeadSource:
         source = await self.get(organization_id, source_id)
         if source is None or source.organization_id != organization_id:
             raise AppError(
@@ -40,9 +38,7 @@ class LeadSourceRepository:
     async def list(
         self, organization_id: uuid.UUID, *, include_inactive: bool = True
     ) -> list[LeadSource]:
-        stmt = select(LeadSource).where(
-            LeadSource.organization_id == organization_id
-        )
+        stmt = select(LeadSource).where(LeadSource.organization_id == organization_id)
         if not include_inactive:
             stmt = stmt.where(LeadSource.is_active.is_(True))
         stmt = stmt.order_by(LeadSource.name)

@@ -1,4 +1,5 @@
 """Repositories for pipeline stages and close reasons."""
+
 from __future__ import annotations
 
 import uuid
@@ -24,9 +25,7 @@ class PipelineStageRepository:
     async def delete(self, stage: PipelineStage) -> None:
         await self._session.delete(stage)
 
-    async def get(
-        self, organization_id: uuid.UUID, stage_id: uuid.UUID
-    ) -> PipelineStage | None:
+    async def get(self, organization_id: uuid.UUID, stage_id: uuid.UUID) -> PipelineStage | None:
         stmt = select(PipelineStage).where(
             PipelineStage.organization_id == organization_id,
             PipelineStage.id == stage_id,
@@ -34,9 +33,7 @@ class PipelineStageRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_or_404(
-        self, organization_id: uuid.UUID, stage_id: uuid.UUID
-    ) -> PipelineStage:
+    async def get_or_404(self, organization_id: uuid.UUID, stage_id: uuid.UUID) -> PipelineStage:
         stage = await self.get(organization_id, stage_id)
         if stage is None:
             raise AppError(
@@ -53,9 +50,7 @@ class PipelineStageRepository:
         lifecycle: StageLifecycle | None = None,
     ) -> list[PipelineStage]:
         """Return stages ordered by position (then creation for ties)."""
-        stmt = select(PipelineStage).where(
-            PipelineStage.organization_id == organization_id
-        )
+        stmt = select(PipelineStage).where(PipelineStage.organization_id == organization_id)
         if lifecycle is not None:
             stmt = stmt.where(PipelineStage.lifecycle == lifecycle)
         stmt = stmt.order_by(PipelineStage.position, PipelineStage.created_at)
@@ -129,9 +124,7 @@ class CloseReasonRepository:
         lifecycle: StageLifecycle | None = None,
     ) -> list[CloseReason]:
         """Return close reasons (defaults first, then alphabetically)."""
-        stmt = select(CloseReason).where(
-            CloseReason.organization_id == organization_id
-        )
+        stmt = select(CloseReason).where(CloseReason.organization_id == organization_id)
         if lifecycle is not None:
             stmt = stmt.where(CloseReason.lifecycle == lifecycle)
         stmt = stmt.order_by(CloseReason.is_default.desc(), CloseReason.name)

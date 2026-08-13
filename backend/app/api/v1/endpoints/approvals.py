@@ -1,4 +1,5 @@
 """Approval endpoints: gated approval requests + immutable audit log."""
+
 from __future__ import annotations
 
 import uuid
@@ -76,9 +77,7 @@ async def create_approval(
     summary="Open (pending) approval request count",
     dependencies=[_read],
 )
-async def pending_count(
-    db: DbSession, current_user: CurrentUser
-) -> ApprovalPendingCount:
+async def pending_count(db: DbSession, current_user: CurrentUser) -> ApprovalPendingCount:
     service = ApprovalService(db)
     count = await service.pending_count(current_user.organization_id)
     return ApprovalPendingCount(count=count)

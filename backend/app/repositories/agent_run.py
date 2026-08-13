@@ -6,6 +6,7 @@ Rows are pruned after ``AGENT_RUN_RETENTION_DAYS`` by the retention sweep on
 so a concurrent worker and a cancel can never clobber each other: the row-level
 WHERE is re-evaluated against the latest committed row.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -103,9 +104,7 @@ class AgentRunRepository(TenantRepository[AgentRun]):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_queued_for_org(
-        self, organization_id: uuid.UUID, limit: int
-    ) -> list[AgentRun]:
+    async def get_queued_for_org(self, organization_id: uuid.UUID, limit: int) -> list[AgentRun]:
         """Get the oldest QUEUED runs for one organization."""
         stmt = (
             select(AgentRun)
@@ -145,9 +144,7 @@ class AgentRunRepository(TenantRepository[AgentRun]):
     async def count_status(self, status: AgentRunStatus) -> int:
         """Count runs in a given status across all organizations."""
         stmt = (
-            select(func.count(AgentRun.id))
-            .where(AgentRun.status == status)
-            .select_from(AgentRun)
+            select(func.count(AgentRun.id)).where(AgentRun.status == status).select_from(AgentRun)
         )
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
@@ -193,9 +190,7 @@ class AgentRunRepository(TenantRepository[AgentRun]):
     # concurrent worker or cancel can never clobber a transition; callers
     # receive the updated row or ``None``.
 
-    async def mark_started(
-        self, organization_id: uuid.UUID, run_id: uuid.UUID
-    ) -> AgentRun | None:
+    async def mark_started(self, organization_id: uuid.UUID, run_id: uuid.UUID) -> AgentRun | None:
         """QUEUED + no cancel flag -> RUNNING. Returns row or None."""
         stmt = (
             update(AgentRun)

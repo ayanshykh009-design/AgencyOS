@@ -1,4 +1,5 @@
 """Briefing model — generated founder briefings (daily/weekly/manual), org-scoped."""
+
 from __future__ import annotations
 
 import uuid
@@ -21,12 +22,8 @@ class Briefing(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "briefings"
     __table_args__ = (
-        CheckConstraint(
-            "length(btrim(title)) > 0", name="chk_briefings_title_not_blank"
-        ),
-        CheckConstraint(
-            "length(btrim(summary)) > 0", name="chk_briefings_summary_not_blank"
-        ),
+        CheckConstraint("length(btrim(title)) > 0", name="chk_briefings_title_not_blank"),
+        CheckConstraint("length(btrim(summary)) > 0", name="chk_briefings_summary_not_blank"),
         Index("idx_briefings_org_type_created", "organization_id", "briefing_type", "created_at"),
         Index("idx_briefings_org_created", "organization_id", "created_at"),
     )
@@ -41,15 +38,11 @@ class Briefing(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
     summary: Mapped[str] = mapped_column(Text, nullable=False)
-    sections: Mapped[list] = mapped_column(
-        JSONB, default=list, server_default="[]", nullable=False
-    )
+    sections: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
     metadata_: Mapped[dict] = mapped_column(
         "metadata", JSONB, default=dict, server_default="{}", nullable=False
     )
-    generated_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
-    )
+    generated_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
     organization: Mapped[Organization] = relationship(back_populates="briefings")
 

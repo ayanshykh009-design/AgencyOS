@@ -3,6 +3,7 @@
 Aggregates statistics across execution, worker health, automation status,
 and retention operations into operational dashboards and summaries.
 """
+
 from __future__ import annotations
 
 import os
@@ -183,9 +184,7 @@ class OperationalMonitoringService:
         error_counts: dict[str, int] = {}
         for worker in workers:
             if worker.last_error:
-                error_counts[worker.last_error] = (
-                    error_counts.get(worker.last_error, 0) + 1
-                )
+                error_counts[worker.last_error] = error_counts.get(worker.last_error, 0) + 1
 
         return {
             "window_hours": hours,
@@ -394,9 +393,7 @@ class OperationalMonitoringService:
                 "total": len(workers),
                 "healthy": healthy,
                 "unhealthy": len(workers) - healthy,
-                "last_heartbeat": last_heartbeat.isoformat()
-                if last_heartbeat
-                else None,
+                "last_heartbeat": last_heartbeat.isoformat() if last_heartbeat else None,
             },
             "queue": {
                 "total_queued": queued,

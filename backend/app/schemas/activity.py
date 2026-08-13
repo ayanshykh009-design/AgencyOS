@@ -1,4 +1,5 @@
 """ActivityLog API schemas (append-only audit trail)."""
+
 from __future__ import annotations
 
 from datetime import datetime

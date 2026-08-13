@@ -1,4 +1,5 @@
 """ProviderUsage service: record and aggregate AI/provider usage."""
+
 from __future__ import annotations
 
 import uuid

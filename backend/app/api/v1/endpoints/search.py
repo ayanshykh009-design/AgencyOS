@@ -1,4 +1,5 @@
 """Search endpoint: unified text search across leads, tasks, and notes."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query

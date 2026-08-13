@@ -3,6 +3,7 @@
 Rows are pruned after ``GROWTH_METRICS_RETENTION_DAYS`` by the retention
 sweep on ``recorded_at``.
 """
+
 from __future__ import annotations
 
 import uuid

@@ -141,6 +141,48 @@ TOOL_MANIFEST: list[dict[str, Any]] = [
         },
         "module": "app.tools.n8n_tool:N8nDispatchTool",
     },
+    {
+        "name": "growth_analysis",
+        "description": (
+            "Run a deterministic growth analysis for the current organization "
+            "(kpis, pipeline, funnel, conversion, revenue, activity, bottlenecks, "
+            "opportunities, trends, or health) and return the structured result. "
+            "Read-only."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "analysis_type": {
+                    "type": "string",
+                    "enum": [
+                        "health",
+                        "kpis",
+                        "pipeline",
+                        "funnel",
+                        "conversion",
+                        "revenue",
+                        "activity",
+                        "bottlenecks",
+                        "opportunities",
+                        "trends",
+                    ],
+                    "description": "Which deterministic engine to run.",
+                },
+                "period_start": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO-8601 window start (defaults to 30 days ago).",
+                },
+                "period_end": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO-8601 window end (defaults to now).",
+                },
+            },
+            "required": ["analysis_type"],
+        },
+        "module": "app.tools.growth_tool:GrowthAnalysisTool",
+    },
 ]
 
 
@@ -201,6 +243,7 @@ def default_registry(context: ToolContext | None = None) -> ToolRegistry:
     installed) are skipped so the brain can still operate with a reduced set.
     """
     from app.tools.email_draft_tool import EmailDraftTool
+    from app.tools.growth_tool import GrowthAnalysisTool
     from app.tools.http_tool import HttpGetTool
     from app.tools.lead_research_tool import LeadResearchTool
     from app.tools.lead_search_tool import LeadSearchTool
@@ -220,6 +263,7 @@ def default_registry(context: ToolContext | None = None) -> ToolRegistry:
         WebSearchTool,
         EmailDraftTool,
         N8nDispatchTool,
+        GrowthAnalysisTool,
     ]
     for builder in builders:
         try:

@@ -1,4 +1,5 @@
 """ExecutionEvent repository (append-only execution timeline)."""
+
 from __future__ import annotations
 
 import uuid
@@ -49,9 +50,7 @@ class ExecutionEventRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def count_by_execution(
-        self, organization_id: uuid.UUID, execution_id: uuid.UUID
-    ) -> int:
+    async def count_by_execution(self, organization_id: uuid.UUID, execution_id: uuid.UUID) -> int:
         stmt = (
             select(func.count(ExecutionEvent.id))
             .where(

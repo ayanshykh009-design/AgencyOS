@@ -1,4 +1,5 @@
 """WorkerHealth repository (per-instance heartbeat upserts)."""
+
 from __future__ import annotations
 
 import uuid
@@ -93,9 +94,7 @@ class WorkerHealthRepository:
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
 
-    async def delete_stale_older_than(
-        self, cutoff: datetime, batch: int
-    ) -> int:
+    async def delete_stale_older_than(self, cutoff: datetime, batch: int) -> int:
         """Prune at most ``batch`` heartbeat rows older than ``cutoff``.
 
         Removes heartbeats for instances that have been gone long past the

@@ -1,4 +1,5 @@
 """AI memory schemas (working + long-term memory store)."""
+
 from __future__ import annotations
 
 import uuid

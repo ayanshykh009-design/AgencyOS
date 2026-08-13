@@ -4,6 +4,7 @@ Pending requests auto-expire (deny) at ``expires_at``; the default matches
 ``APPROVAL_EXPIRY_HOURS`` (24h). Decisions are mirrored into the immutable
 ``approval_logs`` audit trail.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -29,9 +30,7 @@ class ApprovalRequest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "approval_requests"
     __table_args__ = (
-        CheckConstraint(
-            "length(btrim(title)) > 0", name="chk_approval_requests_title_not_blank"
-        ),
+        CheckConstraint("length(btrim(title)) > 0", name="chk_approval_requests_title_not_blank"),
         Index("idx_approval_requests_org_status", "organization_id", "status"),
         Index(
             "idx_approval_requests_org_approver_status",
@@ -93,9 +92,7 @@ class ApprovalRequest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     organization: Mapped[Organization] = relationship(back_populates="approval_requests")
     workflow: Mapped[Workflow | None] = relationship()
     workflow_execution: Mapped[WorkflowExecution | None] = relationship()
-    requested_by: Mapped[User | None] = relationship(
-        foreign_keys=[requested_by_user_id]
-    )
+    requested_by: Mapped[User | None] = relationship(foreign_keys=[requested_by_user_id])
     approver: Mapped[User | None] = relationship(foreign_keys=[approver_user_id])
     decided_by: Mapped[User | None] = relationship(foreign_keys=[decided_by_user_id])
     logs: Mapped[list[ApprovalLog]] = relationship(back_populates="approval_request")

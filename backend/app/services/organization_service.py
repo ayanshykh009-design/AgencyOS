@@ -1,4 +1,5 @@
 """Organization service."""
+
 from __future__ import annotations
 
 import uuid
@@ -32,9 +33,7 @@ class OrganizationService:
         self, organization_id: uuid.UUID, settings_update: dict
     ) -> Organization:
         await self.get(organization_id)
-        organization = await self._orgs.update_settings(
-            organization_id, settings_update
-        )
+        organization = await self._orgs.update_settings(organization_id, settings_update)
         await commit_with_retry(self._session)
         assert organization is not None
         return organization

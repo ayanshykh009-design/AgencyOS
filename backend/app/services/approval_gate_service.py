@@ -14,6 +14,7 @@ linked workflow execution yet. For each:
 which makes processing idempotent: a crash rolls the stamp back and the next
 sweep retries; a concurrent worker loses the stamp race.
 """
+
 from __future__ import annotations
 
 import logging
@@ -70,9 +71,7 @@ class ApprovalGateService:
 
         try:
             if action == "retry":
-                await self._exec_svc.retry(
-                    org_id, exec_id, actor_user_id=req.decided_by_user_id
-                )
+                await self._exec_svc.retry(org_id, exec_id, actor_user_id=req.decided_by_user_id)
                 logger.info("gate approved -> execution %s requeued", exec_id)
             elif action == "cancel":
                 await self._exec_svc.cancel(
@@ -80,9 +79,7 @@ class ApprovalGateService:
                     exec_id,
                     cancelled_by_user_id=req.decided_by_user_id,
                 )
-                logger.info(
-                    "gate %s -> execution %s cancelled", req.status.value, exec_id
-                )
+                logger.info("gate %s -> execution %s cancelled", req.status.value, exec_id)
             else:
                 logger.info(
                     "gate %s -> execution %s already settled; stamping handled",
@@ -100,9 +97,7 @@ class ApprovalGateService:
             raise
 
     @staticmethod
-    def _gate_action(
-        status: ApprovalRequestStatus, execution
-    ) -> str | None:
+    def _gate_action(status: ApprovalRequestStatus, execution) -> str | None:
         """Decide the execution action for a terminal approval status.
 
         Returns ``"retry"``, ``"cancel"``, or ``None`` (decision is moot — the

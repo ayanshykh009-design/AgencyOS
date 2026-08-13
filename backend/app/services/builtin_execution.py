@@ -32,6 +32,7 @@ Guards / templates read dotted paths (``a.b.c``) resolved against the context.
 Templates use ``{{ path }}`` with an optional ``?? default`` fallback. No path
 may contain characters outside ``[A-Za-z0-9_]``.
 """
+
 from __future__ import annotations
 
 import json
@@ -79,9 +80,7 @@ def _validate_path(path: Any, *, where: str) -> str:
         raise BuiltinExecutionError(f"{where} must be a non-empty dotted path")
     for part in path.split("."):
         if not _KEY_RE.fullmatch(part):
-            raise BuiltinExecutionError(
-                f"{where} segment {part!r} is invalid (use [A-Za-z0-9_])"
-            )
+            raise BuiltinExecutionError(f"{where} segment {part!r} is invalid (use [A-Za-z0-9_])")
     return path
 
 
@@ -97,9 +96,7 @@ def _validate_guard(guard: Any) -> dict[str, Any]:
     path = _validate_path(guard.get("path"), where="guard.path")
     op = guard.get("op")
     if not isinstance(op, str) or op not in _GUARD_OPS:
-        raise BuiltinExecutionError(
-            f"guard.op must be one of {sorted(_GUARD_OPS)}"
-        )
+        raise BuiltinExecutionError(f"guard.op must be one of {sorted(_GUARD_OPS)}")
     result = {"path": path, "op": op, "value": guard.get("value")}
     if op in _COLLECTION_OPS and not isinstance(result["value"], list):
         raise BuiltinExecutionError(f"guard.op {op!r} requires a list value")
@@ -114,9 +111,7 @@ def _validate_step(
     _check_budget(budget, max_steps)
     step_type = step.get("type")
     if step_type not in _STEP_TYPES:
-        raise BuiltinExecutionError(
-            f"unknown step type {step_type!r} (use {sorted(_STEP_TYPES)})"
-        )
+        raise BuiltinExecutionError(f"unknown step type {step_type!r} (use {sorted(_STEP_TYPES)})")
     if step_type in ("set", "copy", "condition", "error_if") and "key" in step:
         if not isinstance(step["key"], str):
             raise BuiltinExecutionError("step.key must be a string")
@@ -137,9 +132,7 @@ def _validate_step(
         if not isinstance(then, list):
             raise BuiltinExecutionError("condition.then must be a list of steps")
         if depth + 1 > max_depth:
-            raise BuiltinExecutionError(
-                f"condition nesting exceeds the {max_depth} depth limit"
-            )
+            raise BuiltinExecutionError(f"condition nesting exceeds the {max_depth} depth limit")
         for sub in then:
             _validate_step(
                 sub,
@@ -197,9 +190,7 @@ def _resolve(context: dict[str, Any], path: str) -> Any:
     current: Any = context
     for part in path.split("."):
         if not _KEY_RE.fullmatch(part):
-            raise BuiltinExecutionError(
-                f"path segment {part!r} is invalid (use [A-Za-z0-9_])"
-            )
+            raise BuiltinExecutionError(f"path segment {part!r} is invalid (use [A-Za-z0-9_])")
         if not isinstance(current, dict) or part not in current:
             return _MISSING
         current = current[part]
@@ -225,9 +216,7 @@ def _render_template(
     if "{{" not in text:
         return text
     if len(text) > max_length:
-        raise BuiltinExecutionError(
-            f"template exceeds the {max_length} character limit"
-        )
+        raise BuiltinExecutionError(f"template exceeds the {max_length} character limit")
 
     def _sub(match: re.Match[str]) -> str:
         expression = match.group(1).strip()
@@ -275,9 +264,7 @@ def _evaluate_guard(context: dict[str, Any], guard: dict[str, Any]) -> bool:
                 return actual < expected
             return actual <= expected
         except TypeError as exc:
-            raise BuiltinExecutionError(
-                f"guard values at {path!r} are not comparable"
-            ) from exc
+            raise BuiltinExecutionError(f"guard values at {path!r} are not comparable") from exc
 
     if op in ("in", "not_in"):
         if isinstance(actual, list):
@@ -289,18 +276,14 @@ def _evaluate_guard(context: dict[str, Any], guard: dict[str, Any]) -> bool:
     if op == "contains":
         if isinstance(actual, (str, list)) and isinstance(expected, str):
             return expected in actual
-        raise BuiltinExecutionError(
-            f"guard {path!r} cannot be checked with 'contains'"
-        )
+        raise BuiltinExecutionError(f"guard {path!r} cannot be checked with 'contains'")
     raise BuiltinExecutionError(f"unsupported guard operator {op!r}")  # pragma: no cover
 
 
 def _check_result_size(context: dict[str, Any], *, limit: int) -> None:
     size = len(json.dumps(context, separators=(",", ":"), ensure_ascii=False))
     if size > limit:
-        raise BuiltinExecutionError(
-            f"result exceeds the {limit} byte size limit"
-        )
+        raise BuiltinExecutionError(f"result exceeds the {limit} byte size limit")
 
 
 def _run_steps(
@@ -335,9 +318,7 @@ def _run_steps(
             elif step_type == "copy":
                 resolved = _resolve(context, step["from"])
                 if resolved is _MISSING:
-                    raise BuiltinExecutionError(
-                        f"copy source path not found: {step['from']}"
-                    )
+                    raise BuiltinExecutionError(f"copy source path not found: {step['from']}")
                 context[step["to"]] = deepcopy(resolved)
             elif step_type == "condition":
                 if depth + 1 > max_depth:

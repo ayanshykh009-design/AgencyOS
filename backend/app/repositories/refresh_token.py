@@ -1,4 +1,5 @@
 """Refresh token repository (rotation-based auth)."""
+
 from __future__ import annotations
 
 import uuid
@@ -44,9 +45,7 @@ class RefreshTokenRepository:
         """Rotate: revoke the old token and link it to its successor."""
         await self.revoke(token_id, now=now)
         stmt = (
-            update(RefreshToken)
-            .where(RefreshToken.id == token_id)
-            .values(replaced_by=replaced_by)
+            update(RefreshToken).where(RefreshToken.id == token_id).values(replaced_by=replaced_by)
         )
         await self._session.execute(stmt)
 

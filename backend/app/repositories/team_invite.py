@@ -1,4 +1,5 @@
 """TeamInvite repository."""
+
 from __future__ import annotations
 
 import uuid
@@ -66,9 +67,7 @@ class TeamInviteRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def expire_stale(
-        self, organization_id: uuid.UUID, now: datetime
-    ) -> None:
+    async def expire_stale(self, organization_id: uuid.UUID, now: datetime) -> None:
         """Mark overdue pending invites as expired (best-effort sweep)."""
         stmt = select(TeamInvite).where(
             TeamInvite.organization_id == organization_id,

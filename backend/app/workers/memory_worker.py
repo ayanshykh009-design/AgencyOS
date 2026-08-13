@@ -18,6 +18,7 @@ config-gated (``MEMORY_CLEANUP_ENABLED``, default true).
 Runs as a standalone loop (``python -m app.workers.memory_worker``). Heartbeat
 semantics mirror the execution worker: best-effort, own session, never fatal.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -73,9 +74,7 @@ class MemoryWorker:
         ).observe(time.perf_counter() - start)
 
     @classmethod
-    async def heartbeat(
-        cls, *, loop_ok: bool = True, last_error: str | None = None
-    ) -> None:
+    async def heartbeat(cls, *, loop_ok: bool = True, last_error: str | None = None) -> None:
         """Upsert this instance's heartbeat row (own session, self-contained).
 
         Best-effort: a heartbeat failure must never take down the worker loop.
@@ -136,9 +135,7 @@ class MemoryWorker:
                         )
                         if not expired:
                             break
-                        deleted = await repo.delete_many(
-                            org_id, [memory.id for memory in expired]
-                        )
+                        deleted = await repo.delete_many(org_id, [memory.id for memory in expired])
                         expired_deleted += deleted
                         if deleted < batch:
                             break

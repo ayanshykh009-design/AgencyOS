@@ -4,6 +4,7 @@ Owns the invite transaction boundary. Invites are delivered as one-time
 links (no email provider is wired): the raw token is returned exactly once
 in the create response and only its SHA-256 digest is stored.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -123,9 +124,7 @@ class TeamService:
         now = utcnow()
         await self._invites.expire_stale(organization_id, now)
         await commit_with_retry(self._session)
-        return await self._invites.list(
-            organization_id, limit=limit, offset=offset
-        )
+        return await self._invites.list(organization_id, limit=limit, offset=offset)
 
     async def revoke_invite(
         self,
@@ -187,9 +186,7 @@ class TeamService:
             )
         return invite
 
-    async def accept_invite(
-        self, token: str, full_name: str, password: str
-    ) -> TeamInvite:
+    async def accept_invite(self, token: str, full_name: str, password: str) -> TeamInvite:
         """Accept an invite, create the account, and return the consumed invite."""
         invite = await self.lookup_invite(token)
 

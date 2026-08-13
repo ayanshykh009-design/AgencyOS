@@ -1,4 +1,5 @@
 """ExecutionEvent schemas (append-only execution timeline)."""
+
 from __future__ import annotations
 
 import uuid

@@ -4,6 +4,7 @@ Source of truth for the label set: ``database/migrations/enums/`` (SQL).
 Keep the values here in sync with the DDL — they are used by both the ORM
 models and the Pydantic schemas.
 """
+
 from enum import StrEnum
 
 
@@ -431,3 +432,53 @@ class DeliveryEventType(StrEnum):
     TIMED_OUT = "timed_out"
     RECOVERY_GUARD = "recovery_guard"
     SUPERSEDED = "superseded"
+
+
+class GrowthAnalysisType(StrEnum):
+    """What a ``growth_analyses`` snapshot measures (M7).
+
+    Mirrors ``public.growth_analysis_type``. Each value is produced by exactly
+    one deterministic analysis engine.
+    """
+
+    HEALTH = "health"
+    KPIS = "kpis"
+    PIPELINE = "pipeline"
+    FUNNEL = "funnel"
+    CONVERSION = "conversion"
+    REVENUE = "revenue"
+    ACTIVITY = "activity"
+    BOTTLENECKS = "bottlenecks"
+    OPPORTUNITIES = "opportunities"
+    TRENDS = "trends"
+
+
+class GrowthAnalysisStatus(StrEnum):
+    """Lifecycle of a ``growth_analyses`` snapshot (M7)."""
+
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class RecommendationPriority(StrEnum):
+    """Urgency / qualitative confidence of a growth recommendation (M7).
+
+    ``high``/``medium``/``low`` is used both for actionable priority and for
+    the qualitative confidence score (mirrors ``recommendation_priority``).
+    """
+
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+
+class RecommendationStatus(StrEnum):
+    """Triage lifecycle of a growth recommendation (M7).
+
+    ``active`` -> ``acknowledged`` | ``applied`` (or ``dismissed``).
+    """
+
+    ACTIVE = "active"
+    ACKNOWLEDGED = "acknowledged"
+    APPLIED = "applied"
+    DISMISSED = "dismissed"

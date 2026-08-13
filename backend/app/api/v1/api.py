@@ -3,6 +3,7 @@
 Every feature router is included here exactly once, then mounted in
 app/main.py under the API_V1_PREFIX.
 """
+
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
@@ -78,9 +79,7 @@ api_router.include_router(
     workflow_events.router, prefix="/workflow-events", tags=["workflow-events"]
 )
 api_router.include_router(credentials.router, prefix="/credentials", tags=["credentials"])
-api_router.include_router(
-    automation_control.router, prefix="/automation", tags=["automation"]
-)
+api_router.include_router(automation_control.router, prefix="/automation", tags=["automation"])
 
 # Analytics & reporting.
 api_router.include_router(imports.router, prefix="/imports", tags=["imports"])
@@ -98,16 +97,12 @@ api_router.include_router(ai.router, prefix="/ai", tags=["ai"])
 # Phase 5D AI Intelligence Layer.
 api_router.include_router(agents.router, prefix="/agents", tags=["agents"])
 api_router.include_router(memory.router, prefix="/memory", tags=["memory"])
-api_router.include_router(
-    notifications.router, prefix="/notifications", tags=["notifications"]
-)
+api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(approvals.router, prefix="/approvals", tags=["approvals"])
 api_router.include_router(deliveries.router, prefix="/deliveries", tags=["deliveries"])
 api_router.include_router(founder.router, prefix="/founder", tags=["founder"])
 api_router.include_router(growth.router, prefix="/growth", tags=["growth"])
-api_router.include_router(
-    communications.router, prefix="/communications", tags=["communications"]
-)
+api_router.include_router(communications.router, prefix="/communications", tags=["communications"])
 
 # External system ingestion (n8n / contact forms) — no user session.
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])

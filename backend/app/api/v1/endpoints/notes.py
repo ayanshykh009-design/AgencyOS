@@ -1,4 +1,5 @@
 """Note endpoints: lead-scoped commentary CRUD."""
+
 from __future__ import annotations
 
 import uuid
@@ -108,8 +109,6 @@ async def update_note(
     summary="Delete a note",
     dependencies=[_write],
 )
-async def delete_note(
-    note_id: uuid.UUID, db: DbSession, current_user: CurrentUser
-):
+async def delete_note(note_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
     service = NoteService(db)
     await service.delete(current_user.organization_id, current_user, note_id)

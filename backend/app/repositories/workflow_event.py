@@ -1,4 +1,5 @@
 """WorkflowEvent repository (append-only event log)."""
+
 from __future__ import annotations
 
 import uuid
@@ -109,9 +110,7 @@ class WorkflowEventRepository:
     async def refresh(self, event: WorkflowEvent) -> None:
         await self._session.refresh(event)
 
-    async def mark_consumed(
-        self, organization_id: uuid.UUID, event_ids: list[uuid.UUID]
-    ) -> int:
+    async def mark_consumed(self, organization_id: uuid.UUID, event_ids: list[uuid.UUID]) -> int:
         """Mark a batch of unconsumed events as consumed. Returns rows updated."""
         stmt = (
             update(WorkflowEvent)
@@ -128,10 +127,14 @@ class WorkflowEventRepository:
     async def get_unconsumed_by_type(
         self, organization_id: uuid.UUID, event_type: str
     ) -> WorkflowEventList:
-        stmt = select(WorkflowEvent).where(
-            WorkflowEvent.organization_id == organization_id,
-            WorkflowEvent.event_type == event_type,
-            WorkflowEvent.consumed.is_(False),
-        ).order_by(WorkflowEvent.occurred_at)
+        stmt = (
+            select(WorkflowEvent)
+            .where(
+                WorkflowEvent.organization_id == organization_id,
+                WorkflowEvent.event_type == event_type,
+                WorkflowEvent.consumed.is_(False),
+            )
+            .order_by(WorkflowEvent.occurred_at)
+        )
         result = await self._session.execute(stmt)
         return list(result.scalars().all())

@@ -4,6 +4,7 @@ First-party email/password auth. Passwords are Argon2id-hashed; refresh
 tokens are opaque, rotated on every refresh, and stored only as digests.
 External identity-provider users (password_hash is NULL) cannot log in here.
 """
+
 from __future__ import annotations
 
 import logging
@@ -152,9 +153,7 @@ class AuthService:
 
     # -- internals -------------------------------------------------------
 
-    async def _issue_tokens(
-        self, user: User
-    ) -> tuple[str, str, RefreshToken]:
+    async def _issue_tokens(self, user: User) -> tuple[str, str, RefreshToken]:
         """Create a refresh-token row and return (access, raw_refresh, record)."""
         raw_refresh = generate_refresh_token()
         record = RefreshToken(

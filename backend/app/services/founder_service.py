@@ -4,6 +4,7 @@ Thin orchestration over the M2 repositories. *Generation* of insights/briefings
 (by the growth/insight agent) lands in M7; this service only creates, reads,
 updates, and deletes the curated artifacts.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -115,9 +116,7 @@ class FounderService:
         await commit_with_retry(self._session)
         return insight
 
-    async def delete_insight(
-        self, organization_id: uuid.UUID, insight_id: uuid.UUID
-    ) -> None:
+    async def delete_insight(self, organization_id: uuid.UUID, insight_id: uuid.UUID) -> None:
         if not await self._insights.delete(organization_id, insight_id):
             raise AppError(
                 code="business_insight.not_found",
@@ -154,9 +153,7 @@ class FounderService:
         await commit_with_retry(self._session)
         return insight
 
-    async def insight_counts(
-        self, organization_id: uuid.UUID
-    ) -> tuple[int, dict[Any, int]]:
+    async def insight_counts(self, organization_id: uuid.UUID) -> tuple[int, dict[Any, int]]:
         open_count = await self._insights.count_open(organization_id)
         by_type = await self._insights.count_by_type(organization_id)
         return open_count, by_type

@@ -13,6 +13,7 @@ Cooperative cancellation: a PROCESSING delivery is flagged via
 flag when the provider returns (a successful send always wins). The recovery
 sweep uses ``attempt_started_at`` to find stale PROCESSING rows.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -39,18 +40,10 @@ class Delivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "deliveries"
     __table_args__ = (
-        CheckConstraint(
-            "length(btrim(subject)) > 0", name="chk_deliveries_subject_not_blank"
-        ),
-        CheckConstraint(
-            "length(btrim(body)) > 0", name="chk_deliveries_body_not_blank"
-        ),
-        CheckConstraint(
-            "attempts >= 0", name="chk_deliveries_attempts_nonneg"
-        ),
-        CheckConstraint(
-            "max_attempts > 0", name="chk_deliveries_max_attempts_positive"
-        ),
+        CheckConstraint("length(btrim(subject)) > 0", name="chk_deliveries_subject_not_blank"),
+        CheckConstraint("length(btrim(body)) > 0", name="chk_deliveries_body_not_blank"),
+        CheckConstraint("attempts >= 0", name="chk_deliveries_attempts_nonneg"),
+        CheckConstraint("max_attempts > 0", name="chk_deliveries_max_attempts_positive"),
         CheckConstraint(
             "cancel_requested_at IS NULL OR cancelled_by_user_id IS NOT NULL",
             name="chk_deliveries_cancel_request_has_actor",
@@ -135,21 +128,15 @@ class Delivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     provider_metadata: Mapped[dict] = mapped_column(
         JSONB, default=dict, server_default="{}", nullable=False
     )
-    payload: Mapped[dict] = mapped_column(
-        JSONB, default=dict, server_default="{}", nullable=False
-    )
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
     idempotency_key: Mapped[str | None] = mapped_column()
-    scheduled_for: Mapped[datetime] = mapped_column(
-        server_default=text("now()"), nullable=False
-    )
+    scheduled_for: Mapped[datetime] = mapped_column(server_default=text("now()"), nullable=False)
     delivered_at: Mapped[datetime | None] = mapped_column()
     failed_at: Mapped[datetime | None] = mapped_column()
     cancelled_at: Mapped[datetime | None] = mapped_column()
 
     organization: Mapped[Organization] = relationship(back_populates="deliveries")
-    recipient: Mapped[User | None] = relationship(
-        foreign_keys=[recipient_user_id]
-    )
+    recipient: Mapped[User | None] = relationship(foreign_keys=[recipient_user_id])
     notification: Mapped[Notification | None] = relationship()
     approval_request: Mapped[ApprovalRequest | None] = relationship()
     events: Mapped[list[DeliveryEvent]] = relationship(

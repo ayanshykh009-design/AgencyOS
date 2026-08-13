@@ -3,6 +3,7 @@
 All values come from environment variables / .env files via pydantic-settings.
 Rule: configuration flows through this module only — never hardcode secrets.
 """
+
 from functools import lru_cache
 from pathlib import Path
 
@@ -27,7 +28,7 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
 
     # --- Security ---
-    SECRET_KEY: str = "change-me"
+    SECRET_KEY: str = "fhUxAL6v2kWmZpQ9e5jR4tYb7cD1n8mF3oP6q7sT4vW"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
@@ -38,9 +39,7 @@ class Settings(BaseSettings):
     WEBHOOK_SECRET: str = ""
 
     # --- Database (local dev mirror of Supabase) ---
-    DATABASE_URL: str = (
-        "postgresql+asyncpg://agencyos:change-me@localhost:5432/agencyos"
-    )
+    DATABASE_URL: str = "postgresql+asyncpg://agencyos:change-me@localhost:5432/agencyos"
     DATABASE_POOL_SIZE: int = 10
     DATABASE_MAX_OVERFLOW: int = 20
     DATABASE_POOL_TIMEOUT: int = 30
@@ -280,9 +279,7 @@ class Settings(BaseSettings):
         if not self.CREDENTIAL_KEY_VERSION.isdigit() or int(self.CREDENTIAL_KEY_VERSION) < 1:
             raise RuntimeError("CREDENTIAL_KEY_VERSION must be a positive integer")
         if self.CREDENTIALS_ENC_KEY_PREVIOUS and int(self.CREDENTIAL_KEY_VERSION) < 2:
-            raise RuntimeError(
-                "CREDENTIALS_ENC_KEY_PREVIOUS requires CREDENTIAL_KEY_VERSION >= 2"
-            )
+            raise RuntimeError("CREDENTIALS_ENC_KEY_PREVIOUS requires CREDENTIAL_KEY_VERSION >= 2")
         if self.CREDENTIAL_REKEY_BATCH < 1:
             raise RuntimeError("CREDENTIAL_REKEY_BATCH must be >= 1")
         if self.CREDENTIAL_REKEY_INTERVAL_SECONDS < 1:
@@ -396,7 +393,10 @@ class Settings(BaseSettings):
             return
         if self.APP_DEBUG:
             raise RuntimeError("APP_DEBUG must be false in production")
-        if self.SECRET_KEY in {"change-me", ""}:
+        if (
+            self.SECRET_KEY in {"change-me", ""}
+            or self.SECRET_KEY == "fhUxAL6v2kWmZpQ9e5jR4tYb7cD1n8mF3oP6q7sT4vW"
+        ):
             raise RuntimeError("SECRET_KEY must be overridden in production")
         if not self.DATABASE_URL.startswith(("postgresql", "postgres")):
             raise RuntimeError("DATABASE_URL must be set in production")

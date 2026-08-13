@@ -6,6 +6,7 @@
 A record factory injects the current request id into every log record so both
 formatters can render it. File output is opt-in (LOG_TO_FILE=true).
 """
+
 import json
 import logging
 import sys
@@ -49,9 +50,7 @@ def setup_logging() -> logging.Logger:
     root.setLevel(getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
 
     formatter = (
-        DevFormatter(fmt=DEV_FORMAT)
-        if settings.APP_ENV == "development"
-        else JsonFormatter()
+        DevFormatter(fmt=DEV_FORMAT) if settings.APP_ENV == "development" else JsonFormatter()
     )
 
     if not any(isinstance(h, logging.StreamHandler) for h in root.handlers):

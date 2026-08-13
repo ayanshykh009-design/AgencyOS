@@ -14,6 +14,7 @@ Cooperative cancellation: a PROCESSING delivery is only flagged
 (``cancel_requested_at``); the worker honours the flag once the provider
 returns (a successful send always wins).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -54,7 +55,7 @@ class DeliveryRepository(TenantRepository[Delivery]):
 
     # -- reads ---------------------------------------------------------
 
-    async def list(
+    async def list_deliveries(
         self,
         organization_id: uuid.UUID,
         *,
@@ -108,9 +109,7 @@ class DeliveryRepository(TenantRepository[Delivery]):
 
     async def count_by_status(self) -> dict[str, int]:
         """Global counts by status (platform monitoring, not tenant-scoped)."""
-        stmt = select(Delivery.status, func.count(Delivery.id)).group_by(
-            Delivery.status
-        )
+        stmt = select(Delivery.status, func.count(Delivery.id)).group_by(Delivery.status)
         result = await self._session.execute(stmt)
         return {status.value: count for status, count in result.all()}
 
@@ -128,9 +127,7 @@ class DeliveryRepository(TenantRepository[Delivery]):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_queued_for_org(
-        self, organization_id: uuid.UUID, limit: int
-    ) -> DeliveryList:
+    async def get_queued_for_org(self, organization_id: uuid.UUID, limit: int) -> DeliveryList:
         """Get the oldest due QUEUED deliveries for one organization."""
         now = datetime.now().astimezone()
         stmt = (
@@ -174,9 +171,7 @@ class DeliveryRepository(TenantRepository[Delivery]):
 
     # Guarded state transitions (optimistic; see class docstring).
 
-    async def claim(
-        self, organization_id: uuid.UUID, delivery_id: uuid.UUID
-    ) -> Delivery | None:
+    async def claim(self, organization_id: uuid.UUID, delivery_id: uuid.UUID) -> Delivery | None:
         """QUEUED + due -> PROCESSING, attempts bumped. Returns row or None."""
         now = datetime.now().astimezone()
         stmt = (

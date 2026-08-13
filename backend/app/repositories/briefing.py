@@ -1,4 +1,5 @@
 """Briefing repository (generated founder briefings)."""
+
 from __future__ import annotations
 
 import uuid
@@ -53,9 +54,7 @@ class BriefingRepository(TenantRepository[Briefing]):
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def count_by_type(
-        self, organization_id: uuid.UUID
-    ) -> dict[BriefingType, int]:
+    async def count_by_type(self, organization_id: uuid.UUID) -> dict[BriefingType, int]:
         stmt = (
             select(Briefing.briefing_type, func.count(Briefing.id))
             .where(Briefing.organization_id == organization_id)

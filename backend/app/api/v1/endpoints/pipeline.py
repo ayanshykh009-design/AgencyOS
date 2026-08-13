@@ -1,4 +1,5 @@
 """Pipeline endpoints: stages, close reasons, Kanban board, stage moves."""
+
 from __future__ import annotations
 
 import uuid
@@ -93,9 +94,7 @@ async def update_stage(
     summary="Delete a pipeline stage (leads move to an alternative)",
     dependencies=[_admin],
 )
-async def delete_stage(
-    stage_id: uuid.UUID, db: DbSession, current_user: CurrentUser
-):
+async def delete_stage(stage_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
     service = PipelineService(db)
     await service.delete_stage(current_user.organization_id, stage_id)
 
@@ -112,9 +111,7 @@ async def reorder_stages(
     current_user: CurrentUser,
 ) -> list[PipelineStageRead]:
     service = PipelineService(db)
-    stages = await service.reorder_stages(
-        current_user.organization_id, body.stage_ids
-    )
+    stages = await service.reorder_stages(current_user.organization_id, body.stage_ids)
     return [PipelineStageRead.model_validate(s) for s in stages]
 
 
@@ -129,9 +126,7 @@ async def list_close_reasons(
     lifecycle: StageLifecycle | None = None,
 ) -> list[CloseReasonRead]:
     service = PipelineService(db)
-    reasons = await service.list_close_reasons(
-        current_user.organization_id, lifecycle=lifecycle
-    )
+    reasons = await service.list_close_reasons(current_user.organization_id, lifecycle=lifecycle)
     return [CloseReasonRead.model_validate(r) for r in reasons]
 
 
@@ -163,9 +158,7 @@ async def create_close_reason(
     summary="Delete a close reason (blocked while in use)",
     dependencies=[_admin],
 )
-async def delete_close_reason(
-    close_reason_id: uuid.UUID, db: DbSession, current_user: CurrentUser
-):
+async def delete_close_reason(close_reason_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
     service = PipelineService(db)
     await service.delete_close_reason(current_user.organization_id, close_reason_id)
 
@@ -181,9 +174,7 @@ async def board(
     limit_per_stage: int = Query(default=50, ge=1, le=200),
 ) -> list[PipelineStageWithLeads]:
     service = PipelineService(db)
-    columns = await service.board(
-        current_user.organization_id, limit_per_stage=limit_per_stage
-    )
+    columns = await service.board(current_user.organization_id, limit_per_stage=limit_per_stage)
     result: list[PipelineStageWithLeads] = []
     for stage, leads in columns:
         read = PipelineStageRead.model_validate(stage)

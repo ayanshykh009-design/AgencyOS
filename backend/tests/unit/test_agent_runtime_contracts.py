@@ -181,7 +181,7 @@ def test_agent_definition_supported_goals_default_empty() -> None:
     definition = AgentDefinition(
         name="growth_agent",
         display_name="Growth Agent",
-        description="Registered, executed in M7",
+        description="Test definition for supported_goals default",
         category=AgentCategory.REGISTERED,
     )
     assert definition.supported_goals == ()

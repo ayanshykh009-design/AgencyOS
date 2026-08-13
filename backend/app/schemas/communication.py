@@ -5,6 +5,7 @@ approvals, briefings, insights) presented to the current user. No AI or
 delivery logic lives here — this is the API contract for the founder
 communication layer's summary view.
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel

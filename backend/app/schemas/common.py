@@ -1,4 +1,5 @@
 """Common list pagination schema used by every list endpoint."""
+
 from __future__ import annotations
 
 from typing import Generic, TypeVar

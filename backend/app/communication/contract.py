@@ -19,6 +19,7 @@ crash rolls the transaction back, so any side effect the provider wrote is
 also rolled back). Providers must therefore be safe to call for the same
 delivery more than once and return a consistent result.
 """
+
 from __future__ import annotations
 
 import uuid

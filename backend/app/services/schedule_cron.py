@@ -22,17 +22,34 @@ other governs. ``previous_fire`` walks backward minute-by-minute within the
 current day, then day-by-day (bounded by a ~4-year lookback that covers
 Feb-29 cadences), so evaluation cost is bounded and predictable.
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import UTC, date, datetime, time, timedelta
 
 _MONTH_NAMES: dict[str, int] = {
-    "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
-    "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12,
+    "JAN": 1,
+    "FEB": 2,
+    "MAR": 3,
+    "APR": 4,
+    "MAY": 5,
+    "JUN": 6,
+    "JUL": 7,
+    "AUG": 8,
+    "SEP": 9,
+    "OCT": 10,
+    "NOV": 11,
+    "DEC": 12,
 }
 _DAY_NAMES: dict[str, int] = {
-    "SUN": 0, "MON": 1, "TUE": 2, "WED": 3, "THU": 4, "FRI": 5, "SAT": 6,
+    "SUN": 0,
+    "MON": 1,
+    "TUE": 2,
+    "WED": 3,
+    "THU": 4,
+    "FRI": 5,
+    "SAT": 6,
 }
 
 # (field name, inclusive lower bound, inclusive upper bound)
@@ -117,8 +134,10 @@ def validate_cron(expression: str) -> None:
         raise ValueError("cron expression must be a non-empty string")
     fields = expression.split()
     if len(fields) != 5:
-        raise ValueError("cron expression must have exactly 5 fields "
-                         "(minute hour day-of-month month day-of-week)")
+        raise ValueError(
+            "cron expression must have exactly 5 fields "
+            "(minute hour day-of-month month day-of-week)"
+        )
     for (field_name, lo, hi), value in zip(_FIELDS, fields, strict=True):
         _parse_field(value, field_name, lo, hi, _names_for(field_name))
 

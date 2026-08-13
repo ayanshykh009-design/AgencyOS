@@ -1,4 +1,5 @@
 """BusinessInsight repository (generated business insight rows)."""
+
 from __future__ import annotations
 
 import uuid
@@ -31,9 +32,7 @@ class BusinessInsightRepository(TenantRepository[BusinessInsight]):
         offset: int = 0,
     ) -> list[BusinessInsight]:
         """List insights, optionally filtered by status/severity, newest first."""
-        stmt = select(BusinessInsight).where(
-            BusinessInsight.organization_id == organization_id
-        )
+        stmt = select(BusinessInsight).where(BusinessInsight.organization_id == organization_id)
         if status is not None:
             stmt = stmt.where(BusinessInsight.status == status)
         if severity is not None:
@@ -55,9 +54,7 @@ class BusinessInsightRepository(TenantRepository[BusinessInsight]):
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
 
-    async def count_by_type(
-        self, organization_id: uuid.UUID
-    ) -> dict[InsightType, int]:
+    async def count_by_type(self, organization_id: uuid.UUID) -> dict[InsightType, int]:
         stmt = (
             select(BusinessInsight.insight_type, func.count(BusinessInsight.id))
             .where(BusinessInsight.organization_id == organization_id)

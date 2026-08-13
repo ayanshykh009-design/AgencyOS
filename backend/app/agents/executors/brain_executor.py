@@ -14,6 +14,7 @@ all per-run state lives in :class:`ExecutorContext`. Each executable agent
 maps to one executor (see the module bottom), so the runtime can resolve every
 canonical agent.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -82,9 +83,7 @@ class BrainAgentExecutor:
                     output={"response": result.response},
                     steps=result.steps_taken,
                 )
-            return ExecutorResult(
-                success=False, error=result.error or "Agent execution failed"
-            )
+            return ExecutorResult(success=False, error=result.error or "Agent execution failed")
         finally:
             if owns_client:
                 await client.aclose()
@@ -125,20 +124,14 @@ class BrainAgentExecutor:
 
         memory_context: str | None = None
         if settings.AI_MEMORY_ENABLED:
-            memory_context = await MemoryService(ctx.session).retrieve_context(
-                ctx.organization_id
-            )
+            memory_context = await MemoryService(ctx.session).retrieve_context(ctx.organization_id)
         return {"llm": llm, "registry": registry, "memory_context": memory_context}
 
-    async def _load_scope(
-        self, ctx: ExecutorContext
-    ) -> tuple[Any, Any, dict[str, Any]]:
+    async def _load_scope(self, ctx: ExecutorContext) -> tuple[Any, Any, dict[str, Any]]:
         """Load lead + research when a ``lead_id`` is present (lead-scoped goals)."""
         lead = research = None
         plan_params = {
-            str(k): str(v)
-            for k, v in ctx.input.items()
-            if k in _PLAN_PARAM_KEYS and v is not None
+            str(k): str(v) for k, v in ctx.input.items() if k in _PLAN_PARAM_KEYS and v is not None
         }
         raw_lead_id = ctx.input.get("lead_id")
         if raw_lead_id and not self.leadless:
@@ -147,9 +140,7 @@ class BrainAgentExecutor:
             except (ValueError, TypeError):
                 return lead, research, plan_params
             try:
-                lead = await LeadRepository(ctx.session).get_or_404(
-                    ctx.organization_id, lead_id
-                )
+                lead = await LeadRepository(ctx.session).get_or_404(ctx.organization_id, lead_id)
                 research = await LeadResearchRepository(ctx.session).get(
                     ctx.organization_id, lead.id
                 )

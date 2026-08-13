@@ -1,4 +1,5 @@
 """Workflow repository (org-scoped CRUD)."""
+
 from __future__ import annotations
 
 import uuid

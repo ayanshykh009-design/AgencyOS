@@ -1,4 +1,5 @@
 """Lead assignment models: per-org rule + append-only assignment history."""
+
 from __future__ import annotations
 
 import uuid
@@ -22,9 +23,7 @@ class LeadAssignmentRule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "lead_assignment_rules"
     __table_args__ = (
         UniqueConstraint("organization_id", name="uq_lead_assignment_rules_org"),
-        CheckConstraint(
-            "last_assigned_index >= -1", name="chk_lead_assignment_rules_cursor"
-        ),
+        CheckConstraint("last_assigned_index >= -1", name="chk_lead_assignment_rules_cursor"),
     )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(

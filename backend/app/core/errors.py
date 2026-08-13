@@ -3,6 +3,7 @@
 Every error response uses the same envelope so clients can parse failures
 uniformly. Feature code raises `AppError` with a machine-readable `code`.
 """
+
 from pydantic import BaseModel
 
 

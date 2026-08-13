@@ -1,4 +1,5 @@
 """ManualOutreachQueue model — human-triggered outreach tasks."""
+
 from __future__ import annotations
 
 import uuid
@@ -20,9 +21,7 @@ class ManualOutreachQueue(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """A queued manual outreach task assigned to a user."""
 
     __tablename__ = "manual_outreach_queue"
-    __table_args__ = (
-        CheckConstraint("priority >= 0", name="chk_manual_outreach_priority"),
-    )
+    __table_args__ = (CheckConstraint("priority >= 0", name="chk_manual_outreach_priority"),)
 
     organization_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False

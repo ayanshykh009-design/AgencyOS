@@ -1,4 +1,5 @@
 """DeliveryEventRepository — immutable per-delivery timeline (append-only)."""
+
 from __future__ import annotations
 
 import uuid

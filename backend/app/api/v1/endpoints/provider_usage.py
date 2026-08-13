@@ -1,4 +1,5 @@
 """Provider usage endpoints: recording + totals (no credentials exposed)."""
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -50,9 +51,7 @@ async def record_usage(
     service = ProviderUsageService(db)
     data = body.model_dump(exclude={"organization_id"})
     metadata = data.pop("metadata_", None)
-    record = await service.record(
-        current_user.organization_id, **data, metadata=metadata
-    )
+    record = await service.record(current_user.organization_id, **data, metadata=metadata)
     return ProviderUsageRead.model_validate(record)
 
 

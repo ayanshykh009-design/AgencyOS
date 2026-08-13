@@ -7,6 +7,7 @@ workers and cancels can never clobber each other. Status is runtime-owned:
 ``update_run`` (the user-facing PATCH path) accepts no status, and
 ``create_run`` refuses any initial status other than QUEUED.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -96,9 +97,7 @@ class AgentService:
             )
 
         if idempotency_key:
-            existing = await self._runs.get_by_idempotency_key(
-                organization_id, idempotency_key
-            )
+            existing = await self._runs.get_by_idempotency_key(organization_id, idempotency_key)
             if existing is not None:
                 return existing
 
@@ -159,9 +158,7 @@ class AgentService:
 
     # -- runtime-owned lifecycle transitions ----------------------------
 
-    async def start_run(
-        self, organization_id: uuid.UUID, run_id: uuid.UUID
-    ) -> AgentRun:
+    async def start_run(self, organization_id: uuid.UUID, run_id: uuid.UUID) -> AgentRun:
         """QUEUED -> RUNNING (worker claims the run)."""
         run = await self._runs.get_or_404(organization_id, run_id)
         assert_transition(run.status, AgentRunStatus.RUNNING)
@@ -326,9 +323,7 @@ class AgentService:
         await commit_with_retry(self._session)
         return updated
 
-    async def apply_cancel(
-        self, organization_id: uuid.UUID, run_id: uuid.UUID
-    ) -> AgentRun:
+    async def apply_cancel(self, organization_id: uuid.UUID, run_id: uuid.UUID) -> AgentRun:
         """RUNNING with a cancel flag -> CANCELLED (worker sweep)."""
         run = await self._runs.get_or_404(organization_id, run_id)
         assert_transition(run.status, AgentRunStatus.CANCELLED)
@@ -375,9 +370,7 @@ class AgentService:
     async def get_queued_orgs(self, limit: int) -> list[uuid.UUID]:
         return await self._runs.get_queued_orgs(limit)
 
-    async def get_queued_for_org(
-        self, organization_id: uuid.UUID, limit: int
-    ) -> list[AgentRun]:
+    async def get_queued_for_org(self, organization_id: uuid.UUID, limit: int) -> list[AgentRun]:
         return await self._runs.get_queued_for_org(organization_id, limit)
 
     async def count_pending(self, organization_id: uuid.UUID) -> int:
@@ -398,9 +391,7 @@ class AgentService:
         status: AgentStateStatus | None = None,
         limit: int = 100,
     ) -> list[AgentState]:
-        return await self._states.list_by_status(
-            organization_id, status=status, limit=limit
-        )
+        return await self._states.list_by_status(organization_id, status=status, limit=limit)
 
     async def upsert_state(
         self,

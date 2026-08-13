@@ -10,6 +10,7 @@ The canonical inventory is a closed set validated at import time (duplicate
 names are a programming error, not a runtime case). Executors map one-to-one
 with executable agents; see ``app/agents/executors/``.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -96,8 +97,12 @@ CANONICAL_AGENTS: tuple[AgentDefinition, ...] = (
     AgentDefinition(
         name="growth_agent",
         display_name="Growth Agent",
-        description="Registered for Phase 5D; execution lands in M7 (Growth Intelligence).",
-        category=AgentCategory.REGISTERED,
+        description=(
+            "Runs deterministic growth intelligence: KPIs, pipeline, funnel, "
+            "conversion, revenue, activity, bottlenecks, opportunities, trends, "
+            "health scoring, forecasts, and what-if scenarios."
+        ),
+        category=AgentCategory.EXECUTABLE,
     ),
     AgentDefinition(
         name="finance",
@@ -154,11 +159,7 @@ def is_executable(name: str) -> bool:
 
 def list_executable() -> list[str]:
     """Names of all executable agents, in canonical order."""
-    return [
-        agent.name
-        for agent in CANONICAL_AGENTS
-        if agent.category is AgentCategory.EXECUTABLE
-    ]
+    return [agent.name for agent in CANONICAL_AGENTS if agent.category is AgentCategory.EXECUTABLE]
 
 
 def require_executable(name: str) -> AgentDefinition:

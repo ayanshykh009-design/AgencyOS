@@ -4,6 +4,7 @@ Thin orchestration over repositories; owns the transaction boundary.
 Workers call the guarded transitions (claim, mark_delivered, etc.) via
 this service to keep the transaction semantics in one place.
 """
+
 from __future__ import annotations
 
 import json
@@ -42,7 +43,7 @@ class DeliveryService:
 
     # -- reads ---------------------------------------------------------
 
-    async def list(
+    async def list_deliveries(
         self,
         organization_id: uuid.UUID,
         *,
@@ -52,7 +53,7 @@ class DeliveryService:
         limit: int = 100,
         offset: int = 0,
     ) -> list[Delivery]:
-        return await self._deliveries.list(
+        return await self._deliveries.list_deliveries(
             organization_id,
             status=status,
             channel=channel,
@@ -61,9 +62,7 @@ class DeliveryService:
             offset=offset,
         )
 
-    async def get(
-        self, organization_id: uuid.UUID, delivery_id: uuid.UUID
-    ) -> Delivery:
+    async def get(self, organization_id: uuid.UUID, delivery_id: uuid.UUID) -> Delivery:
         delivery = await self._deliveries.get(organization_id, delivery_id)
         if delivery is None:
             raise AppError(
@@ -180,9 +179,7 @@ class DeliveryService:
 
         # Idempotency: if key provided and exists, return existing delivery.
         if idempotency_key:
-            existing = await self._deliveries.get_by_idempotency(
-                organization_id, idempotency_key
-            )
+            existing = await self._deliveries.get_by_idempotency(organization_id, idempotency_key)
             if existing:
                 return existing
 
@@ -225,9 +222,7 @@ class DeliveryService:
                 delivery_id=delivery.id,
                 event_type=DeliveryEventType.QUEUED,
                 attempt=0,
-                metadata_={"idempotency_key": idempotency_key}
-                if idempotency_key
-                else {},
+                metadata_={"idempotency_key": idempotency_key} if idempotency_key else {},
             )
         )
 
@@ -286,7 +281,10 @@ class DeliveryService:
                     )
                 )
                 await commit_with_retry(self._session)
-            return cancelled
+                return cancelled
+            # Guarded update matched nothing: the row changed concurrently
+            # (e.g. a worker claimed it). Return the fresh state instead of None.
+            return await self.get(organization_id, delivery_id)
 
         if delivery.status == DeliveryStatus.PROCESSING:
             # Cooperative: flag the row; the worker honours it once the
@@ -299,7 +297,9 @@ class DeliveryService:
             )
             if flagged:
                 await commit_with_retry(self._session)
-            return flagged
+                return flagged
+            # State changed concurrently (already cancelled/terminal).
+            return await self.get(organization_id, delivery_id)
 
         raise AppError(
             code="delivery.invalid_state",
@@ -333,7 +333,9 @@ class DeliveryService:
                 )
             )
             await commit_with_retry(self._session)
-        return requeued
+            return requeued
+        # Guarded update matched nothing: state changed concurrently.
+        return await self.get(organization_id, delivery_id)
 
     @staticmethod
     def _payload_too_large(payload: dict[str, Any]) -> bool:

@@ -1,4 +1,5 @@
 """Outreach repositories: message templates, attempts, follow-ups, manual queue."""
+
 from __future__ import annotations
 
 import uuid
@@ -49,9 +50,7 @@ class OutreachMessageRepository:
         limit: int = 100,
         offset: int = 0,
     ) -> list[OutreachMessage]:
-        stmt = select(OutreachMessage).where(
-            OutreachMessage.organization_id == organization_id
-        )
+        stmt = select(OutreachMessage).where(OutreachMessage.organization_id == organization_id)
         if channel is not None:
             stmt = stmt.where(OutreachMessage.channel == channel)
         stmt = stmt.order_by(OutreachMessage.name).limit(limit).offset(offset)
@@ -123,9 +122,7 @@ class OutreachAttemptRepository:
             select(func.count(OutreachAttempt.id))
             .where(
                 OutreachAttempt.organization_id == organization_id,
-                OutreachAttempt.status.in_(
-                    [OutreachStatus.QUEUED, OutreachStatus.SENDING]
-                ),
+                OutreachAttempt.status.in_([OutreachStatus.QUEUED, OutreachStatus.SENDING]),
             )
             .select_from(OutreachAttempt)
         )
@@ -142,17 +139,13 @@ class FollowUpRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def get(
-        self, organization_id: uuid.UUID, follow_up_id: uuid.UUID
-    ) -> FollowUp | None:
+    async def get(self, organization_id: uuid.UUID, follow_up_id: uuid.UUID) -> FollowUp | None:
         follow_up = await self._session.get(FollowUp, follow_up_id)
         if follow_up is None or follow_up.organization_id != organization_id:
             return None
         return follow_up
 
-    async def get_or_404(
-        self, organization_id: uuid.UUID, follow_up_id: uuid.UUID
-    ) -> FollowUp:
+    async def get_or_404(self, organization_id: uuid.UUID, follow_up_id: uuid.UUID) -> FollowUp:
         follow_up = await self.get(organization_id, follow_up_id)
         if follow_up is None:
             raise AppError(
@@ -162,9 +155,7 @@ class FollowUpRepository:
             )
         return follow_up
 
-    async def list_for_lead(
-        self, organization_id: uuid.UUID, lead_id: uuid.UUID
-    ) -> list[FollowUp]:
+    async def list_for_lead(self, organization_id: uuid.UUID, lead_id: uuid.UUID) -> list[FollowUp]:
         stmt = (
             select(FollowUp)
             .where(

@@ -1,4 +1,5 @@
 """FollowUp model — a scheduled follow-up in an outreach sequence."""
+
 from __future__ import annotations
 
 import uuid
@@ -22,7 +23,9 @@ class FollowUp(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "follow_ups"
     __table_args__ = (
         UniqueConstraint(
-            "lead_id", "outreach_attempt_id", "sequence_position",
+            "lead_id",
+            "outreach_attempt_id",
+            "sequence_position",
             name="uq_follow_ups_position",
         ),
         CheckConstraint("sequence_position >= 1", name="chk_follow_ups_position"),

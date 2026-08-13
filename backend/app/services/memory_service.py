@@ -13,6 +13,7 @@ the AI memory read/write flows:
 
 The manual CRUD entry points are unchanged and never auto-skip or dedup.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -284,9 +285,7 @@ class MemoryService:
             )
         return await self._knowledge.search(organization_id, query=query.strip(), limit=limit)
 
-    async def get_knowledge(
-        self, organization_id: uuid.UUID, item_id: uuid.UUID
-    ) -> KnowledgeItem:
+    async def get_knowledge(self, organization_id: uuid.UUID, item_id: uuid.UUID) -> KnowledgeItem:
         return await self._knowledge.get_or_404(organization_id, item_id)
 
     async def create_knowledge(
@@ -341,9 +340,7 @@ class MemoryService:
         await commit_with_retry(self._session)
         return item
 
-    async def delete_knowledge(
-        self, organization_id: uuid.UUID, item_id: uuid.UUID
-    ) -> None:
+    async def delete_knowledge(self, organization_id: uuid.UUID, item_id: uuid.UUID) -> None:
         if not await self._knowledge.delete(organization_id, item_id):
             raise AppError(
                 code="knowledge_item.not_found",

@@ -1,4 +1,5 @@
 """Knowledge item schemas (durable long-term knowledge)."""
+
 from __future__ import annotations
 
 import uuid

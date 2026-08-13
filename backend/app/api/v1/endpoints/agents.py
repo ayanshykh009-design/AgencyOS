@@ -3,6 +3,7 @@
 NOTE: intentionally does NOT use ``from __future__ import annotations``;
 slowapi's ``@limiter.limit`` wrapper breaks FastAPI's forward-ref resolution.
 """
+
 import uuid
 
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -35,9 +36,7 @@ async def list_agent_states(
     limit: int = Query(default=100, ge=1, le=500),
 ) -> AgentStateListResponse:
     service = AgentService(db)
-    states = await service.list_states(
-        current_user.organization_id, status=status, limit=limit
-    )
+    states = await service.list_states(current_user.organization_id, status=status, limit=limit)
     return AgentStateListResponse(
         items=[AgentStateRead.model_validate(s) for s in states], total=len(states)
     )
@@ -66,9 +65,7 @@ async def upsert_agent_state(
             message="Path agent_name does not match body",
             status_code=400,
         )
-    state = await service.upsert_state(
-        current_user.organization_id, agent_name=agent_name, **data
-    )
+    state = await service.upsert_state(current_user.organization_id, agent_name=agent_name, **data)
     return AgentStateRead.model_validate(state)
 
 

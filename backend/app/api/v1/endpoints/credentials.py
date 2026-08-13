@@ -1,4 +1,5 @@
 """Credential endpoints: CRUD (masked values only in responses)."""
+
 from __future__ import annotations
 
 import uuid

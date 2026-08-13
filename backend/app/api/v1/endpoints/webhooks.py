@@ -4,6 +4,7 @@ Used by external systems (n8n workflows, contact forms) to push leads into
 AgencyOS. Authenticated with a shared secret via the ``X-AgencyOS-Webhook``
 header; refuses to operate when ``WEBHOOK_SECRET`` is unset.
 """
+
 from __future__ import annotations
 
 import secrets

@@ -6,6 +6,7 @@ reopens it (single row = the task template); non-recurring tasks close out
 with ``completed_at``. The ``completed_at``/status consistency is enforced
 both in the schema (CHECK) and the service layer.
 """
+
 from __future__ import annotations
 
 import uuid

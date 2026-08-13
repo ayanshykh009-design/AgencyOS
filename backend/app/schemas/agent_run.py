@@ -4,6 +4,7 @@ Status is runtime-owned: ``AgentRunUpdate`` intentionally exposes no ``status``
 field, so clients can never force a run through the state machine. The runtime
 moves runs via guarded transitions in the service/repository, never via PATCH.
 """
+
 from __future__ import annotations
 
 import uuid

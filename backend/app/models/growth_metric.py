@@ -3,6 +3,7 @@
 Rows are pruned after ``GROWTH_METRICS_RETENTION_DAYS`` (36 months) by the
 retention sweep on ``recorded_at``. One row per (org, metric_type, period).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -30,9 +31,7 @@ class GrowthMetric(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="chk_growth_metrics_type_not_blank",
         ),
         CheckConstraint("value >= 0", name="chk_growth_metrics_value_nonneg"),
-        CheckConstraint(
-            "period_end >= period_start", name="chk_growth_metrics_period_order"
-        ),
+        CheckConstraint("period_end >= period_start", name="chk_growth_metrics_period_order"),
         Index(
             "uq_growth_metrics_org_type_period",
             "organization_id",
@@ -61,9 +60,7 @@ class GrowthMetric(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     metadata_: Mapped[dict] = mapped_column(
         "metadata", JSONB, default=dict, server_default="{}", nullable=False
     )
-    recorded_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
-    )
+    recorded_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
     organization: Mapped[Organization] = relationship(back_populates="growth_metrics")
 

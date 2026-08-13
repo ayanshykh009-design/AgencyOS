@@ -3,6 +3,7 @@
 Knowledge items are promoted from working memories (``source_memory_id``) or
 created directly. Unlike working memory they are never auto-deleted.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -24,12 +25,8 @@ class KnowledgeItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "knowledge_items"
     __table_args__ = (
-        CheckConstraint(
-            "length(btrim(title)) > 0", name="chk_knowledge_items_title_not_blank"
-        ),
-        CheckConstraint(
-            "length(btrim(content)) > 0", name="chk_knowledge_items_content_not_blank"
-        ),
+        CheckConstraint("length(btrim(title)) > 0", name="chk_knowledge_items_title_not_blank"),
+        CheckConstraint("length(btrim(content)) > 0", name="chk_knowledge_items_content_not_blank"),
         CheckConstraint(
             "length(btrim(category)) > 0",
             name="chk_knowledge_items_category_not_blank",

@@ -22,6 +22,7 @@ survive to the caller's commit.
 Every lifecycle event is emitted as a structured log line and a lightweight
 metric counter (see ``app/core/metrics.py``).
 """
+
 from __future__ import annotations
 
 import json

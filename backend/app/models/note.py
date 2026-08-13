@@ -4,6 +4,7 @@ Notes are always lead-scoped (``lead_id`` is required) so the timeline is
 easy to reconstruct; the author is recorded for accountability. Pinning lets
 teams highlight the important context at the top of a lead.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -23,9 +24,7 @@ class Note(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """A comment on a lead authored by a team member."""
 
     __tablename__ = "notes"
-    __table_args__ = (
-        CheckConstraint("length(btrim(body)) > 0", name="chk_notes_body_not_blank"),
-    )
+    __table_args__ = (CheckConstraint("length(btrim(body)) > 0", name="chk_notes_body_not_blank"),)
 
     organization_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True

@@ -4,6 +4,7 @@ Each model mirrors a table defined in database/ (the source of truth for the
 schema). Models stay dumb (fields + relationships only); behavior lives in
 services.
 """
+
 from app.models.activity_log import ActivityLog
 from app.models.agent_run import AgentRun
 from app.models.agent_state import AgentState
@@ -21,8 +22,12 @@ from app.models.delivery import Delivery
 from app.models.delivery_event import DeliveryEvent
 from app.models.execution_event import ExecutionEvent
 from app.models.follow_up import FollowUp
+from app.models.growth_analysis import GrowthAnalysis
 from app.models.growth_forecast import GrowthForecast
+from app.models.growth_health_weight import GrowthHealthWeight
 from app.models.growth_metric import GrowthMetric
+from app.models.growth_recommendation import GrowthRecommendation
+from app.models.growth_scenario import GrowthScenario
 from app.models.import_job import ImportJob
 from app.models.import_row_error import ImportRowError
 from app.models.knowledge_item import KnowledgeItem
@@ -65,8 +70,12 @@ __all__ = [
     "DeliveryEvent",
     "ExecutionEvent",
     "FollowUp",
+    "GrowthAnalysis",
     "GrowthForecast",
+    "GrowthHealthWeight",
     "GrowthMetric",
+    "GrowthRecommendation",
+    "GrowthScenario",
     "ImportJob",
     "ImportRowError",
     "KnowledgeItem",

@@ -2,6 +2,7 @@
 
 Rows are pruned after ``NOTIFICATION_RETENTION_DAYS`` by the retention sweep.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -46,9 +47,7 @@ class NotificationRepository(TenantRepository[Notification]):
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def count_unread(
-        self, organization_id: uuid.UUID, user_id: uuid.UUID
-    ) -> int:
+    async def count_unread(self, organization_id: uuid.UUID, user_id: uuid.UUID) -> int:
         """Unread badge count for a user within an organization."""
         stmt = (
             select(func.count(Notification.id))
@@ -90,13 +89,9 @@ class NotificationRepository(TenantRepository[Notification]):
         self, organization_id: uuid.UUID, user_id: uuid.UUID, notification_id: uuid.UUID
     ) -> bool:
         """Mark one notification read; returns False when it does not exist."""
-        return await self.set_read(
-            organization_id, user_id, notification_id, is_read=True
-        )
+        return await self.set_read(organization_id, user_id, notification_id, is_read=True)
 
-    async def count_by_type(
-        self, organization_id: uuid.UUID
-    ) -> dict[NotificationType, int]:
+    async def count_by_type(self, organization_id: uuid.UUID) -> dict[NotificationType, int]:
         """Notification counts grouped by type."""
         stmt = (
             select(Notification.type, func.count(Notification.id))

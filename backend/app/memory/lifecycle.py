@@ -4,6 +4,7 @@ Only ``memory_type='working'`` rows are ever considered expired. Long-term
 memory is durable by construction and ``is_expired`` always returns ``False``
 for it, so the cleanup worker can never prune durable knowledge.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta

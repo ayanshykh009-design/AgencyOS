@@ -1,4 +1,5 @@
 """WorkflowExecution service: queue management, execution, retry."""
+
 from __future__ import annotations
 
 import json
@@ -312,9 +313,7 @@ class WorkflowExecutionService:
                 updated,
                 ExecutionEventType.CANCELLED,
                 duration_ms=duration_ms,
-                actor=str(updated.cancelled_by_user_id)
-                if updated.cancelled_by_user_id
-                else None,
+                actor=str(updated.cancelled_by_user_id) if updated.cancelled_by_user_id else None,
             )
         else:
             self._audit(
@@ -373,9 +372,7 @@ class WorkflowExecutionService:
                 updated,
                 ExecutionEventType.CANCELLED,
                 duration_ms=duration_ms,
-                actor=str(updated.cancelled_by_user_id)
-                if updated.cancelled_by_user_id
-                else None,
+                actor=str(updated.cancelled_by_user_id) if updated.cancelled_by_user_id else None,
             )
             self._record_duration(ExecutionStatus.CANCELLED, duration_ms)
             get_counter(
@@ -422,9 +419,7 @@ class WorkflowExecutionService:
                 updated,
                 ExecutionEventType.CANCELLED,
                 duration_ms=duration_ms,
-                actor=str(updated.cancelled_by_user_id)
-                if updated.cancelled_by_user_id
-                else None,
+                actor=str(updated.cancelled_by_user_id) if updated.cancelled_by_user_id else None,
             )
         else:
             error_code = error.get("error") if isinstance(error, dict) else None
@@ -688,9 +683,7 @@ class WorkflowExecutionService:
     @staticmethod
     def _assert_payload_size(payload: dict, field: str) -> None:
         """Reject payloads above the shared result-size cap (413)."""
-        size = len(
-            json.dumps(payload, separators=(",", ":"), default=str).encode("utf-8")
-        )
+        size = len(json.dumps(payload, separators=(",", ":"), default=str).encode("utf-8"))
         if size > settings.BUILTIN_MAX_RESULT_SIZE_BYTES:
             raise AppError(
                 code="execution.payload_too_large",
@@ -724,9 +717,7 @@ class WorkflowExecutionService:
     async def count_pending(self, organization_id: uuid.UUID) -> int:
         return await self._repo.count_pending(organization_id)
 
-    async def get_queued_for_retry(
-        self, before: datetime | None = None
-    ) -> list[WorkflowExecution]:
+    async def get_queued_for_retry(self, before: datetime | None = None) -> list[WorkflowExecution]:
         if before is not None:
             return await self._repo.get_queued_for_retry(before)
         return await self._repo.get_queued_for_retry()

@@ -1,4 +1,5 @@
 """WorkflowExecution model — execution queue + history with retry tracking."""
+
 from __future__ import annotations
 
 import uuid
@@ -25,12 +26,8 @@ class WorkflowExecution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "workflow_executions"
     __table_args__ = (
-        CheckConstraint(
-            "attempts >= 0", name="chk_workflow_executions_attempts_nonneg"
-        ),
-        CheckConstraint(
-            "max_attempts > 0", name="chk_workflow_executions_max_attempts_positive"
-        ),
+        CheckConstraint("attempts >= 0", name="chk_workflow_executions_attempts_nonneg"),
+        CheckConstraint("max_attempts > 0", name="chk_workflow_executions_max_attempts_positive"),
         CheckConstraint(
             "retry_delay_seconds >= 0",
             name="chk_workflow_executions_retry_delay_nonneg",
@@ -80,9 +77,7 @@ class WorkflowExecution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=ExecutionStatus.QUEUED,
         nullable=False,
     )
-    input: Mapped[dict] = mapped_column(
-        JSONB, default=dict, server_default="{}", nullable=False
-    )
+    input: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
     output: Mapped[dict | None] = mapped_column(JSONB)
     error: Mapped[dict | None] = mapped_column(JSONB)
     started_at: Mapped[datetime | None] = mapped_column()

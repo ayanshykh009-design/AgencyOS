@@ -8,6 +8,7 @@ never aborts the import. Duplicates and validation failures are recorded as
 The worker uses repositories directly (not the ImportService, whose methods
 commit mid-flight); progress is flushed in chunks inside one outer transaction.
 """
+
 from __future__ import annotations
 
 import csv
@@ -55,8 +56,13 @@ _HEADER_ALIASES: dict[str, str] = {
 
 _CONTACT_FIELDS = ("email", "phone", "whatsapp", "website")
 _STRING_FIELDS = (
-    "first_name", "last_name", "company", "position", "location",
-    "linkedin_url", "notes",
+    "first_name",
+    "last_name",
+    "company",
+    "position",
+    "location",
+    "linkedin_url",
+    "notes",
 )
 
 
@@ -106,8 +112,12 @@ class ImportWorker:
                 if error:
                     session.add(
                         _row_error(
-                            job_id, organization_id, index,
-                            "import.invalid_row", error, raw,
+                            job_id,
+                            organization_id,
+                            index,
+                            "import.invalid_row",
+                            error,
+                            raw,
                         )
                     )
                     failed += 1
@@ -123,8 +133,12 @@ class ImportWorker:
                 if duplicate:
                     session.add(
                         _row_error(
-                            job_id, organization_id, index,
-                            "import.duplicate", "Lead already exists", raw,
+                            job_id,
+                            organization_id,
+                            index,
+                            "import.duplicate",
+                            "Lead already exists",
+                            raw,
                         )
                     )
                     failed += 1
@@ -132,8 +146,14 @@ class ImportWorker:
                     continue
 
                 await _insert_with_savepoint(
-                    session, leads, job, organization_id,
-                    lead_source_id, parsed, index, raw,
+                    session,
+                    leads,
+                    job,
+                    organization_id,
+                    lead_source_id,
+                    parsed,
+                    index,
+                    raw,
                 )
                 processed += 1
                 job.processed_rows = processed
@@ -162,19 +182,17 @@ class ImportWorker:
 
             logger.info(
                 "import job %s completed: %d processed, %d failed",
-                job_id, processed, failed,
+                job_id,
+                processed,
+                failed,
             )
 
     @classmethod
-    async def _mark_failed(
-        cls, job_id: uuid.UUID, organization_id: uuid.UUID
-    ) -> None:
+    async def _mark_failed(cls, job_id: uuid.UUID, organization_id: uuid.UUID) -> None:
         """Best-effort: flag the job failed after an unexpected error."""
         try:
             async with async_session_factory() as session:
-                job = await ImportJobRepository(session).get_or_404(
-                    organization_id, job_id
-                )
+                job = await ImportJobRepository(session).get_or_404(organization_id, job_id)
                 job.status = ImportStatus.FAILED
                 job.finished_at = utcnow()
                 await session.commit()
@@ -231,6 +249,7 @@ async def _insert_with_savepoint(
     raw: dict[str, str],
 ) -> bool:
     """Insert one lead atomically; records a duplicate error on collision."""
+
     def build() -> Lead:
         return Lead(
             organization_id=organization_id,
@@ -258,8 +277,12 @@ async def _insert_with_savepoint(
         # The savepoint rolled back (only this row's insert was discarded).
         session.add(
             _row_error(
-                job.id, organization_id, index,
-                "import.duplicate", "Lead already exists (race condition)", raw,
+                job.id,
+                organization_id,
+                index,
+                "import.duplicate",
+                "Lead already exists (race condition)",
+                raw,
             )
         )
         return False

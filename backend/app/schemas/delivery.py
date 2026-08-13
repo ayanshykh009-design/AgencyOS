@@ -1,4 +1,5 @@
 """Delivery schemas (M6 outbox + timeline)."""
+
 from __future__ import annotations
 
 import uuid

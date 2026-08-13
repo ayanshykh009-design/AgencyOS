@@ -3,6 +3,7 @@
 Composes config, middleware, exception handling, telemetry, and routers.
 All feature logic must live in the layered packages below.
 """
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -30,9 +31,7 @@ async def lifespan(application: FastAPI):
     settings.validate_runtime()
     settings.validate_for_production()
     setup_telemetry(application)
-    logger.info(
-        "AgencyOS API starting (env=%s, debug=%s)", settings.APP_ENV, settings.APP_DEBUG
-    )
+    logger.info("AgencyOS API starting (env=%s, debug=%s)", settings.APP_ENV, settings.APP_DEBUG)
     yield
     logger.info("AgencyOS API shutting down")
 
@@ -58,9 +57,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    application.add_middleware(
-        TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts_list
-    )
+    application.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts_list)
     if settings.SECURITY_HEADERS:
         application.add_middleware(SecurityHeadersMiddleware)
     application.add_middleware(AccessLogMiddleware)

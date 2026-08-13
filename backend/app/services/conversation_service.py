@@ -1,4 +1,5 @@
 """Conversation service: threads and thread messages."""
+
 from __future__ import annotations
 
 import uuid
@@ -37,9 +38,7 @@ class ConversationService:
     async def list_open(
         self, organization_id: uuid.UUID, *, limit: int = 50, offset: int = 0
     ) -> list[Conversation]:
-        return await self._conversations.list_open(
-            organization_id, limit=limit, offset=offset
-        )
+        return await self._conversations.list_open(organization_id, limit=limit, offset=offset)
 
     async def count_open(self, organization_id: uuid.UUID) -> int:
         return await self._conversations.count_open(organization_id)
@@ -63,9 +62,7 @@ class ConversationService:
         conversation_id: uuid.UUID,
         data: dict[str, Any],
     ) -> Conversation:
-        conversation = await self._conversations.get_or_404(
-            organization_id, conversation_id
-        )
+        conversation = await self._conversations.get_or_404(organization_id, conversation_id)
         for field in ("subject", "is_open", "last_message_at"):
             if field in data:
                 setattr(conversation, field, data[field])
@@ -93,9 +90,7 @@ class ConversationService:
         conversation_id: uuid.UUID,
         data: dict[str, Any],
     ) -> ConversationMessage:
-        conversation = await self._conversations.get_or_404(
-            organization_id, conversation_id
-        )
+        conversation = await self._conversations.get_or_404(organization_id, conversation_id)
         sender = ConversationSender(data["sender_type"])
         message = ConversationMessage(
             conversation_id=conversation_id,

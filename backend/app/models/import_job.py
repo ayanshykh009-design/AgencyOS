@@ -1,4 +1,5 @@
 """ImportJob model — a CSV import run (import-only; Postgres is source of truth)."""
+
 from __future__ import annotations
 
 import uuid

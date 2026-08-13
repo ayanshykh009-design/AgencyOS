@@ -13,6 +13,7 @@ Public API:
 - ``read_histogram(name)`` — ``(count, sum)`` for the in-process observations.
 - ``reset()`` — zero all in-process counters/histograms (test helper).
 """
+
 from __future__ import annotations
 
 import logging
@@ -79,9 +80,7 @@ def _build_otel_counter(name: str, description: str, unit: str) -> Any | None:
     try:
         from opentelemetry import metrics as otel_metrics
 
-        meter = otel_metrics.get_meter_provider().get_meter(
-            "agencyos.automation.schedule", "0.1.0"
-        )
+        meter = otel_metrics.get_meter_provider().get_meter("agencyos.automation.schedule", "0.1.0")
         return meter.create_counter(name, description=description, unit=unit)
     except Exception:  # pragma: no cover - depends on exporter availability
         logger.warning("OpenTelemetry metrics unavailable; using in-process counters")
@@ -134,9 +133,7 @@ class Histogram:
         self._fallback = _FallbackHistogram(name)
         self._otel = _build_otel_histogram(name, description, unit)
 
-    def observe(
-        self, value: float, attributes: Mapping[str, Any] | None = None
-    ) -> None:
+    def observe(self, value: float, attributes: Mapping[str, Any] | None = None) -> None:
         self._fallback.observe(value)
         if self._otel is not None:
             self._otel.record(value, attributes=attributes or {})
@@ -149,18 +146,14 @@ class Histogram:
         self._fallback.reset()
 
 
-def _build_otel_histogram(
-    name: str, description: str, unit: str
-) -> Any | None:
+def _build_otel_histogram(name: str, description: str, unit: str) -> Any | None:
     """Build a real OTel histogram when metrics are enabled, else None."""
     if not settings.OTEL_ENABLED:
         return None
     try:
         from opentelemetry import metrics as otel_metrics
 
-        meter = otel_metrics.get_meter_provider().get_meter(
-            "agencyos.automation.schedule", "0.1.0"
-        )
+        meter = otel_metrics.get_meter_provider().get_meter("agencyos.automation.schedule", "0.1.0")
         return meter.create_histogram(name, description=description, unit=unit)
     except Exception:  # pragma: no cover - depends on exporter availability
         logger.warning("OpenTelemetry metrics unavailable; using in-process counters")
@@ -189,9 +182,7 @@ def read_counter(name: str) -> int:
         return counter.value if counter is not None else 0
 
 
-def get_histogram(
-    name: str, description: str = "", unit: str = "s"
-) -> Histogram:
+def get_histogram(name: str, description: str = "", unit: str = "s") -> Histogram:
     """Return a shared histogram for ``name`` (created on first use)."""
     with _registry_lock:
         histogram = _histograms.get(name)

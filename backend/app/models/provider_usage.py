@@ -1,4 +1,5 @@
 """ProviderUsage model — per-day token/request accounting per provider."""
+
 from __future__ import annotations
 
 import uuid
@@ -29,7 +30,10 @@ class ProviderUsage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "provider_usage"
     __table_args__ = (
         UniqueConstraint(
-            "organization_id", "provider", "feature", "usage_date",
+            "organization_id",
+            "provider",
+            "feature",
+            "usage_date",
             name="uq_provider_usage_daily",
         ),
         CheckConstraint("length(btrim(provider)) > 0", name="chk_provider_usage_provider"),

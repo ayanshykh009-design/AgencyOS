@@ -4,6 +4,7 @@ Registers handlers that convert every failure into the standardized error
 envelope (see app/core/errors.py). Unknown exceptions are logged (with the
 request id) but never leak internals to clients.
 """
+
 import logging
 from typing import cast
 
@@ -51,9 +52,7 @@ async def _http_exception_handler(request: Request, exc: Exception) -> JSONRespo
 
 
 async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    logger.exception(
-        "unhandled exception on %s %s", request.method, request.url.path, exc_info=exc
-    )
+    logger.exception("unhandled exception on %s %s", request.method, request.url.path, exc_info=exc)
     return _error_response(500, "internal_error", "An unexpected error occurred")
 
 

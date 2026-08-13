@@ -1,4 +1,5 @@
 """ProviderUsage repository: daily rollups + aggregation."""
+
 from __future__ import annotations
 
 import uuid
@@ -42,9 +43,7 @@ class ProviderUsageRepository:
         limit: int = 100,
         offset: int = 0,
     ) -> list[ProviderUsage]:
-        stmt = select(ProviderUsage).where(
-            ProviderUsage.organization_id == organization_id
-        )
+        stmt = select(ProviderUsage).where(ProviderUsage.organization_id == organization_id)
         if provider is not None:
             stmt = stmt.where(ProviderUsage.provider == provider)
         stmt = stmt.order_by(ProviderUsage.usage_date.desc()).limit(limit).offset(offset)

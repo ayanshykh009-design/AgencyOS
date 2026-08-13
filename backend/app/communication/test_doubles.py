@@ -4,6 +4,7 @@ Deterministic fake providers for the unit/integration suite: success, retryable
 failure, permanent failure, hang (active-timeout), and crash. Constructed with
 ``session=None`` so tests can use them without a database session.
 """
+
 from __future__ import annotations
 
 import asyncio

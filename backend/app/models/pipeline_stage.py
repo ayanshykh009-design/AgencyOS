@@ -6,6 +6,7 @@ custom stages are an overlay on top of the fixed status enum. Each lifecycle
 has exactly one ``is_default`` stage used when a stage is deleted or when a
 lead has no explicit stage.
 """
+
 from __future__ import annotations
 
 import uuid

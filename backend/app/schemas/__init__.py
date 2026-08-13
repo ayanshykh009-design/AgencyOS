@@ -3,6 +3,7 @@
 Request/response models that define the public JSON shape of the API.
 Keep them independent from ORM models (map explicitly, avoid dumping models).
 """
+
 from app.schemas.activity import ActivityLogCreate, ActivityLogRead
 from app.schemas.agent_run import (
     AgentRunCreate,
@@ -76,6 +77,23 @@ from app.schemas.growth import (
     GrowthMetricListResponse,
     GrowthMetricRead,
     GrowthMetricTypesResponse,
+)
+from app.schemas.growth_analysis import (
+    GrowthAnalysisListResponse,
+    GrowthAnalysisRead,
+    GrowthHealthWeightCreate,
+    GrowthHealthWeightRead,
+    GrowthHealthWeightsResponse,
+)
+from app.schemas.growth_recommendation import (
+    GrowthRecommendationListResponse,
+    GrowthRecommendationRead,
+    GrowthRecommendationUpdate,
+)
+from app.schemas.growth_scenario import (
+    GrowthScenarioCreate,
+    GrowthScenarioListResponse,
+    GrowthScenarioRead,
 )
 from app.schemas.imports import (
     ImportJobCreate,
@@ -229,6 +247,17 @@ __all__ = [
     "GrowthMetricListResponse",
     "GrowthMetricRead",
     "GrowthMetricTypesResponse",
+    "GrowthAnalysisListResponse",
+    "GrowthAnalysisRead",
+    "GrowthHealthWeightsResponse",
+    "GrowthHealthWeightCreate",
+    "GrowthHealthWeightRead",
+    "GrowthRecommendationListResponse",
+    "GrowthRecommendationRead",
+    "GrowthRecommendationUpdate",
+    "GrowthScenarioCreate",
+    "GrowthScenarioListResponse",
+    "GrowthScenarioRead",
     "ImportJobCreate",
     "ImportJobRead",
     "ImportJobUpdate",

@@ -1,4 +1,5 @@
 """Dashboard API schemas (aggregate snapshot for the UI)."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,9 +23,7 @@ class DashboardLeadCounts(BaseModel):
     total: int = 0
 
     @classmethod
-    def from_status_counts(
-        cls, counts: dict[LeadStatus, int], total: int
-    ) -> DashboardLeadCounts:
+    def from_status_counts(cls, counts: dict[LeadStatus, int], total: int) -> DashboardLeadCounts:
         values: dict[str, int] = {status.value: 0 for status in LeadStatus}
         for status, count in counts.items():
             values[status.value] = count

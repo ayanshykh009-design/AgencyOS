@@ -1,4 +1,5 @@
 """KnowledgeItem repository (durable long-term knowledge)."""
+
 from __future__ import annotations
 
 import uuid
@@ -29,9 +30,7 @@ class KnowledgeItemRepository(TenantRepository[KnowledgeItem]):
         offset: int = 0,
     ) -> list[KnowledgeItem]:
         """List knowledge, optionally filtered by category, newest first."""
-        stmt = select(KnowledgeItem).where(
-            KnowledgeItem.organization_id == organization_id
-        )
+        stmt = select(KnowledgeItem).where(KnowledgeItem.organization_id == organization_id)
         if category is not None:
             stmt = stmt.where(KnowledgeItem.category == category)
         stmt = stmt.order_by(KnowledgeItem.created_at.desc()).limit(limit).offset(offset)
@@ -51,8 +50,7 @@ class KnowledgeItemRepository(TenantRepository[KnowledgeItem]):
             select(KnowledgeItem)
             .where(
                 KnowledgeItem.organization_id == organization_id,
-                (KnowledgeItem.title.ilike(like))
-                | (KnowledgeItem.content.ilike(like)),
+                (KnowledgeItem.title.ilike(like)) | (KnowledgeItem.content.ilike(like)),
             )
             .order_by(KnowledgeItem.created_at.desc())
             .limit(min(limit, 200))

@@ -109,9 +109,7 @@ class HttpGetTool(Tool):
             if response.status_code in (301, 302, 303, 307, 308) and response.headers.get(
                 "location"
             ):
-                current = await self._validated_url(
-                    urljoin(current, response.headers["location"])
-                )
+                current = await self._validated_url(urljoin(current, response.headers["location"]))
                 continue
             return response.text[:_MAX_BYTES], response.status_code
         raise ValueError(f"too many redirects ({_MAX_REDIRECTS})")

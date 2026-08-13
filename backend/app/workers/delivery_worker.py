@@ -20,6 +20,7 @@ and events together.
 Runs as a standalone loop (``python -m app.workers.delivery_worker``) or as a
 single sweep from a scheduler.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -109,8 +110,12 @@ class DeliveryWorker:
 
     @staticmethod
     def _event(
-        org_id: uuid.UUID, delivery_id: uuid.UUID, event_type: DeliveryEventType,
-        *, attempt: int, metadata: dict | None = None,
+        org_id: uuid.UUID,
+        delivery_id: uuid.UUID,
+        event_type: DeliveryEventType,
+        *,
+        attempt: int,
+        metadata: dict | None = None,
     ) -> DeliveryEvent:
         return DeliveryEvent(
             organization_id=org_id,
@@ -122,17 +127,13 @@ class DeliveryWorker:
 
     # -- single-org drain ------------------------------------------------
 
-    async def _drain_org(
-        self, org_id: uuid.UUID, session: AsyncSession
-    ) -> int:
+    async def _drain_org(self, org_id: uuid.UUID, session: AsyncSession) -> int:
         """Drain due QUEUED deliveries for one organization."""
         deliveries_repo = DeliveryRepository(session)
         events_repo = DeliveryEventRepository(session)
         sent = 0
 
-        due = await deliveries_repo.get_queued_for_org(
-            org_id, settings.DELIVERY_BATCH_SIZE
-        )
+        due = await deliveries_repo.get_queued_for_org(org_id, settings.DELIVERY_BATCH_SIZE)
         if not due:
             return 0
 
@@ -272,9 +273,7 @@ class DeliveryWorker:
                 "delivery_delivered_total",
                 description="Deliveries marked delivered",
             ).add(1, {"channel": channel})
-            await self._mark_delivered(
-                org_id, claimed, result, deliveries_repo, events_repo
-            )
+            await self._mark_delivered(org_id, claimed, result, deliveries_repo, events_repo)
         else:
             # Expected provider failure returned as ok=False (no raise).
             error = (result.error if result else None) or "provider returned failure"
@@ -423,9 +422,7 @@ class DeliveryWorker:
             metadata={
                 **(delivery.payload or {}),
                 "approval_request_id": (
-                    str(delivery.approval_request_id)
-                    if delivery.approval_request_id
-                    else None
+                    str(delivery.approval_request_id) if delivery.approval_request_id else None
                 ),
             },
         )
@@ -492,9 +489,7 @@ class DeliveryWorker:
                     metadata={"recovery_seconds": settings.DELIVERY_RECOVERY_SECONDS},
                 )
             )
-            requeued = await deliveries_repo.requeue_stale(
-                dlv.organization_id, dlv.id
-            )
+            requeued = await deliveries_repo.requeue_stale(dlv.organization_id, dlv.id)
             if requeued:
                 recovered += 1
         if recovered:
@@ -521,18 +516,16 @@ class DeliveryWorker:
         async with self._session_factory() as session:
             await self._set_statement_timeout(session)
             counters["stale_requeued"] = await self._recover_stale(session)
-            counters["retries_promoted"] = await DeliveryRepository(
-                session
-            ).requeue_due_retrying(limit=settings.DELIVERY_BATCH_SIZE)
+            counters["retries_promoted"] = await DeliveryRepository(session).requeue_due_retrying(
+                limit=settings.DELIVERY_BATCH_SIZE
+            )
             await session.commit()
 
         # Fair-drain across orgs
         async with self._session_factory() as session:
             await self._set_statement_timeout(session)
             deliveries_repo = DeliveryRepository(session)
-            orgs = await deliveries_repo.get_queued_orgs(
-                settings.DELIVERY_ORGS_PER_SWEEP
-            )
+            orgs = await deliveries_repo.get_queued_orgs(settings.DELIVERY_ORGS_PER_SWEEP)
             for org_id in orgs:
                 try:
                     counters["delivered"] += await self._drain_org(org_id, session)

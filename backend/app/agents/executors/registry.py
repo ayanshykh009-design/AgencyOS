@@ -6,6 +6,7 @@ via :func:`register_executor`; the runtime resolves executors through
 :func:`get_executor`. Duplicate registrations are a programming error and fail
 loudly at import time.
 """
+
 from __future__ import annotations
 
 from app.agents.executors.base import AgentExecutor

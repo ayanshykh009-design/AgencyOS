@@ -2,6 +2,7 @@
 
 The runtime upserts one row per (organization, agent_name).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -79,18 +80,14 @@ class AgentStateRepository(TenantRepository[AgentState]):
         limit: int = 100,
     ) -> list[AgentState]:
         """List agent states, optionally filtered by status."""
-        stmt = select(AgentState).where(
-            AgentState.organization_id == organization_id
-        )
+        stmt = select(AgentState).where(AgentState.organization_id == organization_id)
         if status is not None:
             stmt = stmt.where(AgentState.status == status)
         stmt = stmt.order_by(AgentState.agent_name).limit(limit)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_by_name(
-        self, organization_id: uuid.UUID, agent_name: str
-    ) -> AgentState | None:
+    async def get_by_name(self, organization_id: uuid.UUID, agent_name: str) -> AgentState | None:
         """Fetch the single state row for (org, agent)."""
         stmt = select(AgentState).where(
             AgentState.organization_id == organization_id,

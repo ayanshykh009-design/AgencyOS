@@ -4,8 +4,12 @@ import type {
   DeliveryChannel,
   DeliveryStatus,
   ExecutionStatus,
+  GrowthAnalysisStatus,
+  GrowthAnalysisType,
   Lead,
   NotificationType,
+  RecommendationPriority,
+  RecommendationStatus,
   TaskPriority,
   TaskStatus,
   WorkflowStatus,
@@ -220,6 +224,65 @@ export function notificationTypeTone(type: NotificationType): BadgeTone {
       return "blue";
     case "insight":
       return "purple";
+    default:
+      return "gray";
+  }
+}
+
+export const GROWTH_ANALYSIS_TYPE_LABELS: Record<GrowthAnalysisType, string> = {
+  health: "Health",
+  kpis: "KPIs",
+  pipeline: "Pipeline",
+  funnel: "Funnel",
+  conversion: "Conversion",
+  revenue: "Revenue",
+  activity: "Activity",
+  bottlenecks: "Bottlenecks",
+  opportunities: "Opportunities",
+  trends: "Trends",
+};
+
+export const GROWTH_ANALYSIS_STATUS_LABELS: Record<GrowthAnalysisStatus, string> = {
+  completed: "Completed",
+  failed: "Failed",
+};
+
+export function growthAnalysisStatusTone(status: GrowthAnalysisStatus): BadgeTone {
+  return status === "failed" ? "red" : "green";
+}
+
+export const RECOMMENDATION_STATUS_LABELS: Record<RecommendationStatus, string> = {
+  active: "Active",
+  acknowledged: "Acknowledged",
+  applied: "Applied",
+  dismissed: "Dismissed",
+};
+
+export function recommendationStatusTone(status: RecommendationStatus): BadgeTone {
+  switch (status) {
+    case "active":
+      return "amber";
+    case "applied":
+      return "green";
+    case "dismissed":
+      return "gray";
+    default:
+      return "blue";
+  }
+}
+
+export const RECOMMENDATION_PRIORITY_LABELS: Record<RecommendationPriority, string> = {
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
+
+export function recommendationPriorityTone(priority: RecommendationPriority): BadgeTone {
+  switch (priority) {
+    case "high":
+      return "red";
+    case "medium":
+      return "amber";
     default:
       return "gray";
   }

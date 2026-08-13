@@ -5,6 +5,7 @@ point for a workflow execution (see ``ExecutionEventType``). Rows are never
 updated or deleted by feature code; retention is handled by the dedicated
 retention worker (``app/workers/retention_worker.py``).
 """
+
 from __future__ import annotations
 
 import uuid
@@ -65,9 +66,7 @@ class ExecutionEvent(UUIDPrimaryKeyMixin, Base):
     metadata_: Mapped[dict] = mapped_column(
         "metadata", JSONB, default=dict, server_default="{}", nullable=False
     )
-    occurred_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False
-    )
+    occurred_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
     execution: Mapped[WorkflowExecution] = relationship(back_populates="events")

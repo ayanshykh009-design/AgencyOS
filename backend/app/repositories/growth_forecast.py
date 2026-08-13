@@ -1,4 +1,5 @@
 """GrowthForecast repository (deterministic growth forecasts)."""
+
 from __future__ import annotations
 
 import uuid
@@ -29,16 +30,10 @@ class GrowthForecastRepository(TenantRepository[GrowthForecast]):
         offset: int = 0,
     ) -> list[GrowthForecast]:
         """List forecasts, optionally by type, newest horizon first."""
-        stmt = select(GrowthForecast).where(
-            GrowthForecast.organization_id == organization_id
-        )
+        stmt = select(GrowthForecast).where(GrowthForecast.organization_id == organization_id)
         if forecast_type is not None:
             stmt = stmt.where(GrowthForecast.forecast_type == forecast_type)
-        stmt = (
-            stmt.order_by(GrowthForecast.horizon_start.desc())
-            .limit(limit)
-            .offset(offset)
-        )
+        stmt = stmt.order_by(GrowthForecast.horizon_start.desc()).limit(limit).offset(offset)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
@@ -58,9 +53,7 @@ class GrowthForecastRepository(TenantRepository[GrowthForecast]):
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def count_by_type(
-        self, organization_id: uuid.UUID
-    ) -> dict[str, int]:
+    async def count_by_type(self, organization_id: uuid.UUID) -> dict[str, int]:
         stmt = (
             select(GrowthForecast.forecast_type, func.count(GrowthForecast.id))
             .where(GrowthForecast.organization_id == organization_id)

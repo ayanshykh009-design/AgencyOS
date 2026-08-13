@@ -1,4 +1,5 @@
 """Lead endpoints: CRUD, search, funnel, duplicate check."""
+
 from __future__ import annotations
 
 import uuid
@@ -79,9 +80,7 @@ async def lead_funnel(db: DbSession, current_user: CurrentUser) -> DashboardLead
     """Return lead counts grouped by lifecycle status."""
     service = LeadService(db)
     counts = await service.funnel(current_user.organization_id)
-    return DashboardLeadCounts.from_status_counts(
-        counts, sum(counts.values())
-    )
+    return DashboardLeadCounts.from_status_counts(counts, sum(counts.values()))
 
 
 @router.get(
@@ -112,9 +111,7 @@ async def check_duplicates(
     response_model=LeadRead,
     summary="Get a lead",
 )
-async def get_lead(
-    lead_id: uuid.UUID, db: DbSession, current_user: CurrentUser
-) -> LeadRead:
+async def get_lead(lead_id: uuid.UUID, db: DbSession, current_user: CurrentUser) -> LeadRead:
     """Return a single lead."""
     service = LeadService(db)
     lead = await service.get(current_user.organization_id, lead_id)
@@ -147,9 +144,7 @@ async def update_lead(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Soft-delete a lead",
 )
-async def delete_lead(
-    lead_id: uuid.UUID, db: DbSession, current_user: CurrentUser
-):
+async def delete_lead(lead_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
     """Soft-delete a lead (kept for audit, excluded from queries)."""
     service = LeadService(db)
     await service.soft_delete(current_user.organization_id, lead_id)

@@ -1,4 +1,5 @@
 """Task API schemas: create/update/read models for the tasks feature."""
+
 from __future__ import annotations
 
 from datetime import datetime

@@ -1,4 +1,5 @@
 """Communications endpoints: founder communications summary view."""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
@@ -22,9 +23,7 @@ _approval_read = Depends(require_permission(Permission.APPROVAL_READ))
     summary="Founder communications digest (unread, pending, insights, latest briefing)",
     dependencies=[_read, _growth_read, _approval_read],
 )
-async def communications_summary(
-    db: DbSession, current_user: CurrentUser
-) -> CommunicationsSummary:
+async def communications_summary(db: DbSession, current_user: CurrentUser) -> CommunicationsSummary:
     service = CommunicationService(db)
     summary = await service.summary(current_user.organization_id, current_user.id)
     latest = (

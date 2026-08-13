@@ -1,4 +1,5 @@
 """Founder endpoints: generated briefings + business insights."""
+
 from __future__ import annotations
 
 import uuid
@@ -75,9 +76,7 @@ async def latest_briefing(
     briefing_type: BriefingType = Query(default=BriefingType.DAILY),
 ) -> BriefingRead:
     service = FounderService(db)
-    briefing = await service.latest_briefing(
-        current_user.organization_id, briefing_type
-    )
+    briefing = await service.latest_briefing(current_user.organization_id, briefing_type)
     return BriefingRead.model_validate(briefing)
 
 
@@ -154,9 +153,7 @@ async def list_insights(
     summary="Active insight count + counts by type",
     dependencies=[_read],
 )
-async def insight_counts(
-    db: DbSession, current_user: CurrentUser
-) -> BusinessInsightCounts:
+async def insight_counts(db: DbSession, current_user: CurrentUser) -> BusinessInsightCounts:
     service = FounderService(db)
     open_count, by_type = await service.insight_counts(current_user.organization_id)
     return BusinessInsightCounts(open=open_count, by_type=by_type)
@@ -192,9 +189,7 @@ async def update_insight(
 ) -> BusinessInsightRead:
     service = FounderService(db)
     data = body.model_dump(exclude_unset=True)
-    insight = await service.update_insight(
-        current_user.organization_id, insight_id, **data
-    )
+    insight = await service.update_insight(current_user.organization_id, insight_id, **data)
     return BusinessInsightRead.model_validate(insight)
 
 
@@ -204,9 +199,7 @@ async def update_insight(
     summary="Delete a business insight",
     dependencies=[_manage],
 )
-async def delete_insight(
-    insight_id: uuid.UUID, db: DbSession, current_user: CurrentUser
-) -> None:
+async def delete_insight(insight_id: uuid.UUID, db: DbSession, current_user: CurrentUser) -> None:
     service = FounderService(db)
     await service.delete_insight(current_user.organization_id, insight_id)
 
@@ -226,7 +219,5 @@ async def create_insight(
     service = FounderService(db)
     data = body.model_dump(exclude={"organization_id"})
     metadata = _extract_metadata(data)
-    insight = await service.create_insight(
-        current_user.organization_id, metadata_=metadata, **data
-    )
+    insight = await service.create_insight(current_user.organization_id, metadata_=metadata, **data)
     return BusinessInsightRead.model_validate(insight)

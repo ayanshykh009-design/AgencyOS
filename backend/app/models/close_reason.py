@@ -1,4 +1,5 @@
 """CloseReason model — a labelled reason for closing a lead as won or lost."""
+
 from __future__ import annotations
 
 import uuid

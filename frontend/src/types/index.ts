@@ -847,3 +847,178 @@ export interface Notification {
   created_at: string;
   updated_at: string;
 }
+
+// ---------------------------------------------------------------------------
+// Phase M7: Growth intelligence (backend app/schemas/growth_analysis.py,
+// growth_recommendation.py, growth_scenario.py, growth.py).
+// ---------------------------------------------------------------------------
+
+/** Which deterministic engine produced a growth analysis snapshot. */
+export type GrowthAnalysisType =
+  | "health"
+  | "kpis"
+  | "pipeline"
+  | "funnel"
+  | "conversion"
+  | "revenue"
+  | "activity"
+  | "bottlenecks"
+  | "opportunities"
+  | "trends";
+
+/** Lifecycle of a growth_analyses snapshot (backend GrowthAnalysisStatus). */
+export type GrowthAnalysisStatus = "completed" | "failed";
+
+/** Urgency / qualitative confidence of a growth recommendation. */
+export type RecommendationPriority = "high" | "medium" | "low";
+
+/** Triage lifecycle of a growth recommendation (backend RecommendationStatus). */
+export type RecommendationStatus = "active" | "acknowledged" | "applied" | "dismissed";
+
+/** A single growth analysis snapshot (backend GrowthAnalysisRead). */
+export interface GrowthAnalysis {
+  id: string;
+  organization_id: string;
+  analysis_type: GrowthAnalysisType;
+  period_start: string;
+  period_end: string;
+  health_score: number | null;
+  summary: string;
+  details: Record<string, unknown>;
+  evidence: Array<Record<string, unknown>>;
+  weights: Record<string, unknown>;
+  metrics_used: string[];
+  status: GrowthAnalysisStatus;
+  error: string | null;
+  generated_by: string;
+  generated_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Payload to run one analysis engine (backend GrowthAnalysisRunRequest). */
+export interface GrowthAnalysisRunInput {
+  analysis_type: GrowthAnalysisType;
+  period_start: string;
+  period_end: string;
+  generated_by?: string;
+}
+
+/** Payload to run every engine (backend GrowthAnalysisRunAllRequest). */
+export interface GrowthAnalysisRunAllInput {
+  period_start: string;
+  period_end: string;
+  generated_by?: string;
+}
+
+/** An evidence-backed growth recommendation (backend GrowthRecommendationRead). */
+export interface GrowthRecommendation {
+  id: string;
+  organization_id: string;
+  recommendation_type: string;
+  priority: RecommendationPriority;
+  confidence: RecommendationPriority;
+  status: RecommendationStatus;
+  title: string;
+  summary: string;
+  rationale: string | null;
+  action_type: string | null;
+  action_payload: Record<string, unknown>;
+  source_analysis_id: string | null;
+  evidence: Array<Record<string, unknown>>;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Triage a recommendation (backend GrowthRecommendationUpdate). */
+export interface GrowthRecommendationUpdateInput {
+  status?: RecommendationStatus;
+  priority?: RecommendationPriority;
+}
+
+/** Per-status recommendation counts (backend /recommendations/counts). */
+export type RecommendationCounts = Partial<Record<RecommendationStatus, number>>;
+
+/** A saved what-if projection (backend GrowthScenarioRead). */
+export interface GrowthScenario {
+  id: string;
+  organization_id: string;
+  forecast_id: string | null;
+  name: string;
+  description: string | null;
+  assumption_deltas: Record<string, unknown>;
+  result: Record<string, unknown>;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Payload to create a scenario (backend GrowthScenarioCreate). */
+export interface GrowthScenarioCreateInput {
+  forecast_id?: string | null;
+  name: string;
+  description?: string | null;
+  assumption_deltas?: Record<string, unknown>;
+  period_start?: string | null;
+  period_end?: string | null;
+}
+
+/** Active (or default) health weight set (backend GrowthHealthWeightsResponse). */
+export interface GrowthHealthWeights {
+  version: number;
+  weights: Record<string, number>;
+  is_default: boolean;
+}
+
+/** A saved health-weight version row (backend GrowthHealthWeightRead). */
+export interface GrowthHealthWeight {
+  id: string;
+  organization_id: string;
+  version: number;
+  weights: Record<string, number>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Payload to save a new active health-weight version (backend GrowthHealthWeightCreate). */
+export interface GrowthHealthWeightCreateInput {
+  weights: Record<string, number>;
+}
+
+/** Deterministic forecast engine (backend GrowthForecastRunRequest.method). */
+export type GrowthForecastMethod =
+  "linear_trend" | "moving_average" | "pipeline_weighted" | "seasonal_naive";
+
+/** Payload to generate a forecast (backend GrowthForecastRunRequest). */
+export interface GrowthForecastRunInput {
+  method?: GrowthForecastMethod;
+  period_start: string;
+  period_end: string;
+  horizon_start: string;
+  horizon_end: string;
+  forecast_type?: string;
+}
+
+/** A persisted growth forecast (backend GrowthForecastRead). */
+export interface GrowthForecast {
+  id: string;
+  organization_id: string;
+  forecast_type: string;
+  horizon_start: string;
+  horizon_end: string;
+  total_value: number;
+  confidence_low: number | null;
+  confidence_high: number | null;
+  method: string | null;
+  base_period_start: string | null;
+  base_period_end: string | null;
+  point_estimate: number | null;
+  lower_bound: number | null;
+  upper_bound: number | null;
+  series: Array<Record<string, unknown>>;
+  errors: Record<string, unknown>;
+  generated_at: string;
+  created_at: string;
+  updated_at: string;
+}

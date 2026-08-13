@@ -1,4 +1,5 @@
 """Briefing schemas (generated founder briefings)."""
+
 from __future__ import annotations
 
 import uuid

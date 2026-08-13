@@ -1,4 +1,5 @@
 """WorkflowTrigger service: CRUD operations (delegated from WorkflowService)."""
+
 from __future__ import annotations
 
 import uuid
@@ -106,10 +107,7 @@ class WorkflowTriggerService:
                 message="event_type is required for event triggers",
                 status_code=400,
             )
-        if (
-            data.trigger_type == WorkflowTriggerType.SCHEDULE
-            and not data.schedule_cron
-        ):
+        if data.trigger_type == WorkflowTriggerType.SCHEDULE and not data.schedule_cron:
             raise AppError(
                 code="trigger.schedule_cron_required",
                 message="schedule_cron is required for schedule triggers",
@@ -167,10 +165,7 @@ class WorkflowTriggerService:
                 message="event_type is required for event triggers",
                 status_code=400,
             )
-        if (
-            trigger.trigger_type == WorkflowTriggerType.SCHEDULE
-            and not trigger.schedule_cron
-        ):
+        if trigger.trigger_type == WorkflowTriggerType.SCHEDULE and not trigger.schedule_cron:
             raise AppError(
                 code="trigger.schedule_cron_required",
                 message="schedule_cron is required for schedule triggers",
@@ -184,14 +179,10 @@ class WorkflowTriggerService:
         await self._repo.get_or_404(organization_id, trigger_id)
         return await self._repo.delete(organization_id, trigger_id)
 
-    async def enable(
-        self, organization_id: uuid.UUID, trigger_id: uuid.UUID
-    ) -> WorkflowTrigger:
+    async def enable(self, organization_id: uuid.UUID, trigger_id: uuid.UUID) -> WorkflowTrigger:
         return await self._set_enabled(organization_id, trigger_id, enabled=True)
 
-    async def disable(
-        self, organization_id: uuid.UUID, trigger_id: uuid.UUID
-    ) -> WorkflowTrigger:
+    async def disable(self, organization_id: uuid.UUID, trigger_id: uuid.UUID) -> WorkflowTrigger:
         return await self._set_enabled(organization_id, trigger_id, enabled=False)
 
     async def _set_enabled(
@@ -213,14 +204,10 @@ class WorkflowTriggerService:
     ) -> list[WorkflowTrigger]:
         return await self._repo.list_by_workflow(organization_id, workflow_id)
 
-    async def list_all_by_org(
-        self, organization_id: uuid.UUID
-    ) -> list[WorkflowTrigger]:
+    async def list_all_by_org(self, organization_id: uuid.UUID) -> list[WorkflowTrigger]:
         return await self._repo.list_all_by_org(organization_id)
 
-    async def count_by_workflow(
-        self, organization_id: uuid.UUID, workflow_id: uuid.UUID
-    ) -> int:
+    async def count_by_workflow(self, organization_id: uuid.UUID, workflow_id: uuid.UUID) -> int:
         return await self._repo.count_by_workflow(organization_id, workflow_id)
 
     async def count_all_by_org(self, organization_id: uuid.UUID) -> int:

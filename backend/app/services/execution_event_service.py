@@ -7,6 +7,7 @@ disk, whatever) only that savepoint rolls back and the surrounding transition
 still commits. This keeps the execution state machine authoritative while the
 timeline degrades gracefully under DB pressure.
 """
+
 from __future__ import annotations
 
 import logging
@@ -114,7 +115,5 @@ class ExecutionEventService:
             organization_id, execution_id, limit=limit, offset=offset
         )
 
-    async def count_by_execution(
-        self, organization_id: uuid.UUID, execution_id: uuid.UUID
-    ) -> int:
+    async def count_by_execution(self, organization_id: uuid.UUID, execution_id: uuid.UUID) -> int:
         return await self._repo.count_by_execution(organization_id, execution_id)

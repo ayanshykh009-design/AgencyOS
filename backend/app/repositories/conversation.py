@@ -1,4 +1,5 @@
 """Conversation repositories: threads and thread messages."""
+
 from __future__ import annotations
 
 import uuid

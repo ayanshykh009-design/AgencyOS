@@ -4,6 +4,7 @@ Rows are pruned after ``AGENT_RUN_RETENTION_DAYS`` by the retention sweep on
 ``created_at``. ``output`` / ``error`` / ``duration_ms`` / ``cost`` are filled
 by the runtime as a run progresses.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -77,9 +78,7 @@ class AgentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     workflow_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("workflows.id", ondelete="SET NULL")
     )
-    input: Mapped[dict] = mapped_column(
-        JSONB, default=dict, server_default="{}", nullable=False
-    )
+    input: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
     output: Mapped[dict | None] = mapped_column(JSONB)
     error: Mapped[str | None] = mapped_column(Text)
     duration_ms: Mapped[int | None] = mapped_column(Integer)

@@ -7,6 +7,7 @@ Uses slowapi. Storage:
 Apply per-endpoint limits with `@limiter.limit(settings.RATE_LIMIT_STRICT)`
 (e.g. on auth endpoints). Register via register_rate_limit(app).
 """
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from slowapi import Limiter

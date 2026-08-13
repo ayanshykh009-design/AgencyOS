@@ -1,4 +1,5 @@
 """n8n integration client — HTTP adapter for triggering n8n workflows."""
+
 from __future__ import annotations
 
 import logging

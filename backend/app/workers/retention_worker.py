@@ -16,6 +16,7 @@ or large lock footprints. The sweep is config-gated (``EXECUTION_RETENTION_ENABL
 
 Runs as a standalone loop (``python -m app.workers.retention_worker``).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -48,12 +49,8 @@ class RetentionWorker:
         )
 
     @classmethod
-    async def _purge_execution_events(
-        cls, session: AsyncSession, batch: int
-    ) -> int:
-        cutoff = datetime.now(UTC) - timedelta(
-            days=settings.EXECUTION_EVENT_RETENTION_DAYS
-        )
+    async def _purge_execution_events(cls, session: AsyncSession, batch: int) -> int:
+        cutoff = datetime.now(UTC) - timedelta(days=settings.EXECUTION_EVENT_RETENTION_DAYS)
         events_repo = ExecutionEventRepository(session)
         deleted = 0
         while True:
@@ -64,14 +61,10 @@ class RetentionWorker:
         return deleted
 
     @classmethod
-    async def _purge_delivery_events(
-        cls, session: AsyncSession, batch: int
-    ) -> int:
+    async def _purge_delivery_events(cls, session: AsyncSession, batch: int) -> int:
         if not settings.DELIVERY_RETENTION_ENABLED:
             return 0
-        cutoff = datetime.now(UTC) - timedelta(
-            days=settings.DELIVERY_EVENT_RETENTION_DAYS
-        )
+        cutoff = datetime.now(UTC) - timedelta(days=settings.DELIVERY_EVENT_RETENTION_DAYS)
         events_repo = DeliveryEventRepository(session)
         deleted = 0
         while True:
@@ -111,9 +104,7 @@ class RetentionWorker:
                 delivery_events_deleted = await cls._purge_delivery_events(
                     session, settings.DELIVERY_RETENTION_BATCH
                 )
-                workers_pruned = await health_service.prune_dead(
-                    worker_cutoff, batch
-                )
+                workers_pruned = await health_service.prune_dead(worker_cutoff, batch)
                 await session.commit()
 
         total_deleted = executions_deleted + delivery_events_deleted + workers_pruned

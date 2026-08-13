@@ -5,6 +5,7 @@ Invites carry a random high-entropy token whose SHA-256 digest is stored
 ``pending`` and unexpired; a single accept/reject boundary is enforced in
 the service layer.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -26,12 +27,8 @@ class TeamInvite(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "team_invites"
     __table_args__ = (
-        CheckConstraint(
-            "length(btrim(email)) > 0", name="chk_team_invites_email_not_blank"
-        ),
-        CheckConstraint(
-            "expires_at > created_at", name="chk_team_invites_expires_at"
-        ),
+        CheckConstraint("length(btrim(email)) > 0", name="chk_team_invites_email_not_blank"),
+        CheckConstraint("expires_at > created_at", name="chk_team_invites_expires_at"),
     )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(

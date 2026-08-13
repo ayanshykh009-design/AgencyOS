@@ -5,6 +5,7 @@ transaction boundary makes the send idempotent: the notification insert and
 the delivery ``DELIVERED`` transition commit together, so a worker crash rolls
 both back and the recovery re-send creates exactly one inbox row.
 """
+
 from __future__ import annotations
 
 import logging
