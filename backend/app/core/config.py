@@ -257,6 +257,14 @@ class Settings(BaseSettings):
     # Feature flag: prune old delivery_events rows.
     DELIVERY_RETENTION_ENABLED: bool = True
 
+    # --- M8 Founder AI Assistant ---
+    # Feature flag: when False the founder assistant refuses to run (fail closed).
+    FOUNDER_ASSISTANT_ENABLED: bool = True
+    # Max brain loop steps per founder turn (bounded, mirrors AGENT runtime).
+    FOUNDER_MAX_STEPS: int = 8
+    # How long a founder action proposal stays open before it auto-expires.
+    FOUNDER_APPROVAL_TTL_SECONDS: int = 86400
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS_ORIGINS into a list of allowed origins."""
@@ -339,6 +347,12 @@ class Settings(BaseSettings):
         if self.AGENT_RUN_TIMEOUT_SECONDS < 1:
             raise RuntimeError("AGENT_RUN_TIMEOUT_SECONDS must be >= 1")
 
+    def _validate_m8_founder(self) -> None:
+        if self.FOUNDER_MAX_STEPS < 1:
+            raise RuntimeError("FOUNDER_MAX_STEPS must be >= 1")
+        if self.FOUNDER_APPROVAL_TTL_SECONDS < 60:
+            raise RuntimeError("FOUNDER_APPROVAL_TTL_SECONDS must be >= 60")
+
     def _validate_m6_delivery(self) -> None:
         if self.DELIVERY_BATCH_SIZE < 1:
             raise RuntimeError("DELIVERY_BATCH_SIZE must be >= 1")
@@ -385,6 +399,7 @@ class Settings(BaseSettings):
         self._validate_enc_key()
         self._validate_phase5d()
         self._validate_m6_delivery()
+        self._validate_m8_founder()
         self._validate_csp()
 
     def validate_for_production(self) -> None:
@@ -406,8 +421,8 @@ class Settings(BaseSettings):
         self._validate_enc_key()
         self._validate_phase5d()
         self._validate_m6_delivery()
+        self._validate_m8_founder()
         self._validate_csp()
-
 
 @lru_cache
 def get_settings() -> Settings:

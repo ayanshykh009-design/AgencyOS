@@ -434,6 +434,41 @@ class DeliveryEventType(StrEnum):
     SUPERSEDED = "superseded"
 
 
+class FounderMessageSender(StrEnum):
+    """Who authored a founder message."""
+
+    USER = "user"
+    ASSISTANT = "assistant"
+
+
+class FounderProposalStatus(StrEnum):
+    """Lifecycle of a founder action proposal."""
+
+    PROPOSED = "proposed"
+    APPROVED = "approved"
+    DENIED = "denied"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+    EXECUTING = "executing"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class FounderActionType(StrEnum):
+    """Type of founder action (mirrors ``public.founder_action_type``).
+
+    The founder agent only *proposes* these actions; each proposal routes
+    through the shared approval layer before anything is executed.
+    """
+
+    CREATE_TASK = "create_task"
+    DRAFT_EMAIL = "draft_email"
+    SEND_EMAIL = "send_email"
+    RUN_WORKFLOW = "run_workflow"
+    EXPORT = "export"
+    GENERAL = "general"
+
+
 class GrowthAnalysisType(StrEnum):
     """What a ``growth_analyses`` snapshot measures (M7).
 

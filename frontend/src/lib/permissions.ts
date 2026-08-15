@@ -43,7 +43,9 @@ export type PermissionKey =
   | "agent_manage"
   | "delivery_read"
   | "delivery_write"
-  | "delivery_manage";
+  | "delivery_manage"
+  | "founder_read"
+  | "founder_manage";
 
 const _READ: UserRole[] = ["owner", "admin", "manager", "member", "sales_agent", "viewer"];
 const _WRITE: UserRole[] = ["owner", "admin", "manager", "member", "sales_agent"];
@@ -91,6 +93,8 @@ const PERMISSION_MATRIX: Record<PermissionKey, UserRole[]> = {
   delivery_read: _READ,
   delivery_write: _WRITE,
   delivery_manage: _ADMIN_ONLY,
+  founder_read: _READ,
+  founder_manage: _MANAGE,
 };
 
 /** Return whether a role may perform a named capability. */

@@ -1022,3 +1022,72 @@ export interface GrowthForecast {
   created_at: string;
   updated_at: string;
 }
+
+// --- Founder AI Assistant (M8) ----------------------------------------------
+
+export type FounderMessageSender = "user" | "assistant";
+export type FounderActionType =
+  "create_task" | "draft_email" | "send_email" | "run_workflow" | "export" | "general";
+export type FounderProposalStatus =
+  | "proposed"
+  | "approved"
+  | "denied"
+  | "expired"
+  | "cancelled"
+  | "executing"
+  | "succeeded"
+  | "failed";
+
+/** A single chat message (backend FounderMessageRead). */
+export interface FounderMessage {
+  id: string;
+  sender: FounderMessageSender;
+  body: string;
+  sent_at?: string | null;
+  metadata: Record<string, unknown>;
+}
+
+/** A founder conversation thread (backend FounderConversationRead). */
+export interface FounderConversation {
+  conversation_id: string;
+  title: string | null;
+  is_archived: boolean;
+  created_at?: string | null;
+  last_message_at?: string | null;
+}
+
+/** An approval-gated founder action proposal (backend FounderProposalRead). */
+export interface FounderProposal {
+  id: string;
+  conversation_id?: string | null;
+  action_type: FounderActionType;
+  title: string;
+  status: FounderProposalStatus;
+  justification?: string | null;
+  payload: Record<string, unknown>;
+  expires_at?: string | null;
+  decided_at?: string | null;
+  created_at?: string | null;
+}
+
+/** Chat turn request (backend FounderChatRequest). */
+export interface FounderChatRequest {
+  message: string;
+  conversation_id?: string | null;
+}
+
+/** Chat turn response (backend FounderChatResponse). */
+export interface FounderChatResponse {
+  conversation_id: string;
+  message: FounderMessage;
+  proposals: FounderProposal[];
+  intent: Record<string, unknown>;
+  ok: boolean;
+  error?: string | null;
+}
+
+/** Decision payload for a proposal (backend FounderProposalDecision). */
+export interface FounderProposalDecision {
+  approve: boolean;
+  decision_note?: string | null;
+}

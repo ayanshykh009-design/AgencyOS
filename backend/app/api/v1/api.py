@@ -22,6 +22,7 @@ from app.api.v1.endpoints import (
     deliveries,
     exports,
     founder,
+    founder_chat,
     growth,
     health,
     imports,
@@ -101,6 +102,7 @@ api_router.include_router(notifications.router, prefix="/notifications", tags=["
 api_router.include_router(approvals.router, prefix="/approvals", tags=["approvals"])
 api_router.include_router(deliveries.router, prefix="/deliveries", tags=["deliveries"])
 api_router.include_router(founder.router, prefix="/founder", tags=["founder"])
+api_router.include_router(founder_chat.router, prefix="/founder", tags=["founder-assistant"])
 api_router.include_router(growth.router, prefix="/growth", tags=["growth"])
 api_router.include_router(communications.router, prefix="/communications", tags=["communications"])
 

@@ -98,6 +98,9 @@ class Permission(StrEnum):
     DELIVERY_READ = "delivery_read"
     DELIVERY_WRITE = "delivery_write"
     DELIVERY_MANAGE = "delivery_manage"
+    # M8 Founder AI Assistant
+    FOUNDER_READ = "founder_read"
+    FOUNDER_MANAGE = "founder_manage"
 
 
 PERMISSION_MATRIX: dict[Permission, set[UserRole]] = {
@@ -147,6 +150,9 @@ PERMISSION_MATRIX: dict[Permission, set[UserRole]] = {
     Permission.DELIVERY_READ: _READ,
     Permission.DELIVERY_WRITE: _WRITE,
     Permission.DELIVERY_MANAGE: _ADMIN_ONLY,
+    # M8 Founder AI Assistant
+    Permission.FOUNDER_READ: _READ,
+    Permission.FOUNDER_MANAGE: _MANAGE,
 }
 
 

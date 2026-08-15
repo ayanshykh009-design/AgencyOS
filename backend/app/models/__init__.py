@@ -22,6 +22,9 @@ from app.models.delivery import Delivery
 from app.models.delivery_event import DeliveryEvent
 from app.models.execution_event import ExecutionEvent
 from app.models.follow_up import FollowUp
+from app.models.founder_action_proposal import FounderActionProposal
+from app.models.founder_conversation import FounderConversation
+from app.models.founder_message import FounderMessage
 from app.models.growth_analysis import GrowthAnalysis
 from app.models.growth_forecast import GrowthForecast
 from app.models.growth_health_weight import GrowthHealthWeight
@@ -70,6 +73,9 @@ __all__ = [
     "DeliveryEvent",
     "ExecutionEvent",
     "FollowUp",
+    "FounderActionProposal",
+    "FounderConversation",
+    "FounderMessage",
     "GrowthAnalysis",
     "GrowthForecast",
     "GrowthHealthWeight",

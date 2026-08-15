@@ -28,6 +28,7 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.repositories.lead import LeadRepository
 from app.repositories.lead_research import LeadResearchRepository
+from app.services.founder_intent_service import FounderIntentService
 from app.services.llm_settings import resolve_ai_config
 
 _HTTP_TIMEOUT = 15.0
@@ -182,14 +183,148 @@ class AIBrainExecutor(BrainAgentExecutor):
 
 
 class FounderAssistantExecutor(BrainAgentExecutor):
-    """Drafts founder briefings and flags business insights."""
+    """Grounded founder assistant: answers from retrieved context, actions gated.
+
+    Every answer is grounded in a :class:`FounderContext` snapshot; any action is
+    routed through :class:`FounderActionService` (and therefore an approval
+    request) rather than mutating org data directly.
+    """
 
     name = "founder_assistant"
     description = (
-        "You assist a startup founder: summarize the business state, flag risks and "
-        "opportunities, and surface insights from available data."
+        "You are the Founder AI Assistant: summarize the business state, flag risks "
+        "and opportunities, and propose actions (which require approval) using the "
+        "provided tools. Never invent data or act without proposing."
     )
     leadless = True
+
+    async def execute(self, ctx: ExecutorContext) -> ExecutorResult:
+        if not settings.FOUNDER_ASSISTANT_ENABLED:
+            return ExecutorResult(success=False, error="Founder assistant is disabled")
+
+        owns_client = self._http_client is None
+        client = self._http_client or httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
+        try:
+            deps = await self._runtime_deps(ctx, client)
+            llm = deps["llm"]
+            if llm is None:
+                return ExecutorResult(
+                    success=False,
+                    error="LLM is not configured for this organization",
+                )
+
+            message = (ctx.input.get("message") or "").strip()
+            actor_user_id = _uuid_or_none(ctx.input.get("actor_user_id"))
+            conversation_id = _uuid_or_none(ctx.input.get("conversation_id"))
+
+            from app.ai.founder_context import FounderContextBuilder
+            from app.services.founder_action_service import FounderActionService
+            from app.tools.founder_tools import FounderToolContext, founder_registry
+
+            context = await FounderContextBuilder(ctx.session, ctx.organization_id).build()
+            intent = FounderIntentService.classify(message)
+
+            action_service = FounderActionService(ctx.session)
+            tool_ctx = FounderToolContext(
+                session=ctx.session,
+                organization_id=ctx.organization_id,
+                context=context,
+                action_service=action_service,
+                llm_service=llm,
+                http_client=client,
+                conversation_id=conversation_id,
+                actor_user_id=actor_user_id,
+            )
+            registry = founder_registry(tool_ctx)
+
+            recent_messages = [{"role": "user", "content": message}] if message else []
+            from app.ai.brain import Brain
+
+            brain = Brain(llm, registry)
+            result = await brain.run(
+                goal="founder_assistant",
+                lead=None,
+                research=None,
+                recent_messages=recent_messages,
+                persona=_founder_persona(context, intent),
+            )
+            if not result.success:
+                return ExecutorResult(
+                    success=False,
+                    error=result.error or "Founder assistant failed",
+                    steps=result.steps_taken,
+                )
+
+            proposals: list[dict[str, Any]] = []
+            if conversation_id is not None:
+                from app.repositories.founder_action_proposal import (
+                    FounderActionProposalRepository,
+                )
+
+                created = await FounderActionProposalRepository(
+                    ctx.session
+                ).list_by_conversation(ctx.organization_id, conversation_id, limit=50)
+                proposals = [
+                    {
+                        "id": str(p.id),
+                        "title": p.title,
+                        "action_type": p.action_type.value,
+                        "status": p.proposal_status.value,
+                    }
+                    for p in created
+                ]
+
+            return ExecutorResult(
+                success=True,
+                output={
+                    "response": result.response,
+                    "tool_calls": [tc.name for tc in (result.tool_calls or [])],
+                    "proposals": proposals,
+                    "intent": intent.to_dict(),
+                },
+                steps=result.steps_taken,
+            )
+        finally:
+            if owns_client:
+                await client.aclose()
+
+
+def _uuid_or_none(raw: Any) -> uuid.UUID | None:
+    """Best-effort parse of a UUID from arbitrary input."""
+    if raw is None:
+        return None
+    try:
+        return uuid.UUID(str(raw))
+    except (ValueError, TypeError):
+        return None
+
+
+def _founder_persona(context: Any, intent: Any) -> str:
+    """Build the founder assistant system prompt (grounding + tool policy)."""
+    lines = [
+        "You are the Founder AI Assistant for a B2B agency. You help the founder "
+        "understand and run their business using the tools provided.",
+        "",
+        "GROUNDING RULES (critical):",
+        "- Answer ONLY from the provided business context and tool results.",
+        "- Never invent metrics, leads, tasks, or approvals that are not present.",
+        "- You cannot directly change the business. To take an action (create a "
+        "task, send email, run a workflow, export), you MUST call a proposal tool "
+        "(create_task or propose_founder_action). Tell the user the action is "
+        "pending approval.",
+        "- Use summarize_context / get_recent_activity to ground your answer when "
+        "the user asks about the business state.",
+        "",
+        f"INTENT: {intent.intent_type.value if intent else 'status'}",
+        "",
+        "=== BUSINESS CONTEXT ===",
+        context.summary() if context is not None else "",
+        "",
+        "=== AVAILABLE TOOLS ===",
+        "summarize_context, get_recent_activity, growth_analysis, lead_search, "
+        "draft_email, create_task, propose_founder_action.",
+    ]
+    return "\n".join(lines)
 
 
 class CRMExecutor(BrainAgentExecutor):

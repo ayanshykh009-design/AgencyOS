@@ -121,3 +121,12 @@ export type { CredentialQuery } from "./credentials";
 export type { DeliveryQuery } from "./deliveries";
 export type { NotificationQuery, UnreadCount, NotificationTypeCounts } from "./notifications";
 export type { GrowthAnalysisQuery, GrowthRecommendationQuery, GrowthScenarioQuery } from "./growth";
+export {
+  sendFounderMessage,
+  listFounderConversations,
+  getFounderConversation,
+  deleteFounderConversation,
+  listFounderProposals,
+  decideFounderProposal,
+} from "./founder";
+export type { FounderConversationQuery, FounderProposalQuery } from "./founder";
