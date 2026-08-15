@@ -113,6 +113,7 @@ def test_migrations_apply_cleanly(migrated_db) -> None:
         "system_settings", "ai_memories", "knowledge_items", "agent_runs",
         "agent_state", "notifications", "approval_requests", "approval_logs",
         "briefings", "growth_metrics", "growth_forecasts", "business_insights",
+        "intelligence_signals",
     }
     with migrated_db.cursor() as cur:
         cur.execute(
@@ -552,6 +553,8 @@ def test_migration_0018_phase5d_database_layer_additive_idempotent(migrated_db) 
             "agent_state_status", "agent_health", "notification_type",
             "approval_request_status", "approval_log_action", "briefing_type",
             "insight_type", "insight_severity", "insight_status",
+            "signal_category", "signal_source_type", "intelligence_signal_status",
+            "intelligence_signal_severity", "intelligence_confidence",
         ):
             cur.execute(
                 "SELECT EXISTS (SELECT 1 FROM pg_type t "
@@ -568,6 +571,10 @@ def test_migration_0018_phase5d_database_layer_additive_idempotent(migrated_db) 
             "idx_approval_logs_org_occurred",
             "uq_growth_metrics_org_type_period",
             "idx_business_insights_source",
+            "uq_intelligence_signals_org_hash_active",
+            "idx_intelligence_signals_org_status_priority",
+            "idx_intelligence_signals_org_source",
+            "idx_intelligence_signals_org_created",
         ):
             cur.execute(
                 "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' "
@@ -588,9 +595,10 @@ def test_migration_0018_phase5d_database_layer_additive_idempotent(migrated_db) 
             "AND relrowsecurity = true AND tablename IN ("
             "'ai_memories', 'knowledge_items', 'agent_runs', 'agent_state', "
             "'notifications', 'approval_requests', 'approval_logs', 'briefings', "
-            "'growth_metrics', 'growth_forecasts', 'business_insights')"
+            "'growth_metrics', 'growth_forecasts', 'business_insights', "
+            "'intelligence_signals')"
         )
-        assert cur.fetchone()[0] == 11
+        assert cur.fetchone()[0] == 12
 
     org_id = str(uuid.uuid4())
     _insert_org(migrated_db, org_id)
@@ -1084,3 +1092,103 @@ def test_rls_org_isolation_ai_memories_knowledge(migrated_db) -> None:
             (org_b,),
         )
         assert cur.fetchone()[0] == 1
+
+
+def test_migration_0027_m9_intelligence_signals(migrated_db) -> None:
+    """0027 adds the M9 signal feed: enums, table, dedup + trigger + checks."""
+    org_id = str(uuid.uuid4())
+    _insert_org(migrated_db, org_id)
+    with migrated_db.cursor() as cur:
+        # Defaults: severity info, confidence low, status active, score 0.
+        cur.execute(
+            "INSERT INTO public.intelligence_signals "
+            "(organization_id, signal_category, source_type, title, summary, "
+            " content_hash) "
+            "VALUES (%s, 'business_insight', 'business_insight', 'Title', "
+            " 'Summary text', 'hash-1') RETURNING id, status, severity, "
+            " confidence, priority_score",
+            (org_id,),
+        )
+        signal_id, status, severity, confidence, priority_score = cur.fetchone()
+        assert (status, severity, confidence) == ("active", "info", "low")
+        assert float(priority_score) == 0.0
+
+        # updated_at trigger fires on write.
+        cur.execute(
+            "UPDATE public.intelligence_signals SET title = 'Title 2' WHERE id = %s",
+            (signal_id,),
+        )
+        cur.execute(
+            "SELECT length(btrim(title)) > 0 FROM public.intelligence_signals "
+            "WHERE id = %s",
+            (signal_id,),
+        )
+        assert cur.fetchone()[0] is True
+
+        # Live dup on the same content_hash -> unique violation.
+        with pytest.raises(errors.UniqueViolation):
+            cur.execute(
+                "INSERT INTO public.intelligence_signals "
+                "(organization_id, signal_category, source_type, title, summary, "
+                " content_hash) "
+                "VALUES (%s, 'business_insight', 'business_insight', 'Title 3', "
+                " 'Summary text', 'hash-1')",
+                (org_id,),
+            )
+    migrated_db.rollback()
+
+    with migrated_db.cursor() as cur:
+        # Supersede frees the hash for a re-emission.
+        cur.execute(
+            "UPDATE public.intelligence_signals SET status = 'superseded' "
+            "WHERE organization_id = %s AND content_hash = 'hash-1'",
+            (org_id,),
+        )
+        cur.execute(
+            "INSERT INTO public.intelligence_signals "
+            "(organization_id, signal_category, source_type, title, summary, "
+            " content_hash) "
+            "VALUES (%s, 'business_insight', 'business_insight', 'Title 3', "
+            " 'Summary text', 'hash-1') RETURNING id",
+            (org_id,),
+        )
+        assert cur.fetchone()[0] is not None
+
+        # priority_score must stay in [0, 1].
+        with pytest.raises(errors.CheckViolation):
+            cur.execute(
+                "INSERT INTO public.intelligence_signals "
+                "(organization_id, signal_category, source_type, title, summary, "
+                " content_hash, priority_score) "
+                "VALUES (%s, 'pipeline_risk', 'pipeline_fact', 'Bad', 'Bad', "
+                " 'hash-2', 1.5)",
+                (org_id,),
+            )
+        # Blank title/summary/hash rejected by the CHECK constraints.
+        with pytest.raises(errors.CheckViolation):
+            cur.execute(
+                "INSERT INTO public.intelligence_signals "
+                "(organization_id, signal_category, source_type, title, summary, "
+                " content_hash) "
+                "VALUES (%s, 'pipeline_risk', 'pipeline_fact', '   ', 'ok', 'hash-3')",
+                (org_id,),
+            )
+        with pytest.raises(errors.CheckViolation):
+            cur.execute(
+                "INSERT INTO public.intelligence_signals "
+                "(organization_id, signal_category, source_type, title, summary, "
+                " content_hash) "
+                "VALUES (%s, 'pipeline_risk', 'pipeline_fact', 'ok', 'ok', '   ')",
+                (org_id,),
+            )
+        # Enum values are enforced.
+        with pytest.raises(errors.InvalidTextRepresentation):
+            cur.execute(
+                "INSERT INTO public.intelligence_signals "
+                "(organization_id, signal_category, source_type, title, summary, "
+                " content_hash) "
+                "VALUES (%s, 'not_a_category', 'pipeline_fact', 'ok', 'ok', 'hash-4')",
+                (org_id,),
+            )
+    migrated_db.rollback()
+

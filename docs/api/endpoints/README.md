@@ -17,6 +17,7 @@ One file per endpoint group, e.g.:
 - `notifications.md` — per-user in-app inbox
 - `approvals.md` — gated approval requests + immutable audit log
 - `founder.md` — generated briefings + business insights
+- `intelligence.md` — M9 founder intelligence & growth triage signal feed (read + acknowledge/dismiss + manual sweep)
 - `growth.md` — periodized metrics, deterministic forecasts, M7 analyses, recommendations, scenarios, health weights
 - `communications.md` — founder communications summary
 - `webhooks.md` — external ingestion (n8n / contact forms)

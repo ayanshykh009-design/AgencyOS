@@ -17,6 +17,11 @@ from app.services.execution_event_service import ExecutionEventService
 from app.services.founder_service import FounderService
 from app.services.growth_service import GrowthService
 from app.services.import_service import ImportService
+from app.services.intelligence import (
+    FounderIntelligenceService,
+    IntelligenceTriageService,
+    TriageScorer,
+)
 from app.services.lead_service import LeadService
 from app.services.lead_source_service import LeadSourceService
 from app.services.memory_service import MemoryService
@@ -43,7 +48,10 @@ __all__ = [
     "DashboardService",
     "ExecutionEventService",
     "FounderService",
+    "FounderIntelligenceService",
     "GrowthService",
+    "IntelligenceTriageService",
+    "TriageScorer",
     "ImportService",
     "LeadService",
     "LeadSourceService",

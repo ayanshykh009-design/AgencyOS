@@ -11,26 +11,23 @@ These cover the deterministic, testable pieces of M8:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from app.ai.founder_context import FounderContext
+from app.core.errors import AppError
 from app.models.enums import (
     FounderActionType,
     FounderProposalStatus,
-    TaskStatus,
 )
 from app.repositories.founder_action_proposal import (
     FounderActionProposalRepository,
 )
-from app.services.base import commit_with_retry, utcnow
 from app.services.founder_action_service import (
-    ApprovalService,
     FounderActionService,
-    UserRepository,
 )
 from app.services.founder_intent_service import (
     FounderIntentService,
@@ -42,7 +39,6 @@ from app.tools.founder_tools import (
     ProposeFounderActionTool,
     SummarizeContextTool,
 )
-
 
 # --------------------------------------------------------------------------- #
 # Intent routing
@@ -92,7 +88,7 @@ def test_context_summary_and_to_dict() -> None:
     ctx = FounderContext(
         organization_id=uuid.uuid4(),
         organization_name="Acme",
-        as_of=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        as_of=datetime(2026, 1, 1, tzinfo=UTC),
         leads=[{"name": "A", "company": "C", "status": "new"}],
         tasks=[],
         kpi={"revenue": 100},
@@ -115,7 +111,7 @@ def _tool_ctx(action_service: MagicMock) -> FounderToolContext:
     context = FounderContext(
         organization_id=org,
         organization_name="Acme",
-        as_of=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        as_of=datetime(2026, 1, 1, tzinfo=UTC),
         leads=[{"name": "A", "company": "C", "status": "new"}],
     )
     return FounderToolContext(
@@ -201,7 +197,7 @@ def _proposal(status: FounderProposalStatus) -> SimpleNamespace:
 def test_apply_transition_legal_edge() -> None:
     repo = FounderActionProposalRepository(MagicMock())
     p = _proposal(FounderProposalStatus.PROPOSED)
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
     repo.apply_transition(
         p, FounderProposalStatus.APPROVED, now=now, decided_by_user_id=uuid.uuid4()
     )
@@ -212,8 +208,8 @@ def test_apply_transition_legal_edge() -> None:
 def test_apply_transition_illegal_edge_raises() -> None:
     repo = FounderActionProposalRepository(MagicMock())
     p = _proposal(FounderProposalStatus.APPROVED)
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    with pytest.raises(Exception):
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    with pytest.raises(AppError):
         repo.apply_transition(
             p, FounderProposalStatus.SUCCEEDED, now=now, decided_by_user_id=uuid.uuid4()
         )
@@ -222,8 +218,8 @@ def test_apply_transition_illegal_edge_raises() -> None:
 def test_apply_transition_terminal_is_immutable() -> None:
     repo = FounderActionProposalRepository(MagicMock())
     p = _proposal(FounderProposalStatus.SUCCEEDED)
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
-    with pytest.raises(Exception):
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    with pytest.raises(AppError):
         repo.apply_transition(
             p, FounderProposalStatus.PROPOSED, now=now, decided_by_user_id=uuid.uuid4()
         )
@@ -274,13 +270,12 @@ def _patch_action_service(monkeypatch, *, proposal=None, proposals_repo=None):
     )
     monkeypatch.setattr(
         "app.services.founder_action_service.utcnow",
-        lambda: datetime(2026, 1, 1, tzinfo=timezone.utc),
+        lambda: datetime(2026, 1, 1, tzinfo=UTC),
     )
     return org, actor_id, approval_svc, proposals_repo
 
 
 async def test_propose_creates_pending_gated_proposal(monkeypatch) -> None:
-    from app.core.config import settings
 
     org, actor_id, approval_svc, _ = _patch_action_service(monkeypatch)
     svc = FounderActionService(MagicMock())

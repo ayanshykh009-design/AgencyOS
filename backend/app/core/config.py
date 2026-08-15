@@ -265,6 +265,29 @@ class Settings(BaseSettings):
     # How long a founder action proposal stays open before it auto-expires.
     FOUNDER_APPROVAL_TTL_SECONDS: int = 86400
 
+    # --- M9 Founder Intelligence & Growth Triage ---
+    # Feature flag: when False the intelligence triage worker and sweep refuse
+    # to run (fail closed). The read/acknowledge APIs remain available for any
+    # signals already materialized.
+    INTELLIGENCE_TRIAGE_ENABLED: bool = False
+    # Cadence (seconds) between intelligence triage sweeps.
+    INTELLIGENCE_TRIAGE_INTERVAL_SECONDS: int = 300
+    # Max signals materialized per org per sweep (bounds DB + CPU work).
+    INTELLIGENCE_TRIAGE_MAX_SIGNALS_PER_ORG: int = 500
+    # Max age of source rows considered by one sweep (analysis window).
+    INTELLIGENCE_TRIAGE_WINDOW_DAYS: int = 90
+    # Max candidate organizations visited by the fair-drain sweep in one poll.
+    INTELLIGENCE_TRIAGE_ORGS_PER_SWEEP: int = 20
+    # Feature flag: optional AI-written narrative grounded only on deterministic
+    # signal fields. When False, the summary text is the deterministic summary.
+    INTELLIGENCE_NARRATIVE_ENABLED: bool = False
+    # Max signals handed to the AI narrative in one sweep (top-N by priority).
+    INTELLIGENCE_NARRATIVE_TOP_N: int = 10
+    # Max prompt context characters for the AI narrative call (hard bound).
+    INTELLIGENCE_NARRATIVE_MAX_CONTEXT_CHARS: int = 8000
+    # Max LLM attempts per narrative call (hard bound; retries are idempotent).
+    INTELLIGENCE_NARRATIVE_MAX_RETRIES: int = 2
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS_ORIGINS into a list of allowed origins."""
@@ -353,6 +376,22 @@ class Settings(BaseSettings):
         if self.FOUNDER_APPROVAL_TTL_SECONDS < 60:
             raise RuntimeError("FOUNDER_APPROVAL_TTL_SECONDS must be >= 60")
 
+    def _validate_m9_intelligence(self) -> None:
+        if self.INTELLIGENCE_TRIAGE_INTERVAL_SECONDS < 60:
+            raise RuntimeError("INTELLIGENCE_TRIAGE_INTERVAL_SECONDS must be >= 60")
+        if self.INTELLIGENCE_TRIAGE_MAX_SIGNALS_PER_ORG < 1:
+            raise RuntimeError("INTELLIGENCE_TRIAGE_MAX_SIGNALS_PER_ORG must be >= 1")
+        if self.INTELLIGENCE_TRIAGE_WINDOW_DAYS < 1:
+            raise RuntimeError("INTELLIGENCE_TRIAGE_WINDOW_DAYS must be >= 1")
+        if self.INTELLIGENCE_TRIAGE_ORGS_PER_SWEEP < 1:
+            raise RuntimeError("INTELLIGENCE_TRIAGE_ORGS_PER_SWEEP must be >= 1")
+        if self.INTELLIGENCE_NARRATIVE_TOP_N < 1:
+            raise RuntimeError("INTELLIGENCE_NARRATIVE_TOP_N must be >= 1")
+        if self.INTELLIGENCE_NARRATIVE_MAX_CONTEXT_CHARS < 500:
+            raise RuntimeError("INTELLIGENCE_NARRATIVE_MAX_CONTEXT_CHARS must be >= 500")
+        if self.INTELLIGENCE_NARRATIVE_MAX_RETRIES < 0:
+            raise RuntimeError("INTELLIGENCE_NARRATIVE_MAX_RETRIES must be >= 0")
+
     def _validate_m6_delivery(self) -> None:
         if self.DELIVERY_BATCH_SIZE < 1:
             raise RuntimeError("DELIVERY_BATCH_SIZE must be >= 1")
@@ -400,6 +439,7 @@ class Settings(BaseSettings):
         self._validate_phase5d()
         self._validate_m6_delivery()
         self._validate_m8_founder()
+        self._validate_m9_intelligence()
         self._validate_csp()
 
     def validate_for_production(self) -> None:
@@ -422,6 +462,7 @@ class Settings(BaseSettings):
         self._validate_phase5d()
         self._validate_m6_delivery()
         self._validate_m8_founder()
+        self._validate_m9_intelligence()
         self._validate_csp()
 
 @lru_cache

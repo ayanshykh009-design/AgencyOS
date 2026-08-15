@@ -23,6 +23,7 @@ export const ROUTES = {
   growth: "/growth",
   founder: "/founder",
   founderProposals: "/founder/proposals",
+  founderIntelligence: "/founder/intelligence",
 } as const;
 
 export const STORAGE_KEYS = {

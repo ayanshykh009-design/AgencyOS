@@ -31,6 +31,7 @@ from app.repositories.growth_metric import GrowthMetricRepository
 from app.repositories.growth_recommendation import GrowthRecommendationRepository
 from app.repositories.growth_scenario import GrowthScenarioRepository
 from app.repositories.import_job import ImportJobRepository, ImportRowErrorRepository
+from app.repositories.intelligence_signal import IntelligenceSignalRepository
 from app.repositories.knowledge_item import KnowledgeItemRepository
 from app.repositories.lead import LeadRepository
 from app.repositories.lead_source import LeadSourceRepository
@@ -77,6 +78,7 @@ __all__ = [
     "GrowthScenarioRepository",
     "ImportJobRepository",
     "ImportRowErrorRepository",
+    "IntelligenceSignalRepository",
     "KnowledgeItemRepository",
     "LeadRepository",
     "LeadSourceRepository",

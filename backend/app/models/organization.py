@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from app.models.growth_metric import GrowthMetric
     from app.models.growth_recommendation import GrowthRecommendation
     from app.models.growth_scenario import GrowthScenario
+    from app.models.intelligence_signal import IntelligenceSignal
     from app.models.knowledge_item import KnowledgeItem
     from app.models.notification import Notification
     from app.models.user import User
@@ -77,6 +78,9 @@ class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     growth_scenarios: Mapped[list[GrowthScenario]] = relationship(back_populates="organization")
     growth_recommendations: Mapped[list[GrowthRecommendation]] = relationship(
+        back_populates="organization"
+    )
+    intelligence_signals: Mapped[list[IntelligenceSignal]] = relationship(
         back_populates="organization"
     )
 

@@ -191,6 +191,34 @@ class LeadRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_for_intelligence(
+        self,
+        organization_id: uuid.UUID,
+        *,
+        statuses: list[LeadStatus],
+        min_deal_value: Decimal,
+        limit: int = 100,
+    ) -> list[Lead]:
+        """Non-deleted leads matching pipeline condition detectors (M9).
+
+        Bounded deterministic read: deals above a value floor in the given
+        lifecycle statuses, highest value first. Never aggregates metrics.
+        """
+        stmt = (
+            select(Lead)
+            .where(
+                Lead.organization_id == organization_id,
+                Lead.deleted_at.is_(None),
+                Lead.status.in_(statuses),
+                Lead.deal_value.is_not(None),
+                Lead.deal_value >= min_deal_value,
+            )
+            .order_by(Lead.deal_value.desc())
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return list(result.scalars().all())
+
     async def list_by_stages(
         self,
         organization_id: uuid.UUID,

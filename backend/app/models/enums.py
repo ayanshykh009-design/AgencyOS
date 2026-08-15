@@ -517,3 +517,67 @@ class RecommendationStatus(StrEnum):
     ACKNOWLEDGED = "acknowledged"
     APPLIED = "applied"
     DISMISSED = "dismissed"
+
+
+class SignalCategory(StrEnum):
+    """What kind of business signal an ``intelligence_signals`` row is (M9).
+
+    Mirrors ``public.signal_category``.
+    """
+
+    GROWTH_RECOMMENDATION = "growth_recommendation"
+    BUSINESS_INSIGHT = "business_insight"
+    PIPELINE_RISK = "pipeline_risk"
+    PIPELINE_OPPORTUNITY = "pipeline_opportunity"
+    GROWTH_ANOMALY = "growth_anomaly"
+    FOUNDER_BRIEFING = "founder_briefing"
+
+
+class SignalSourceType(StrEnum):
+    """Which M7/M8/pipeline source produced the signal (M9).
+
+    Mirrors ``public.signal_source_type``.
+    """
+
+    GROWTH_RECOMMENDATION = "growth_recommendation"
+    BUSINESS_INSIGHT = "business_insight"
+    GROWTH_ANALYSIS = "growth_analysis"
+    PIPELINE_FACT = "pipeline_fact"
+    BRIEFING = "briefing"
+
+
+class IntelligenceSignalStatus(StrEnum):
+    """Triage lifecycle of an intelligence signal (M9).
+
+    Mirrors ``public.intelligence_signal_status``:
+    ``active`` -> ``acknowledged`` | ``dismissed`` (or ``superseded``).
+    """
+
+    ACTIVE = "active"
+    ACKNOWLEDGED = "acknowledged"
+    DISMISSED = "dismissed"
+    SUPERSEDED = "superseded"
+
+
+class IntelligenceSignalSeverity(StrEnum):
+    """Urgency of an intelligence signal (M9).
+
+    Mirrors ``public.intelligence_signal_severity``.
+    """
+
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class IntelligenceConfidence(StrEnum):
+    """Qualitative confidence in a signal (M9).
+
+    Mirrors ``public.intelligence_confidence``.
+    """
+
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"

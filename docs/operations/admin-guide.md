@@ -46,6 +46,7 @@ Automation workers run as standalone loops:
 | Retention worker   | `python -m app.workers.retention_worker` | Deletes expired `execution_events` and prunes dead `worker_health` rows, in chunks |
 | Credential rekey   | `python -m app.workers.credential_worker`| Re-encrypts credential values under the current key after rotation |
 | Memory cleanup     | `python -m app.workers.memory_worker`    | Deletes expired `working` memories (TTL-pruned), in org-scoped chunks |
+| Intelligence triage | `python -m app.workers.intelligence_triage_worker` | Materializes the M9 founder intelligence signal feed: per-org sweeps over M7/M8 output + bounded pipeline detectors, upsert-by-hash, supersede stale. Gated on `INTELLIGENCE_TRIAGE_ENABLED` |
 
 Each phase runs in its own session/transaction, is restart-safe (state lives in
 Postgres), and may run on multiple instances — transitions are optimistic, so

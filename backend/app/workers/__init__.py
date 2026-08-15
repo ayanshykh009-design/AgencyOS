@@ -18,6 +18,9 @@
   re-converges stuck runs. No-op while ``AGENT_RUNTIME_ENABLED`` is false.
 - ``retention_worker``: chunked pruning of expired execution telemetry
   (execution_events + dead worker heartbeats). Runs as a standalone loop.
+- ``intelligence_triage_worker``: materializes the M9 founder intelligence
+  signal feed (deterministic per-org sweeps over M7/M8 output). Runs as a
+  standalone loop. Gated on ``INTELLIGENCE_TRIAGE_ENABLED``.
 
 Keep workers dependency-injected (import repositories, never endpoints).
 """
@@ -27,6 +30,7 @@ from app.workers.approval_gate_worker import ApprovalGateWorker
 from app.workers.delivery_worker import DeliveryWorker
 from app.workers.execution_worker import ExecutionWorker
 from app.workers.import_worker import ImportWorker
+from app.workers.intelligence_triage_worker import IntelligenceTriageWorker
 from app.workers.research_worker import ResearchWorker
 from app.workers.retention_worker import RetentionWorker
 
@@ -36,6 +40,7 @@ __all__ = [
     "DeliveryWorker",
     "ExecutionWorker",
     "ImportWorker",
+    "IntelligenceTriageWorker",
     "ResearchWorker",
     "RetentionWorker",
 ]

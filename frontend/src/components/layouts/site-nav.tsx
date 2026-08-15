@@ -40,6 +40,11 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
         label: "Founder actions",
         permission: "founder_read",
       },
+      {
+        href: ROUTES.founderIntelligence,
+        label: "Intelligence signals",
+        permission: "founder_read",
+      },
     ],
   },
   {

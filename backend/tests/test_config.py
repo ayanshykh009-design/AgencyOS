@@ -124,3 +124,49 @@ def test_m4_defaults_pass_runtime_validation() -> None:
 
 def test_phase5d_defaults_pass_runtime_validation() -> None:
     Settings().validate_runtime()  # must not raise
+
+
+def test_m9_validation_rejects_short_triage_interval() -> None:
+    settings = Settings(INTELLIGENCE_TRIAGE_INTERVAL_SECONDS=30)
+    with pytest.raises(RuntimeError, match="INTELLIGENCE_TRIAGE_INTERVAL_SECONDS"):
+        settings.validate_runtime()
+
+
+def test_m9_validation_rejects_zero_max_signals() -> None:
+    settings = Settings(INTELLIGENCE_TRIAGE_MAX_SIGNALS_PER_ORG=0)
+    with pytest.raises(RuntimeError, match="INTELLIGENCE_TRIAGE_MAX_SIGNALS_PER_ORG"):
+        settings.validate_runtime()
+
+
+def test_m9_validation_rejects_zero_window_days() -> None:
+    settings = Settings(INTELLIGENCE_TRIAGE_WINDOW_DAYS=0)
+    with pytest.raises(RuntimeError, match="INTELLIGENCE_TRIAGE_WINDOW_DAYS"):
+        settings.validate_runtime()
+
+
+def test_m9_validation_rejects_zero_orgs_per_sweep() -> None:
+    settings = Settings(INTELLIGENCE_TRIAGE_ORGS_PER_SWEEP=0)
+    with pytest.raises(RuntimeError, match="INTELLIGENCE_TRIAGE_ORGS_PER_SWEEP"):
+        settings.validate_runtime()
+
+
+def test_m9_validation_rejects_zero_narrative_top_n() -> None:
+    settings = Settings(INTELLIGENCE_NARRATIVE_TOP_N=0)
+    with pytest.raises(RuntimeError, match="INTELLIGENCE_NARRATIVE_TOP_N"):
+        settings.validate_runtime()
+
+
+def test_m9_validation_rejects_small_context_budget() -> None:
+    settings = Settings(INTELLIGENCE_NARRATIVE_MAX_CONTEXT_CHARS=100)
+    with pytest.raises(RuntimeError, match="INTELLIGENCE_NARRATIVE_MAX_CONTEXT_CHARS"):
+        settings.validate_runtime()
+
+
+def test_m9_validation_rejects_negative_retries() -> None:
+    settings = Settings(INTELLIGENCE_NARRATIVE_MAX_RETRIES=-1)
+    with pytest.raises(RuntimeError, match="INTELLIGENCE_NARRATIVE_MAX_RETRIES"):
+        settings.validate_runtime()
+
+
+def test_m9_defaults_pass_runtime_validation() -> None:
+    Settings().validate_runtime()  # must not raise

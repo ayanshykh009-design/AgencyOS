@@ -26,6 +26,7 @@ from app.api.v1.endpoints import (
     growth,
     health,
     imports,
+    intelligence,
     lead_sources,
     leads,
     memory,
@@ -104,6 +105,7 @@ api_router.include_router(deliveries.router, prefix="/deliveries", tags=["delive
 api_router.include_router(founder.router, prefix="/founder", tags=["founder"])
 api_router.include_router(founder_chat.router, prefix="/founder", tags=["founder-assistant"])
 api_router.include_router(growth.router, prefix="/growth", tags=["growth"])
+api_router.include_router(intelligence.router, prefix="/intelligence", tags=["intelligence"])
 api_router.include_router(communications.router, prefix="/communications", tags=["communications"])
 
 # External system ingestion (n8n / contact forms) — no user session.

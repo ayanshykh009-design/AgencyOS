@@ -102,6 +102,12 @@ from app.schemas.imports import (
     ImportRowErrorCreate,
     ImportRowErrorRead,
 )
+from app.schemas.intelligence_signal import (
+    IntelligenceSignalListResponse,
+    IntelligenceSignalRead,
+    IntelligenceSignalSummary,
+    IntelligenceSignalUpdate,
+)
 from app.schemas.knowledge_item import (
     KnowledgeItemCreate,
     KnowledgeItemListResponse,
@@ -263,6 +269,10 @@ __all__ = [
     "ImportJobUpdate",
     "ImportRowErrorCreate",
     "ImportRowErrorRead",
+    "IntelligenceSignalListResponse",
+    "IntelligenceSignalRead",
+    "IntelligenceSignalSummary",
+    "IntelligenceSignalUpdate",
     "KnowledgeItemCreate",
     "KnowledgeItemListResponse",
     "KnowledgeItemRead",

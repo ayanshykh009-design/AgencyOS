@@ -178,6 +178,24 @@ Its tick duration is recorded in the histogram
 with `MEMORY_CLEANUP_ENABLED=true` — expired `working` memory will grow
 unbounded.
 
+The intelligence triage worker (`app/workers/intelligence_triage_worker.py`,
+`worker_type=intelligence_triage`) materializes the M9 founder intelligence
+signal feed. Each per-org sweep is bounded and commits independently:
+
+| Counter                                          | Meaning                                              |
+| ------------------------------------------------ | ---------------------------------------------------- |
+| `agencyos.intelligence.signals_ingested_total`   | Signal candidates triaged by a sweep                 |
+| `agencyos.intelligence.signals_created_total`    | New intelligence signals materialized                |
+| `agencyos.intelligence.signals_updated_total`    | Existing intelligence signals refreshed              |
+| `agencyos.intelligence.signals_superseded_total` | Active signals superseded as stale                   |
+| `agencyos.intelligence.high_priority_signals_total` | Signals scoring in the high priority band        |
+| `agencyos.intelligence.sweep_failures_total`     | Per-org sweeps that raised (one org never blocks the rest) |
+| `agencyos.intelligence.sweep_latency_seconds`    | Duration histogram of a single sweep pass            |
+
+Alert on a persistent zero `signals_ingested_total` with
+`INTELLIGENCE_TRIAGE_ENABLED=true`, or on `sweep_failures_total` rising — the
+feed has stalled or candidate-org discovery is broken.
+
 ## Alerts worth adding
 
 - Liveness/readiness failures (instance restarted or out of traffic).

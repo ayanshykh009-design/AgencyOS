@@ -33,6 +33,7 @@ from app.models.growth_recommendation import GrowthRecommendation
 from app.models.growth_scenario import GrowthScenario
 from app.models.import_job import ImportJob
 from app.models.import_row_error import ImportRowError
+from app.models.intelligence_signal import IntelligenceSignal
 from app.models.knowledge_item import KnowledgeItem
 from app.models.lead import Lead
 from app.models.lead_research import LeadResearch
@@ -84,6 +85,7 @@ __all__ = [
     "GrowthScenario",
     "ImportJob",
     "ImportRowError",
+    "IntelligenceSignal",
     "KnowledgeItem",
     "Lead",
     "LeadResearch",
