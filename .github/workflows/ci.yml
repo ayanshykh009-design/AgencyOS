@@ -81,8 +81,32 @@ jobs:
       - name: Test (vitest)
         run: npm test
 
+  contract-diff:
+    name: Frontend/backend contract + docs consistency
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Verify frontend/backend API contract
+        run: python scripts/ci/contract_diff.py
+
+      - name: Verify endpoint docs consistency
+        run: python scripts/ci/docs_api_consistency.py
+
   security:
     name: Dependency vulnerability scan
+    # placeholder
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

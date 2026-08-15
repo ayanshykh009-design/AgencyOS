@@ -30,9 +30,99 @@ ADMIN_URL = os.getenv(
 
 ORG_ID = "00000000-0000-0000-0000-000000000001"
 
-# Digest of 0018_phase5d_database_layer.sql (LF-normalized, utf-8): M4 must NOT
-# modify the migration, so this pins it against accidental drift.
-MIGRATION_0018_SHA256 = "78d81482401b8a74af3bc75acb36066c578a991255a31348cef9b72ae5e925bc"
+# Digests of every SQL migration (LF-normalized, utf-8). M10 pins all
+# migrations so a content change fails CI loudly instead of silently drifting
+# the schema contract. Compute with:
+#   python - <<'PY'
+#   import hashlib, pathlib
+#   for p in sorted((pathlib.Path(__file__).resolve().parents[3] /
+#                   "database" / "migrations").glob("*.sql")):
+#       print(p.name, hashlib.sha256(
+#           p.read_bytes().replace(b"\r\n", b"\n")).hexdigest())
+#   PY
+EXPECTED_MIGRATION_SHAS = {
+    "0001_core_enums.sql": (
+        "d7f6a2d73496941edf7ec7afff8393218689447a585e5e30c3d688710f1ccea9"
+    ),
+    "0002_tenant_identity.sql": (
+        "4996b95bac0dfc707426498c06a0f944fce01a7a265ff8a8645f591bcbe23a86"
+    ),
+    "0003_lead_tables.sql": (
+        "14f25bf42ad1a7ab35299e48dcd3083d0f6eb2aec45bf73a7314ef9fd1bdb175"
+    ),
+    "0004_outreach_tables.sql": (
+        "d7dbffba166c116cf5cd45366de009c9eef27e75c450584159eb80f04b151895"
+    ),
+    "0005_conversations_activity.sql": (
+        "fa28f3def1a7be83af84f6681159b11c0f3f256ba926f20fb0c4c3e45efc516f"
+    ),
+    "0006_imports_provider.sql": (
+        "7940a2d956220db620210e7977007f05243a25f2aa7f0764b02e9950d9168d7c"
+    ),
+    "0007_auth.sql": (
+        "85b13573becc50de037b5ea7a02af687a89be2372e39168c67e1413f3bd9587b"
+    ),
+    "0008_team_management.sql": (
+        "1de23545693e46ed0a8ffa97044e6db372554ae3e48fda0903e715f383d2d70d"
+    ),
+    "0009_lead_assignment.sql": (
+        "bb01e52145d0045f00cdd5ca7f12464dd3bfe82dddc0df37bf4bf6c2c38648e5"
+    ),
+    "0010_pipeline_management.sql": (
+        "9d5921b55b4c681e182126df7e52772750c685c58bcafd9a5d73fc74c53683bd"
+    ),
+    "0011_tasks.sql": (
+        "2aaabb3a556fc5c2f5b4ec114d4e83d70db16f414737eb5a0167f186950a5aa9"
+    ),
+    "0012_notes.sql": (
+        "0881fe727d6d26464a4eacce9ef0d5e1f0265a34105c38e4c5165a2743c7a0b4"
+    ),
+    "0013_automation.sql": (
+        "d493f29942e2ea184074b59640d7e069b49ee039ec02139b11df105bb24a0653"
+    ),
+    "0014_schedule_last_fired.sql": (
+        "a7a65004c360206a14940fb8b59cb68a58176d2539381f27877e49cae44fcebe"
+    ),
+    "0015_credential_key_versions.sql": (
+        "7d1c596abfe3f0d674e30806030289abc8e9a4556687baf8f5c563e88d3ae650"
+    ),
+    "0016_search_trigram_indexes.sql": (
+        "6db58d884d91d4f299f5f66be708a737e0ae6c5578d764c67e92746fc3e6fdf1"
+    ),
+    "0017_automation_hardening.sql": (
+        "49bba14159244e14a772fff20a190262a6b0d583173ab9f13bcde08a90aa4c4a"
+    ),
+    "0018_phase5d_database_layer.sql": (
+        "78d81482401b8a74af3bc75acb36066c578a991255a31348cef9b72ae5e925bc"
+    ),
+    "0019_phase5d_agent_runtime.sql": (
+        "cf7a1c61c73d00c50398b3df99b88f54b39005d5b29a76296a0df7390fc0d507"
+    ),
+    "0020_m6_delivery.sql": (
+        "7d00678b844654421b6f207f5b5ce177872f2a1566b7fa4ccc5bbed8e69b0f9e"
+    ),
+    "0021_m6_delivery_hardening.sql": (
+        "114d70dd991dcbcd5ee6d898bbef088fb29024bd5e7f7716c22dd4e394932f74"
+    ),
+    "0022_m7_growth_analyses.sql": (
+        "9b236875b021c33ad57208104b1f6b67f15ebd6f14d550758d59d1401e246dd6"
+    ),
+    "0023_m7_growth_forecasts_extended.sql": (
+        "133be989d95010b3770f86635c6127baafde7f796e800a30936874c84999bd00"
+    ),
+    "0024_m7_growth_scenarios.sql": (
+        "b1604be03fe2847e4e408a72df1bf10e86b13fe86e1018d79d36846d80787c1d"
+    ),
+    "0025_m7_growth_recommendations.sql": (
+        "60ab69fd780d53f1090f7db3720b6c6bd5f35ec9e9411c849be13f824a21005a"
+    ),
+    "0026_m8_founder_assistant.sql": (
+        "b457f7cfc1292b93de4059b0ba19af8822bf363d4c4d5a2dfc444e42ddbf430c"
+    ),
+    "0027_m9_intelligence_signals.sql": (
+        "3f9db7b8e62134161f2b3771478562d4eabacaed2286f0f335bbe0325f889e6a"
+    ),
+}
 
 
 def _database_available() -> bool:
@@ -865,13 +955,37 @@ def test_agent_runs_schema_mirror_matches_0019() -> None:
         ), f"schema mirror missing index {index!r} created by migration 0019"
 
 
-def test_migration_0018_unchanged_sha256() -> None:
-    """M4 must not modify 0018: the migration content is pinned by digest."""
+def _sha256(path: Path) -> str:
     import hashlib
 
+    raw = path.read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def test_all_migrations_immutable_sha256() -> None:
+    """M10 pins every migration's content so schema drift fails CI loudly.
+
+    Compute the expected digests with the snippet in EXPECTED_MIGRATION_SHAS.
+    """
+    migration_files = sorted(MIGRATIONS_DIR.glob("*.sql"))
+    found = {p.name: _sha256(p) for p in migration_files}
+    assert set(found) == set(EXPECTED_MIGRATION_SHAS), (
+        "migration set changed; expected "
+        f"{sorted(EXPECTED_MIGRATION_SHAS)} got {sorted(found)}"
+    )
+    for name, digest in EXPECTED_MIGRATION_SHAS.items():
+        assert found[name] == digest, f"migration content drift: {name}"
+
+
+def test_migration_0018_unchanged_sha256() -> None:
+    """M4 must not modify 0018: the migration content is pinned by digest."""
     raw = (MIGRATIONS_DIR / "0018_phase5d_database_layer.sql").read_bytes()
     normalized = raw.replace(b"\r\n", b"\n")
-    assert hashlib.sha256(normalized).hexdigest() == MIGRATION_0018_SHA256
+    import hashlib
+
+    assert hashlib.sha256(normalized).hexdigest() == EXPECTED_MIGRATION_SHAS[
+        "0018_phase5d_database_layer.sql"
+    ]
 
 
 def test_memory_cleanup_org_scoped_and_working_only(migrated_db) -> None:
@@ -1092,6 +1206,128 @@ def test_rls_org_isolation_ai_memories_knowledge(migrated_db) -> None:
             (org_b,),
         )
         assert cur.fetchone()[0] == 1
+
+
+def test_rls_org_isolation_leads_conversations(migrated_db) -> None:
+    """RLS org isolation holds for the lead + conversation tenant data too.
+
+    M10 extends the M4 isolation proof to the core CRM tables. Applies the
+    repo's ``leads.sql`` + ``conversations.sql`` policies verbatim and models
+    the Supabase Auth runtime exactly like ``test_rls_org_isolation_...``:
+    each authenticated user sees/edits only its own org's rows, and a
+    cross-org INSERT is rejected by the WITH CHECK policy.
+    """
+    _insert_org(migrated_db, ORG_ID)
+    org_b = str(uuid.uuid4())
+    _insert_org(migrated_db, org_b)
+
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.users (organization_id, email, full_name, role) "
+            "VALUES (%s, %s, %s, 'owner') RETURNING id",
+            (ORG_ID, "owner-a@example.com"),
+        )
+        user_a = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.users (organization_id, email, full_name, role) "
+            "VALUES (%s, %s, %s, 'owner') RETURNING id",
+            (org_b, "owner-b@example.com"),
+        )
+        user_b = cur.fetchone()[0]
+        # A lead + an open conversation for org A (conversation needs a lead).
+        cur.execute(
+            "INSERT INTO public.leads (organization_id, name) "
+            "VALUES (%s, 'lead-a') RETURNING id",
+            (ORG_ID,),
+        )
+        lead_a = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.leads (organization_id, name) "
+            "VALUES (%s, 'lead-b') RETURNING id",
+            (org_b,),
+        )
+        lead_b = cur.fetchone()[0]
+        cur.execute(
+            "INSERT INTO public.conversations (organization_id, lead_id, channel) "
+            "VALUES (%s, %s, 'email') RETURNING id",
+            (ORG_ID, lead_a),
+        )
+        cur.fetchone()
+        cur.execute(
+            "INSERT INTO public.conversations (organization_id, lead_id, channel) "
+            "VALUES (%s, %s, 'email') RETURNING id",
+            (org_b, lead_b),
+        )
+        conv_b = cur.fetchone()[0]
+    migrated_db.commit()
+
+    # -- Runtime modeling: auth schema, uid(), helper as owner, grants.
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated')"
+            " THEN CREATE ROLE authenticated; END IF; END $$;"
+        )
+        cur.execute("CREATE SCHEMA IF NOT EXISTS auth")
+        cur.execute(
+            "CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE "
+            "SECURITY DEFINER AS $$ SELECT (NULLIF(current_setting('request.jwt.claims', true), '')"
+            "::jsonb ->> 'sub')::uuid $$"
+        )
+        cur.execute((POLICIES_DIR / "_helpers.sql").read_text(encoding="utf-8"))
+        cur.execute("ALTER FUNCTION public.tenant_org_id() SECURITY DEFINER")
+        cur.execute((POLICIES_DIR / "leads.sql").read_text(encoding="utf-8"))
+        cur.execute((POLICIES_DIR / "conversations.sql").read_text(encoding="utf-8"))
+        cur.execute("GRANT USAGE ON SCHEMA auth TO authenticated")
+        cur.execute(
+            "GRANT SELECT, INSERT, UPDATE, DELETE ON public.leads, "
+            "public.conversations TO authenticated"
+        )
+    migrated_db.commit()
+
+    # -- User A sees only A's lead + conversation.
+    with migrated_db.cursor() as cur:
+        cur.execute("SET ROLE authenticated")
+        cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{user_a}"}}',))
+        cur.execute("SELECT count(*) FROM public.leads")
+        assert cur.fetchone()[0] == 1
+        cur.execute("SELECT name FROM public.leads")
+        assert cur.fetchone()[0] == "lead-a"
+        cur.execute("SELECT count(*) FROM public.conversations")
+        assert cur.fetchone()[0] == 1
+        # RLS silently filters other orgs on DELETE.
+        cur.execute("DELETE FROM public.leads WHERE id = %s", (lead_b,))
+        assert cur.rowcount == 0
+        cur.execute("DELETE FROM public.conversations WHERE id = %s", (conv_b,))
+        assert cur.rowcount == 0
+    migrated_db.commit()
+
+    # -- User B sees only B's lead + conversation.
+    with migrated_db.cursor() as cur:
+        cur.execute("SET ROLE authenticated")
+        cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{user_b}"}}',))
+        cur.execute("SELECT name FROM public.leads")
+        assert cur.fetchone()[0] == "lead-b"
+        cur.execute("SELECT count(*) FROM public.leads")
+        assert cur.fetchone()[0] == 1
+    migrated_db.commit()
+
+    # -- RLS rejects cross-org INSERT for A (WITH CHECK violation).
+    with migrated_db.cursor() as cur:
+        cur.execute("SET ROLE authenticated")
+        cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{user_a}"}}',))
+        with pytest.raises(errors.InsufficientPrivilege):
+            cur.execute(
+                "INSERT INTO public.leads (organization_id, name) VALUES (%s, 'sneaky')",
+                (org_b,),
+            )
+        with pytest.raises(errors.InsufficientPrivilege):
+            cur.execute(
+                "INSERT INTO public.conversations (organization_id, lead_id, channel) "
+                "VALUES (%s, %s, 'email')",
+                (org_b, lead_b),
+            )
+        cur.execute("RESET ROLE")
+    migrated_db.commit()
 
 
 def test_migration_0027_m9_intelligence_signals(migrated_db) -> None:

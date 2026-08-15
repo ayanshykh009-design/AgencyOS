@@ -25,12 +25,16 @@ export type PermissionKey =
   | "automation_write"
   | "automation_manage"
   | "automation_control"
+  | "workflow_read"
+  | "workflow_write"
+  | "workflow_manage"
   | "execution_read"
   | "execution_write"
   | "execution_manage"
   | "credential_read"
   | "credential_write"
   | "credential_delete"
+  | "credential_manage"
   | "memory_read"
   | "memory_write"
   | "approval_read"
@@ -52,7 +56,7 @@ const _WRITE: UserRole[] = ["owner", "admin", "manager", "member", "sales_agent"
 const _MANAGE: UserRole[] = ["owner", "admin", "manager"];
 const _ADMIN_ONLY: UserRole[] = ["owner", "admin"];
 
-const PERMISSION_MATRIX: Record<PermissionKey, UserRole[]> = {
+export const PERMISSION_MATRIX: Record<PermissionKey, UserRole[]> = {
   lead_read: _READ,
   lead_write: _WRITE,
   lead_delete: _MANAGE,
@@ -74,12 +78,16 @@ const PERMISSION_MATRIX: Record<PermissionKey, UserRole[]> = {
   automation_write: _WRITE,
   automation_manage: _ADMIN_ONLY,
   automation_control: _ADMIN_ONLY,
+  workflow_read: _READ,
+  workflow_write: _WRITE,
+  workflow_manage: _ADMIN_ONLY,
   execution_read: _READ,
   execution_write: _WRITE,
   execution_manage: _ADMIN_ONLY,
   credential_read: _READ,
   credential_write: _WRITE,
   credential_delete: _ADMIN_ONLY,
+  credential_manage: _ADMIN_ONLY,
   memory_read: _READ,
   memory_write: _MANAGE,
   approval_read: _READ,

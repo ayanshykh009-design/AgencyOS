@@ -45,7 +45,9 @@ Before pointing real traffic at it:
 
 1. Terminate TLS at a reverse proxy in front of `backend:8000` / `frontend:3000`.
 2. Prefer **managed Supabase** over the bundled `postgres` service; if
-   self-hosting Postgres, enable backups (PITR) and strong credentials.
+   self-hosting Postgres, enable backups (PITR) and strong credentials. See
+   [Operations → Backup & Recovery](operations/backup-recovery.md) for the
+   backup/restore runbook and RPO/RTO targets.
 3. Pin `N8N_IMAGE_TAG` and rotate `N8N_ENCRYPTION_KEY`; keep n8n private
    (VPN/IP allow-list).
 4. Set production `SECRET_KEY`, `CORS_ORIGINS`, `TRUSTED_HOSTS`, rate-limit

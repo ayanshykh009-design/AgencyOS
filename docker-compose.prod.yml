@@ -94,6 +94,38 @@ services:
           cpus: "1.0"
           memory: 512m
 
+  worker:
+    # Standalone background workers (queues, sweeps, retention, deliveries).
+    # See backend/scripts/prod/start_workers.sh for the full worker set.
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile.prod
+    image: agencyos-backend:${APP_VERSION:-latest}
+    container_name: agencyos-prod-worker
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      # The compose subnet hostname for Postgres overrides the localhost default.
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    command: ["sh", "/app/scripts/prod/start_workers.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    volumes:
+      - storage:/storage
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1g
+
   n8n:
     # Pinned to an audited release (2.32.7). Bump deliberately and re-audit.
     image: n8nio/n8n:${N8N_IMAGE_TAG:-2.32.7}

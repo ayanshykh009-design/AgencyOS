@@ -110,8 +110,13 @@ seed: ## Run database seeds (see database/seeds/)
 # Quality (mirrors the CI pipeline)
 # ------------------------------------------------------------------
 
+.PHONY: verify-contract
+verify-contract: ## Verify frontend/backend API contract + docs consistency
+	cd $(BACKEND_DIR) && python scripts/ci/contract_diff.py
+	cd $(BACKEND_DIR) && python scripts/ci/docs_api_consistency.py
+
 .PHONY: ci
-ci: lint test ## Run the full local CI pipeline
+ci: lint test verify-contract ## Run the full local CI pipeline
 
 .PHONY: lint
 lint: ## Lint backend (ruff) + frontend (eslint + prettier + typecheck)
