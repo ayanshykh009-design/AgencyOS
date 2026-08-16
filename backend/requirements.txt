@@ -41,7 +41,12 @@ opentelemetry-instrumentation-fastapi>=0.48b0
 # --- LLM providers (app/llm) ---
 # openai/anthropic/google SDKs are imported lazily per selected provider, so a
 # deployment using only OpenAI-compatible/Ollama/DeepSeek can drop these.
-openai>=1.40
+# Pinned to the 1.x major: the official OpenAI SDK is 1.x and depends on `httpx`.
+# An unpinned `>=` allowed a foreign major (openai 3.x) that depends on the
+# `httpx2` fork, producing a mypy arg-type mismatch against the app's real
+# `httpx.AsyncClient`. The upper bound is required to keep resolution on the
+# httpx-based 1.x SDK the application code targets.
+openai>=1.40,<2
 anthropic>=0.30
 google-genai>=1.75
 

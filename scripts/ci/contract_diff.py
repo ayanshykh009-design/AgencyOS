@@ -65,7 +65,13 @@ def normalize(path: str) -> str:
         if (p.startswith("{") and p.endswith("}")) or p.startswith(":"):
             p = "*"
         elif "${" in p:
-            p = "*"
+            # A template variable inside a path segment. If the entire segment
+            # is the variable it is a path parameter; otherwise it is a suffix
+            # appended to a static segment (commonly a query string such as
+            # `close-reasons${qs}`) and the variable part must be dropped so the
+            # static path segment remains comparable to the backend route.
+            prefix = p.split("${", 1)[0]
+            p = "*" if prefix == "" else prefix
         parts.append(p)
     base = "/" + "/".join(parts)
     # The frontend apiFetch() omits the /api/v1 prefix (the client adds it).
@@ -82,47 +88,79 @@ def backend_routes(openapi: dict) -> dict[str, set[str]]:
     return routes
 
 
-def frontend_calls() -> dict[str, set[str]]:
-    """Map normalized path -> set of HTTP methods the frontend calls."""
+# Typed call with explicit method: apiFetch<T>('/path', { method: 'POST' })
+_CALL_RE = re.compile(
+    r"""apiFetch\s*<\s*[^>]*>\s*\(\s*["'`]([^"'`]+)["'`]\s*,\s*\{[^}]*?method\s*:\s*["']?([A-Za-z]+)["']?""",
+    re.DOTALL,
+)
+# Simple call (defaults to GET) or with method supplied later.
+_SIMPLE_RE = re.compile(r"""apiFetch\s*<\s*[^>]*>\s*\(\s*["'`]([^"'`]+)["'`]""")
+
+# File-local `const NAME = "literal"` string constants (e.g. API_BASE).
+_CONST_RE = re.compile(r"""\bconst\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*["']([^"']*)["']""")
+
+
+def collect_constants(text: str) -> dict[str, str]:
+    """Extract file-local ``const NAME = "literal"`` string constants."""
+    return {m.group(1): m.group(2) for m in _CONST_RE.finditer(text)}
+
+
+def expand_constants(path: str, consts: dict[str, str]) -> str:
+    """Resolve ``${NAME}`` references to their literal constant values."""
+    prev = None
+    cur = path
+    for _ in range(4):  # bounded iteration handles chained constants
+        if cur == prev:
+            break
+        prev = cur
+        cur = re.sub(
+            r"""\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}""",
+            lambda m: consts.get(m.group(1), m.group(0)),
+            cur,
+        )
+    return cur
+
+
+def extract_calls_from_text(text: str) -> dict[str, set[str]]:
+    """Return normalized frontend calls parsed from a single TS source file."""
     calls: dict[str, set[str]] = {}
-    # Typed call with explicit method: apiFetch<T>('/path', { method: 'POST' })
-    pattern = re.compile(
-        r"""apiFetch\s*<\s*[^>]*>\s*\(\s*[`'"]([^`'"]+)[`'"]\s*,\s*\{[^}]*?method\s*:\s*[`'"]?([A-Za-z]+)['"]?""",
-        re.DOTALL,
-    )
-    # Simple call (defaults to GET) or with method supplied later.
-    simple = re.compile(r"""apiFetch\s*<\s*[^>]*>\s*\(\s*[`'"]([^`'"]+)[`'"]""")
-    for f in FRONTEND_SERVICES.rglob("*.ts"):
-        if f.name.endswith(".test.ts"):
+    consts = collect_constants(text)
+    for m in _CALL_RE.finditer(text):
+        raw = expand_constants(m.group(1), consts)
+        calls.setdefault(normalize(raw), set()).add(m.group(2).upper())
+    for m in _SIMPLE_RE.finditer(text):
+        raw = expand_constants(m.group(1), consts)
+        norm = normalize(raw)
+        window = text[max(0, m.start() - 200):m.start()]
+        if re.search(r"""method\s*:\s*[`'"]""", window):
             continue
-        text = f.read_text(encoding="utf-8")
-        for m in pattern.finditer(text):
-            calls.setdefault(normalize(m.group(1)), set()).add(m.group(2).upper())
-        for m in simple.finditer(text):
-            path = m.group(1)
-            norm = normalize(path)
-            window = text[max(0, m.start() - 200):m.start()]
-            if re.search(r"""method\s*:\s*[`'"]""", window):
-                continue
-            # Only default to GET when no explicit method was captured for this
-            # path (avoids a spurious GET alongside a real POST/PUT/PATCH).
-            if norm in calls:
-                continue
-            calls.setdefault(norm, set()).add("GET")
+        # Only default to GET when no explicit method was captured for this
+        # path (avoids a spurious GET alongside a real POST/PUT/PATCH).
+        if norm in calls:
+            continue
+        calls.setdefault(norm, set()).add("GET")
     return calls
 
 
-def main() -> int:
-    openapi = load_openapi()
-    routes = backend_routes(openapi)
-    calls = frontend_calls()
+def frontend_calls() -> dict[str, set[str]]:
+    """Map normalized path -> set of HTTP methods the frontend calls."""
+    calls: dict[str, set[str]] = {}
+    for f in FRONTEND_SERVICES.rglob("*.ts"):
+        if f.name.endswith(".test.ts"):
+            continue
+        for path, methods in extract_calls_from_text(f.read_text(encoding="utf-8")).items():
+            calls.setdefault(path, set()).update(methods)
+    return calls
 
+
+def analyze(
+    calls: dict[str, set[str]], routes: dict[str, set[str]]
+) -> tuple[list[str], list[str], list[str]]:
+    """Compare frontend calls against backend routes.
+
+    Returns ``(drift, method_warnings, uncovered_backend_routes)``.
+    """
     backend_keys = set(routes.keys())
-
-    # 1) Frontend -> backend drift: a frontend call whose base PATH does not
-    #    exist in the backend at all (genuine API drift -> must be fixed).
-    #    Method-level mismatches (e.g. FE uses a dynamic method) are reported
-    #    as informational warnings only.
     drift: list[str] = []
     method_warnings: list[str] = []
     for path, methods in calls.items():
@@ -139,15 +177,22 @@ def main() -> int:
                 method_warnings.append(
                     f"FE calls {method} {path} but backend offers {sorted(offered)}"
                 )
-
-    # 2) Backend routes with no frontend caller (warning only).
     covered = set(calls.keys())
     uncovered = sorted(
         k for k in backend_keys if k not in covered and not any(a in k for a in INTERNAL_ALLOW)
     )
+    return drift, method_warnings, uncovered
+
+
+def main() -> int:
+    openapi = load_openapi()
+    routes = backend_routes(openapi)
+    calls = frontend_calls()
+
+    drift, method_warnings, uncovered = analyze(calls, routes)
 
     report = {
-        "backend_routes": len(backend_keys),
+        "backend_routes": len(routes),
         "frontend_call_sites": sum(len(v) for v in calls.values()),
         "frontend_unique_calls": sum(len(v) for v in calls.values()),
         "drift": drift,
@@ -158,7 +203,7 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
-    print(f"Backend routes: {len(backend_keys)}")
+    print(f"Backend routes: {len(routes)}")
     print(f"Frontend unique calls: {report['frontend_unique_calls']}")
     if drift:
         print("DRIFT (frontend references missing backend routes):")
