@@ -288,6 +288,7 @@ class AgentRunTrigger(StrEnum):
     SCHEDULE = "schedule"
     WORKFLOW = "workflow"
     EVENT = "event"
+    AI_RUN = "ai_run"
 
 
 class AgentStateStatus(StrEnum):

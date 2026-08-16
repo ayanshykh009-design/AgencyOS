@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Integer, Numeric, Text
+from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Integer, Numeric, Text, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -59,6 +59,7 @@ class AgentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "cancel_requested_at",
             postgresql_where="cancel_requested_at IS NOT NULL",
         ),
+        Index("idx_agent_runs_trace_id", "trace_id"),
     )
 
     organization_id: Mapped[uuid.UUID] = mapped_column(
@@ -92,6 +93,7 @@ class AgentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL")
     )
     idempotency_key: Mapped[str | None] = mapped_column()
+    trace_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=False)
 
     organization: Mapped[Organization] = relationship(back_populates="agent_runs")
     workflow: Mapped[Workflow | None] = relationship()

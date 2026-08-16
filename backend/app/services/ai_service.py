@@ -100,6 +100,23 @@ class AIService:
 
         return export_manifest()
 
+    @staticmethod
+    def agent_for_goal(goal: str) -> str:
+        """Map an AI-run goal to its canonical agent (M11-C routing).
+
+        Lead/research/outreach goals route to the dedicated agents; anything
+        else falls back to the general ``ai_brain`` agent which the worker
+        resolves through the goal-scoped tool allow-list.
+        """
+        return {
+            "research_lead": "research_agent",
+            "search_leads": "outreach_agent",
+            "draft_email": "outreach_agent",
+            "draft_linkedin": "outreach_agent",
+            "dispatch_outreach": "outreach_agent",
+            "enrich_and_dispatch": "outreach_agent",
+        }.get(goal, "ai_brain")
+
     async def get_ai_settings(self, organization_id: uuid.UUID) -> tuple[str, str, bool]:
         """Return (provider, model, overridden) for the org's effective AI config."""
         from app.repositories.organization import OrganizationRepository

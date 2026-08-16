@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS public.agent_runs (
   cancel_requested_at  timestamptz,
   cancelled_by_user_id uuid REFERENCES public.users (id) ON DELETE SET NULL,
   idempotency_key      text,
+  -- M11 (0028): end-to-end trace id, correlating the HTTP request -> Brain ->
+  -- tool dispatch -> result for audit. Nullable; populated by /api/v1/ai/run.
+  trace_id            uuid,
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT chk_agent_runs_agent_name_not_blank CHECK (length(btrim(agent_name)) > 0),
@@ -44,6 +47,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_agent_runs_org_idempotency
 CREATE INDEX IF NOT EXISTS idx_agent_runs_cancel_pending
   ON public.agent_runs (cancel_requested_at)
   WHERE cancel_requested_at IS NOT NULL;
+-- M11 (0028): trace id correlation / audit lookups.
+CREATE INDEX IF NOT EXISTS idx_agent_runs_trace_id
+  ON public.agent_runs (trace_id);
 
 DROP TRIGGER IF EXISTS trg_agent_runs_updated_at ON public.agent_runs;
 CREATE TRIGGER trg_agent_runs_updated_at

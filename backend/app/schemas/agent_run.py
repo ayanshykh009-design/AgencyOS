@@ -57,6 +57,7 @@ class AgentRunRead(AgentRunBase):
     cancel_requested_at: datetime | None = None
     cancelled_by_user_id: uuid.UUID | None = None
     idempotency_key: str | None = None
+    trace_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
 

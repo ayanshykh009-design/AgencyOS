@@ -184,6 +184,12 @@ class Settings(BaseSettings):
     # OFF flag as "feature unavailable" (fail closed).
     AGENT_RUNTIME_ENABLED: bool = False
     AI_MEMORY_ENABLED: bool = False
+    # --- M11-B: cumulative per-org AI usage budgets (enforced in LLMService) ---
+    # A 0 value disables the corresponding budget (unlimited). Budgets are
+    # evaluated against the provider_usage rollup filtered to the "ai." feature
+    # prefix (all AI-run execution) over a rolling 24h window.
+    AI_ORG_DAILY_TOKEN_BUDGET: int = 0
+    AI_ORG_DAILY_COST_BUDGET_USD: float = 0.0
     COMMUNICATION_LAYER_ENABLED: bool = False
     GROWTH_AGENT_ENABLED: bool = False
 

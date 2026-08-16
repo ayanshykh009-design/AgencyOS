@@ -55,6 +55,7 @@ async def test_tools_returns_static_manifest() -> None:
         "draft_outreach",
         "n8n_dispatch",
         "growth_analysis",
+        "intelligence_signals",
     }
     assert expected == names
     for entry in manifest:

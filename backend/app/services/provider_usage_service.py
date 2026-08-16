@@ -64,9 +64,15 @@ class ProviderUsageService:
         )
 
     async def totals_since(
-        self, organization_id: uuid.UUID, *, since: datetime
+        self,
+        organization_id: uuid.UUID,
+        *,
+        since: datetime,
+        feature_prefix: str | None = None,
     ) -> dict[str, float | int]:
-        return await self._usage.totals_since(organization_id, since=since)
+        return await self._usage.totals_since(
+            organization_id, since=since, feature_prefix=feature_prefix
+        )
 
     async def spend_last_30_days(self, organization_id: uuid.UUID) -> float:
         return await self._usage.spend_last_30_days(organization_id)

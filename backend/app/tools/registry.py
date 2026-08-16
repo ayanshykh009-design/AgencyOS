@@ -17,6 +17,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from app.core.permissions import Permission
 from app.tools.base import Tool, ToolCall, ToolError, ToolInput, ToolResult
 
 __all__ = [
@@ -31,6 +32,10 @@ __all__ = [
     "get_tool_or_404",
     "TOOL_MANIFEST",
     "export_manifest",
+    "ToolAuthorizationError",
+    "assert_can_invoke_tool",
+    "required_permission_for",
+    "is_side_effecting",
 ]
 
 
@@ -60,6 +65,8 @@ TOOL_MANIFEST: list[dict[str, Any]] = [
             "required": ["query"],
         },
         "module": "app.tools.lead_search_tool:LeadSearchTool",
+        "required_permission": Permission.LEAD_READ,
+        "side_effect": False,
     },
     {
         "name": "lead_research",
@@ -74,6 +81,8 @@ TOOL_MANIFEST: list[dict[str, Any]] = [
             "required": ["lead_id"],
         },
         "module": "app.tools.lead_research_tool:LeadResearchTool",
+        "required_permission": Permission.LEAD_READ,
+        "side_effect": False,
     },
     {
         "name": "http_get",
@@ -86,6 +95,8 @@ TOOL_MANIFEST: list[dict[str, Any]] = [
             "required": ["url"],
         },
         "module": "app.tools.http_tool:HttpGetTool",
+        "required_permission": Permission.AI_RUN,
+        "side_effect": False,
     },
     {
         "name": "web_search",
@@ -99,6 +110,8 @@ TOOL_MANIFEST: list[dict[str, Any]] = [
             "required": ["query"],
         },
         "module": "app.tools.web_search_tool:WebSearchTool",
+        "required_permission": Permission.AI_RUN,
+        "side_effect": False,
     },
     {
         "name": "draft_outreach",
@@ -119,6 +132,8 @@ TOOL_MANIFEST: list[dict[str, Any]] = [
             "required": ["lead_id"],
         },
         "module": "app.tools.email_draft_tool:EmailDraftTool",
+        "required_permission": Permission.LEAD_WRITE,
+        "side_effect": False,
     },
     {
         "name": "n8n_dispatch",
@@ -140,6 +155,8 @@ TOOL_MANIFEST: list[dict[str, Any]] = [
             "required": ["workflow", "payload"],
         },
         "module": "app.tools.n8n_tool:N8nDispatchTool",
+        "required_permission": Permission.LEAD_WRITE,
+        "side_effect": True,
     },
     {
         "name": "growth_analysis",
@@ -182,6 +199,48 @@ TOOL_MANIFEST: list[dict[str, Any]] = [
             "required": ["analysis_type"],
         },
         "module": "app.tools.growth_tool:GrowthAnalysisTool",
+        "required_permission": Permission.GROWTH_READ,
+        "side_effect": False,
+    },
+    {
+        "name": "intelligence_signals",
+        "description": (
+            "List founder-facing intelligence signals for the current organization "
+            "(prioritized business insights derived from validated data). Read-only."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": ["new", "acknowledged", "in_progress", "resolved", "dismissed"],
+                    "description": "Filter by signal status.",
+                },
+                "category": {
+                    "type": "string",
+                    "enum": [
+                        "market_shift",
+                        "competitor_move",
+                        "customer_signal",
+                        "funding_signal",
+                        "macro_trend",
+                        "operational_risk",
+                    ],
+                    "description": "Filter by signal category.",
+                },
+                "source_type": {
+                    "type": "string",
+                    "enum": ["lead", "outreach", "growth", "web", "founder", "system"],
+                    "description": "Filter by originating data source type.",
+                },
+                "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20},
+                "offset": {"type": "integer", "minimum": 0, "default": 0},
+            },
+            "required": [],
+        },
+        "module": "app.tools.intelligence_signals_tool:IntelligenceSignalsTool",
+        "required_permission": Permission.INTELLIGENCE_READ,
+        "side_effect": False,
     },
 ]
 
@@ -220,6 +279,53 @@ def get_tool_or_404(registry: ToolRegistry, name: str) -> Tool:
     return tool
 
 
+class ToolAuthorizationError(Exception):
+    """Raised when a tool invocation is not permitted for a caller/goal."""
+
+
+# Index the manifest's authorization metadata for O(1) lookups.
+_MANIFEST_BY_NAME: dict[str, dict[str, Any]] = {e["name"]: e for e in TOOL_MANIFEST}
+
+
+def required_permission_for(name: str) -> Permission | None:
+    """Return the permission required to invoke ``name`` (``None`` if unknown)."""
+    entry = _MANIFEST_BY_NAME.get(name)
+    if entry is None:
+        return None
+    return entry.get("required_permission")
+
+
+def is_side_effecting(name: str) -> bool:
+    """Return whether invoking ``name`` triggers an external side effect."""
+    entry = _MANIFEST_BY_NAME.get(name)
+    if entry is None:
+        return True  # unknown tools are treated as unsafe until declared
+    return bool(entry.get("side_effect", True))
+
+
+def assert_can_invoke_tool(
+    caller_permissions: frozenset[Permission] | None,
+    name: str,
+) -> None:
+    """Enforce per-tool authorization; fail closed when denied or unknown.
+
+    ``caller_permissions`` is the closed permission set of the acting user. When
+    ``None`` (legacy/trusted callers), authorization is skipped — but every AI
+    run path must pass a real permission set so unauthorized tools are rejected.
+    """
+    if caller_permissions is None:
+        return
+    required = required_permission_for(name)
+    if required is None:
+        raise ToolAuthorizationError(
+            f"tool {name!r} is not registered and cannot be authorized"
+        )
+    if required not in caller_permissions:
+        raise ToolAuthorizationError(
+            f"caller lacks permission {required.value!r} required for tool {name!r}"
+        )
+
+
 def export_manifest() -> list[dict[str, Any]]:
     """Return a portable, static description of the full tool surface.
 
@@ -245,6 +351,7 @@ def default_registry(context: ToolContext | None = None) -> ToolRegistry:
     from app.tools.email_draft_tool import EmailDraftTool
     from app.tools.growth_tool import GrowthAnalysisTool
     from app.tools.http_tool import HttpGetTool
+    from app.tools.intelligence_signals_tool import IntelligenceSignalsTool
     from app.tools.lead_research_tool import LeadResearchTool
     from app.tools.lead_search_tool import LeadSearchTool
     from app.tools.n8n_tool import N8nDispatchTool
@@ -264,6 +371,7 @@ def default_registry(context: ToolContext | None = None) -> ToolRegistry:
         EmailDraftTool,
         N8nDispatchTool,
         GrowthAnalysisTool,
+        IntelligenceSignalsTool,
     ]
     for builder in builders:
         try:

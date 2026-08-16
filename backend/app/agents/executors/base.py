@@ -56,6 +56,7 @@ class ExecutorContext:
     llm_service: LLMService | None = None
     tool_registry: ToolRegistry | None = None
     memory_service: MemoryService | None = None
+    trace_id: uuid.UUID | None = None
 
 
 @runtime_checkable

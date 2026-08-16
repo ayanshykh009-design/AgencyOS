@@ -17,12 +17,15 @@ class ToolManifestEntry(BaseModel):
 
 
 class BrainRunRequest(BaseModel):
-    """Payload to execute the AI brain for a single goal on a lead."""
+    """Payload to queue an AI brain run for a single goal on a lead."""
 
     goal: str = Field(min_length=1, max_length=100)
     lead_id: UUID
     channel: Literal["email", "linkedin"] | None = None
     recent_messages: list[dict[str, Any]] | None = None
+    # Idempotency key: re-submitting the same (org, key) returns the existing
+    # run instead of queuing a duplicate.
+    idempotency_key: str | None = Field(default=None, max_length=200)
 
 
 class ToolCallRead(BaseModel):

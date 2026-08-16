@@ -32,7 +32,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
     label: "Intelligence",
     items: [
       { href: ROUTES.search, label: "Search", permission: "search" },
-      { href: ROUTES.ai, label: "AI", permission: "lead_read" },
+      { href: ROUTES.ai, label: "AI", permission: "ai_run" },
       { href: ROUTES.growth, label: "Growth", permission: "growth_read" },
       { href: ROUTES.founder, label: "Founder assistant", permission: "founder_read" },
       {

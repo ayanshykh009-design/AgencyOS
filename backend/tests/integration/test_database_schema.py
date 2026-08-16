@@ -122,6 +122,9 @@ EXPECTED_MIGRATION_SHAS = {
     "0027_m9_intelligence_signals.sql": (
         "3f9db7b8e62134161f2b3771478562d4eabacaed2286f0f335bbe0325f889e6a"
     ),
+    "0028_m11_ai_run_trace.sql": (
+        "c89a344871ee97d6a77c1038c9dde609413cf640622c65377b3042459250a522"
+    ),
 }
 
 

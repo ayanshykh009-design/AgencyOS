@@ -1,15 +1,24 @@
-// AI assistant: run the brain for a goal on a lead, review the draft, dispatch via n8n.
+// AI assistant: queue an AI run for a goal on a lead, poll to completion,
+// review the draft, and optionally dispatch via n8n. (M11-C async contract.)
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiRequestError } from "@/lib/api-client";
-import { dispatchDraft, getAISettings, listAITools, runBrain } from "@/services/ai";
+import {
+  cancelAgentRun,
+  dispatchDraft,
+  getAISettings,
+  getAgentRun,
+  listAITools,
+  runBrain,
+} from "@/services/ai";
 import { listLeads } from "@/services/leads";
 import type {
-  BrainRunResponse,
+  AgentRunRead,
+  AgentRunStatus,
   Lead,
   OrganizationAISettings,
   OutreachChannel,
@@ -28,6 +37,18 @@ const CHANNELS: Array<{ value: OutreachChannel; label: string }> = [
   { value: "linkedin", label: "LinkedIn" },
 ];
 
+const TERMINAL: ReadonlySet<AgentRunStatus> = new Set(["succeeded", "failed", "cancelled"]);
+
+const POLL_MS = 1500;
+
+function responseFromRun(run: AgentRunRead | null): string | null {
+  const out = run?.output;
+  if (out && typeof out === "object" && typeof out.response === "string") {
+    return out.response;
+  }
+  return null;
+}
+
 export default function AIPage() {
   const session = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -40,8 +61,11 @@ export default function AIPage() {
   const [channel, setChannel] = useState<OutreachChannel>("email");
   const [busy, setBusy] = useState(false);
 
-  const [result, setResult] = useState<BrainRunResponse | null>(null);
+  const [run, setRun] = useState<AgentRunRead | null>(null);
+  const [runId, setRunId] = useState<string | null>(null);
+  const [cancelMsg, setCancelMsg] = useState<string | null>(null);
   const [dispatchMsg, setDispatchMsg] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!session) return;
@@ -63,6 +87,42 @@ export default function AIPage() {
     };
   }, [session]);
 
+  // Poll the run to completion once a run id exists.
+  useEffect(() => {
+    if (!runId) return;
+    const id = runId;
+    let active = true;
+
+    async function tick() {
+      try {
+        const current = await getAgentRun(id);
+        if (!active) return;
+        setRun(current);
+        if (TERMINAL.has(current.status)) {
+          stopPolling();
+        }
+      } catch (err: unknown) {
+        if (!active) return;
+        setError(err instanceof ApiRequestError ? err.message : "Failed to fetch run status");
+        stopPolling();
+      }
+    }
+
+    tick();
+    pollRef.current = setInterval(tick, POLL_MS);
+    return () => {
+      active = false;
+      stopPolling();
+    };
+
+    function stopPolling() {
+      if (pollRef.current !== null) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
+      }
+    }
+  }, [runId]);
+
   const usesChannel = goal === "draft_email" || goal === "draft_linkedin";
 
   async function onRun() {
@@ -71,32 +131,51 @@ export default function AIPage() {
       return;
     }
     setBusy(true);
-    setResult(null);
+    setRun(null);
+    setRunId(null);
+    setCancelMsg(null);
     setDispatchMsg(null);
     setError(null);
     try {
-      const outcome = await runBrain({
+      const created = await runBrain({
         goal,
         leadId,
         ...(usesChannel ? { channel } : {}),
       });
-      setResult(outcome);
+      setRun(created);
+      setRunId(created.id);
     } catch (err: unknown) {
-      setError(err instanceof ApiRequestError ? err.message : "Failed to run AI");
+      const msg = err instanceof ApiRequestError ? err.message : "Failed to run AI";
+      setError(msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onCancel() {
+    if (!runId) return;
+    setBusy(true);
+    try {
+      const updated = await cancelAgentRun(runId);
+      setRun(updated);
+      setCancelMsg("Run cancelled.");
+    } catch (err: unknown) {
+      setError(err instanceof ApiRequestError ? err.message : "Failed to cancel run");
     } finally {
       setBusy(false);
     }
   }
 
   async function onDispatch() {
-    if (!result?.response) return;
+    const response = responseFromRun(run);
+    if (!response) return;
     setBusy(true);
     setDispatchMsg(null);
     try {
       await dispatchDraft("outreach-dispatch", {
         lead_id: leadId,
         channel: usesChannel ? channel : "email",
-        body: result.response,
+        body: response,
       });
       setDispatchMsg("Dispatched to n8n for sending.");
     } catch (err: unknown) {
@@ -105,6 +184,9 @@ export default function AIPage() {
       setBusy(false);
     }
   }
+
+  const response = responseFromRun(run);
+  const status = run?.status;
 
   return (
     <div className="flex flex-col gap-8">
@@ -172,43 +254,52 @@ export default function AIPage() {
           ) : null}
 
           <div className="flex items-center gap-3">
-            <Button onClick={onRun} disabled={busy}>
-              {busy ? "Running…" : "Run AI"}
+            <Button onClick={onRun} disabled={busy || (status != null && !TERMINAL.has(status))}>
+              {busy ? "Running…" : runId ? "Re-run AI" : "Run AI"}
             </Button>
+            {runId && status != null && !TERMINAL.has(status) ? (
+              <Button onClick={onCancel} disabled={busy} variant="ghost">
+                Cancel
+              </Button>
+            ) : null}
           </div>
         </div>
       </section>
 
       {error ? <p className="text-red-600">{error}</p> : null}
+      {cancelMsg ? <p className="text-sm text-gray-600">{cancelMsg}</p> : null}
 
-      {result ? (
+      {run ? (
         <section>
-          <h2 className="text-lg font-semibold">Result</h2>
+          <h2 className="text-lg font-semibold">Run status</h2>
           <div className="mt-3 flex flex-col gap-4">
             <div className="rounded-lg border bg-white p-4 shadow-sm">
               <p className="text-xs text-gray-400">
-                {result.success ? "Succeeded" : "Failed"} · {result.steps_taken} steps
+                {run.status}
+                {run.trace_id ? ` · trace ${run.trace_id}` : ""}
               </p>
-              {result.error ? <p className="mt-2 text-red-600">{result.error}</p> : null}
-              {result.response ? (
-                <pre className="mt-3 whitespace-pre-wrap text-sm">{result.response}</pre>
-              ) : null}
+              {run.error ? <p className="mt-2 text-red-600">{run.error}</p> : null}
+              {response ? <pre className="mt-3 whitespace-pre-wrap text-sm">{response}</pre> : null}
             </div>
 
-            {result.tool_calls.length > 0 ? (
+            {run.output && Array.isArray((run.output as { tool_trace?: unknown }).tool_trace) ? (
               <div className="rounded-lg border bg-white p-4 shadow-sm">
-                <p className="text-sm font-medium">Tool calls</p>
+                <p className="text-sm font-medium">Tool audit</p>
                 <ul className="mt-2 flex flex-col gap-1 text-xs text-gray-600">
-                  {result.tool_calls.map((call, i) => (
+                  {(
+                    (run.output as { tool_trace?: Array<Record<string, unknown>> }).tool_trace ?? []
+                  ).map((entry, i) => (
                     <li key={i}>
-                      {call.name} {JSON.stringify(call.arguments)}
+                      {String(entry.tool)} — {entry.authorized ? "authorized" : "denied"} ·{" "}
+                      {entry.ok ? "ok" : "failed"}
+                      {entry.error ? ` (${String(entry.error)})` : ""}
                     </li>
                   ))}
                 </ul>
               </div>
             ) : null}
 
-            {result.response && goal !== "research_lead" ? (
+            {response && goal !== "research_lead" ? (
               <div className="flex items-center gap-3">
                 <Button onClick={onDispatch} disabled={busy} variant="ghost">
                   Dispatch to n8n

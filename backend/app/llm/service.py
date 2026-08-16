@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, TypeVar
 
 import httpx
@@ -24,6 +24,9 @@ from tenacity import (
     wait_exponential,
 )
 
+from app.core.config import settings
+from app.core.errors import AppError
+from app.core.metrics import get_counter, get_histogram
 from app.llm.models import (
     ChatResult,
     EmbedResult,
@@ -32,6 +35,7 @@ from app.llm.models import (
     ToolDefinition,
 )
 from app.llm.providers import ProviderClient
+from app.services.provider_usage_service import ProviderUsageService
 
 logger = logging.getLogger("agencyos")
 
@@ -164,6 +168,7 @@ class LLMService:
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> ChatResult:
+        await self._enforce_budget()
         result = await _with_retry(
             lambda: self.client.chat(
                 messages,
@@ -186,6 +191,7 @@ class LLMService:
         temperature: float | None = None,
         max_tokens: int | None = None,
     ) -> AsyncIterator[ChatResult]:
+        await self._enforce_budget()
         iterator = await _with_retry(
             lambda: self.client.chat(
                 messages,
@@ -204,6 +210,53 @@ class LLMService:
         if final_usage is not None:
             await self._record(final_usage)
 
+    async def _enforce_budget(self) -> None:
+        """M11-B: block AI execution when the rolling per-org budget is exceeded.
+
+        Evaluated against the provider_usage rollup filtered to the ``ai.``
+        feature prefix (all AI-run execution) over the last 24h. A 0 budget
+        disables the check (unlimited). Budget-infra failures fail open (the
+        run proceeds) but are logged; an exceeded budget raises a deterministic
+        429 so the caller can surface it.
+        """
+        if self._session is None or self.organization_id is None:
+            return
+        token_budget = settings.AI_ORG_DAILY_TOKEN_BUDGET
+        cost_budget = settings.AI_ORG_DAILY_COST_BUDGET_USD
+        if token_budget <= 0 and cost_budget <= 0:
+            return
+        try:
+            totals = await ProviderUsageService(self._session).totals_since(
+                self.organization_id,
+                since=datetime.now(UTC) - timedelta(hours=24),
+                feature_prefix="ai.",
+            )
+        except Exception as exc:  # infra failure -> fail open (availability)
+            logger.warning("AI budget check failed; proceeding: %s", exc)
+            return
+        used_tokens = int(totals["input_tokens"]) + int(totals["output_tokens"])
+        used_cost = float(totals["cost_usd"])
+        if token_budget > 0 and used_tokens >= token_budget:
+            get_counter(
+                "ai_budget_exceeded",
+                description="AI run blocked by per-org daily token budget",
+            ).add()
+            raise AppError(
+                code="ai.budget_exceeded",
+                message="AI daily token budget exceeded for this organization",
+                status_code=429,
+            )
+        if cost_budget > 0 and used_cost >= cost_budget:
+            get_counter(
+                "ai_budget_exceeded",
+                description="AI run blocked by per-org daily cost budget",
+            ).add()
+            raise AppError(
+                code="ai.budget_exceeded",
+                message="AI daily cost budget exceeded for this organization",
+                status_code=429,
+            )
+
     async def embeddings(self, inputs: list[str]) -> EmbedResult:
         result = await _with_retry(lambda: self.client.embeddings(inputs))
         await self._record(result.usage)
@@ -211,12 +264,21 @@ class LLMService:
 
     async def _record(self, usage: LLMUsage) -> None:
         """Roll usage into attribution (provider_usage rollup by default)."""
+        if self._feature.startswith("ai."):
+            get_counter(
+                "ai_tokens_used",
+                description="Total tokens consumed by AI-run execution",
+            ).add(usage.input_tokens + usage.output_tokens)
+            get_histogram(
+                "ai_cost",
+                description="Total cost (USD) of AI-run execution",
+                unit="usd",
+            ).observe(usage.cost_usd)
         if self._usage_record is not None:
             await self._usage_record(usage, self._feature)
             return
         if self._session is None or self.organization_id is None:
             return
-        from app.services.provider_usage_service import ProviderUsageService
 
         await ProviderUsageService(self._session).record(
             organization_id=self.organization_id,

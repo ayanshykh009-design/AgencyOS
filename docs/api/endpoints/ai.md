@@ -8,7 +8,14 @@ org's leads and settings.
 
 ## POST /api/v1/ai/run
 
-Run the AI brain for a single goal against one lead.
+Queue an AI-run execution for a single goal against one lead. As of M11 this
+endpoint no longer executes synchronously: it authorizes the caller
+(`ai_run`), validates the goal/lead, and enqueues a run on the unified agent
+runtime (the same lifecycle used by every other agent run). The runtime
+executes the Brain with per-tool authorization, a goal-scoped tool allow-list,
+and a per-org daily token/cost budget, then records a full tool-call audit
+(`tool_trace`) and `trace_id` for end-to-end correlation. Poll
+`GET /api/v1/agents/runs/{run_id}` for status and `output`.
 
 ### Request body
 
@@ -18,13 +25,15 @@ Run the AI brain for a single goal against one lead.
 | `lead_id`         | UUID                    | yes      | Lead to operate on                        |
 | `channel`         | `email` \| `linkedin`   | no       | Outreach channel (draft goals)            |
 | `recent_messages` | array of objects        | no       | In-thread history to personalize against  |
+| `idempotency_key` | string                  | no       | Client-supplied; replays return the same run |
 
 ```json
 {
   "goal": "draft_email",
   "lead_id": "00000000-0000-0000-0000-000000000002",
   "channel": "email",
-  "recent_messages": []
+  "recent_messages": [],
+  "idempotency_key": "draft-email-2026-08-16"
 }
 ```
 
@@ -32,31 +41,52 @@ Run the AI brain for a single goal against one lead.
 
 | Status | Meaning                                                                 |
 | ------ | ----------------------------------------------------------------------- |
-| `200`  | Brain finished; inspect `success` to distinguish a clean answer from a failure |
+| `201`  | Run queued; body is the `AgentRun` record (see below)                   |
+| `403`  | Caller lacks `ai_run` (or the goal maps to an agent they can't invoke)  |
 | `404`  | Lead not found in the caller's org                                      |
-| `502`  | LLM provider or n8n dispatch failed                                     |
+| `409`  | Idempotency key already used for this org (`agent_run.duplicate_idempotency_key`) |
+| `429`  | `ai.budget_exceeded` — per-org daily token/cost budget exhausted        |
+| `502`  | LLM provider or n8n dispatch failed during execution                    |
 
-Response body mirrors the brain result:
+The queued `AgentRun` record (201 body) includes:
 
 ```json
 {
-  "success": true,
+  "id": "…",
+  "organization_id": "…",
+  "agent_name": "ai_brain",
+  "status": "queued",
+  "trigger": "ai_run",
+  "input": {"goal": "draft_email", "lead_id": "…", "actor_user_id": "…", "idempotency_key": "…"},
+  "trace_id": "…",
+  "idempotency_key": "…",
+  "output": null,
+  "created_at": "…"
+}
+```
+
+Once the runtime executes the run, `GET /api/v1/agents/runs/{run_id}` returns
+`output` carrying the brain result plus the M11 audit fields:
+
+```json
+{
   "response": "Hi Ada, …",
-  "error": null,
-  "steps_taken": 2,
-  "tool_calls": [
-    {"name": "lead_research", "arguments": {"lead_id": "…"}},
-    {"name": "draft_outreach", "arguments": {"lead_id": "…", "channel": "email"}}
+  "tool_trace": [
+    {"tool": "lead_research", "goal": "draft_email", "allowed": true,
+     "authorized": true, "ok": true, "duration_ms": 412.0, "char_len": 1280}
   ],
-  "tool_results": [
-    {"ok": true, "error": null, "text": "…"}
-  ]
+  "goal": "draft_email",
+  "organization_id": "…",
+  "trace_id": "…",
+  "run_id": "…"
 }
 ```
 
 ### Error codes
 
 - `lead.not_found` — the lead is not in the caller's org (404)
+- `ai_run.forbidden` — caller cannot invoke the goal's agent (403)
+- `ai.budget_exceeded` — per-org daily AI token/cost budget exhausted (429)
 - `ai.invalid_provider` — per-org setting names an unsupported provider (400)
 - `ai.dispatch_failed` — n8n rejected the dispatch (502)
 
@@ -147,7 +177,7 @@ always the authenticated user's organization.
 | `GET /ai/tools`       | any authenticated   |
 | `GET /ai/settings`    | any authenticated   |
 | `PATCH /ai/settings`  | `ai_manage`         |
-| `POST /ai/run`        | `lead_write`        |
+| `POST /ai/run`        | `ai_run`            |
 | `POST /ai/dispatch`   | `lead_write`        |
 
 Errors use the standard envelope: `{"error": {"code", "message", "details"?}}`.

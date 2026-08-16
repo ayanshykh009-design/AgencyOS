@@ -92,9 +92,24 @@ class ProviderUsageRepository:
         await self._session.execute(stmt)
 
     async def totals_since(
-        self, organization_id: uuid.UUID, *, since: datetime
+        self,
+        organization_id: uuid.UUID,
+        *,
+        since: datetime,
+        feature_prefix: str | None = None,
     ) -> dict[str, float | int]:
-        """Aggregate request/token/cost totals since a cutoff."""
+        """Aggregate request/token/cost totals since a cutoff.
+
+        ``feature_prefix`` narrows the rollup to features whose name starts with
+        the prefix (e.g. ``"ai."`` for all AI-run execution), enabling the M11-B
+        per-org budget to cover every provider under one cumulative ceiling.
+        """
+        conditions = [
+            ProviderUsage.organization_id == organization_id,
+            ProviderUsage.usage_date >= since.date(),
+        ]
+        if feature_prefix:
+            conditions.append(ProviderUsage.feature.like(f"{feature_prefix}%"))
         stmt = (
             select(
                 func.sum(ProviderUsage.request_count),
@@ -102,10 +117,7 @@ class ProviderUsageRepository:
                 func.sum(ProviderUsage.output_tokens),
                 func.sum(ProviderUsage.cost_usd),
             )
-            .where(
-                ProviderUsage.organization_id == organization_id,
-                ProviderUsage.usage_date >= since.date(),
-            )
+            .where(*conditions)
             .select_from(ProviderUsage)
         )
         result = await self._session.execute(stmt)

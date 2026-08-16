@@ -1,6 +1,7 @@
 // AI service: brain runs, tool manifest, n8n dispatch, and per-org AI settings.
 import { apiFetch } from "@/lib/api-client";
 import type {
+  AgentRunRead,
   BrainRunResponse,
   DispatchResponse,
   OrganizationAISettings,
@@ -13,22 +14,40 @@ export interface BrainRunInput {
   leadId: string;
   channel?: OutreachChannel;
   recentMessages?: Array<Record<string, unknown>>;
+  idempotencyKey?: string;
 }
 
-export async function listAITools(): Promise<ToolManifestEntry[]> {
-  return apiFetch<ToolManifestEntry[]>("/ai/tools");
-}
-
-export async function runBrain(input: BrainRunInput): Promise<BrainRunResponse> {
-  return apiFetch<BrainRunResponse>("/ai/run", {
+/**
+ * Queue an AI run (M11-C). Returns the created run; the caller polls its status
+ * via {@link getAgentRun} and may cancel it via {@link cancelAgentRun}.
+ */
+export async function runBrain(input: BrainRunInput): Promise<AgentRunRead> {
+  return apiFetch<AgentRunRead>("/ai/run", {
     method: "POST",
     body: JSON.stringify({
       goal: input.goal,
       lead_id: input.leadId,
       channel: input.channel,
       recent_messages: input.recentMessages,
+      idempotency_key: input.idempotencyKey,
     }),
   });
+}
+
+/** Fetch a single agent run by id (polling for AI run completion). */
+export async function getAgentRun(runId: string): Promise<AgentRunRead> {
+  return apiFetch<AgentRunRead>(`/agents/runs/${runId}`);
+}
+
+/** Cancel a queued or running agent run. */
+export async function cancelAgentRun(runId: string): Promise<AgentRunRead> {
+  return apiFetch<AgentRunRead>(`/agents/runs/${runId}/cancel`, {
+    method: "POST",
+  });
+}
+
+export async function listAITools(): Promise<ToolManifestEntry[]> {
+  return apiFetch<ToolManifestEntry[]>("/ai/tools");
 }
 
 export async function dispatchDraft(

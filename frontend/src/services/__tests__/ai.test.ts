@@ -54,20 +54,31 @@ describe("ai service", () => {
     expect(tools[0].name).toBe("lead_research");
   });
 
-  it("runBrain POSTs the goal and lead and returns the response", async () => {
+  it("runBrain POSTs the goal and lead and returns the queued run", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({
-        success: true,
-        response: "Hi Ada",
-        steps_taken: 1,
-        tool_calls: [],
-        tool_results: [],
+        id: "run-123",
+        organization_id: USER.organization_id,
+        agent_name: "ai_brain",
+        status: "queued",
+        trigger: "ai_run",
+        input: { goal: "draft_email", lead_id: "lead-1", actor_user_id: USER.id },
+        output: null,
+        trace_id: "trace-1",
+        idempotency_key: null,
+        error: null,
+        started_at: null,
+        finished_at: null,
+        created_at: "2026-08-01T00:00:00Z",
+        updated_at: "2026-08-01T00:00:00Z",
       })
     );
 
     const result = await runBrain({ goal: "draft_email", leadId: "lead-1", channel: "email" });
 
-    expect(result.response).toBe("Hi Ada");
+    expect(result.id).toBe("run-123");
+    expect(result.status).toBe("queued");
+    expect(result.trigger).toBe("ai_run");
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("/ai/run");
     expect(init.method).toBe("POST");

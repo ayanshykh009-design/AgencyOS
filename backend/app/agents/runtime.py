@@ -81,6 +81,7 @@ class AgentRuntime:
             llm_service=self._llm_service,
             tool_registry=self._tool_registry,
             memory_service=self._memory_service,
+            trace_id=run.trace_id,
         )
         try:
             result = await asyncio.wait_for(

@@ -208,6 +208,53 @@ export interface BrainRunResponse {
   tool_results: ToolResultRead[];
 }
 
+// ---------------------------------------------------------------------------
+// M11: AI run lifecycle (backend AgentRunRead). The /ai/run surface queues a
+// run and the UI polls it to completion (async contract).
+// ---------------------------------------------------------------------------
+
+export type AgentRunStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+
+export type AgentRunTrigger = "manual" | "schedule" | "workflow" | "event" | "ai_run";
+
+/** A single tool-call audit entry (backend tool_trace). */
+export interface AgentRunToolTrace {
+  tool: string;
+  goal?: string | null;
+  organization_id?: string | null;
+  trace_id?: string | null;
+  run_id?: string | null;
+  allowed?: boolean;
+  authorized?: boolean;
+  ok?: boolean;
+  error?: string | null;
+  duration_ms?: number;
+  char_len?: number;
+}
+
+/** An agent run record (backend AgentRunRead). */
+export interface AgentRunRead {
+  id: string;
+  organization_id: string;
+  agent_name: string;
+  status: AgentRunStatus;
+  trigger: AgentRunTrigger;
+  workflow_id?: string | null;
+  input: Record<string, unknown>;
+  output?: Record<string, unknown> | null;
+  error?: string | null;
+  duration_ms?: number | null;
+  cost: number;
+  started_at?: string | null;
+  finished_at?: string | null;
+  cancel_requested_at?: string | null;
+  cancelled_by_user_id?: string | null;
+  idempotency_key?: string | null;
+  trace_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type OutreachChannel = "email" | "linkedin";
 
 /** Result of an n8n dispatch (backend DispatchResponse). */

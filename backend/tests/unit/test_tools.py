@@ -68,6 +68,7 @@ def test_manifest_lists_all_builtin_tools() -> None:
         "draft_outreach",
         "n8n_dispatch",
         "growth_analysis",
+        "intelligence_signals",
     }
 
 

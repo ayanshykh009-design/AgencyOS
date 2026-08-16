@@ -101,6 +101,9 @@ class Permission(StrEnum):
     # M8 Founder AI Assistant
     FOUNDER_READ = "founder_read"
     FOUNDER_MANAGE = "founder_manage"
+    # M11 AI Brain hardening
+    AI_RUN = "ai_run"
+    INTELLIGENCE_READ = "intelligence_read"
 
 
 PERMISSION_MATRIX: dict[Permission, set[UserRole]] = {
@@ -153,7 +156,19 @@ PERMISSION_MATRIX: dict[Permission, set[UserRole]] = {
     # M8 Founder AI Assistant
     Permission.FOUNDER_READ: _READ,
     Permission.FOUNDER_MANAGE: _MANAGE,
+    # M11 AI Brain hardening
+    Permission.AI_RUN: _WRITE,
+    Permission.INTELLIGENCE_READ: _READ,
 }
+
+
+def permissions_for_role(role: UserRole) -> frozenset[Permission]:
+    """Return the closed set of permissions granted to ``role``.
+
+    Used by the AI run executor to authorize per-tool calls on behalf of the
+    acting user. Returns a frozen set so it is hashable and immutable.
+    """
+    return frozenset(p for p in Permission if has_permission(role, p))
 
 
 def has_permission(role: UserRole, permission: Permission) -> bool:

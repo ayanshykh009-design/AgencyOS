@@ -80,13 +80,15 @@ class AgentService:
         workflow_id: uuid.UUID | None = None,
         input_: dict,
         idempotency_key: str | None = None,
+        trace_id: uuid.UUID | None = None,
     ) -> AgentRun:
         """Queue a run for an executable agent.
 
         Refuses unknown agents (404) and registered-only/future agents (409).
         The initial status must be QUEUED — the runtime owns every subsequent
         transition. With an idempotency key, re-creating an identical run
-        returns the existing row instead of queuing a duplicate.
+        returns the existing row instead of queuing a duplicate. ``trace_id``
+        carries the originating request id for end-to-end audit (M11-C).
         """
         require_executable(agent_name)
         if status is not AgentRunStatus.QUEUED:
@@ -109,6 +111,7 @@ class AgentService:
             workflow_id=workflow_id,
             input=input_,
             idempotency_key=idempotency_key,
+            trace_id=trace_id,
         )
         self._runs.add(run)
         try:
@@ -346,6 +349,7 @@ class AgentService:
         """Record duration + terminal counter when the run just finished."""
         if run.started_at is not None:
             run.duration_ms = int((finished_at - run.started_at).total_seconds() * 1000)
+        is_ai_run = run.trigger is AgentRunTrigger.AI_RUN
         if run.status is AgentRunStatus.SUCCEEDED:
             get_counter(
                 "agent_run_succeeded_total",
@@ -356,11 +360,21 @@ class AgentService:
                 "agent_run_failed_total",
                 description="Agent runs that failed terminally",
             ).add()
+            if is_ai_run:
+                get_counter(
+                    "ai_runs_failed",
+                    description="AI (M11) runs that failed terminally",
+                ).add()
         elif run.status is AgentRunStatus.CANCELLED:
             get_counter(
                 "agent_run_cancelled_total",
                 description="Agent runs cancelled",
             ).add()
+            if is_ai_run:
+                get_counter(
+                    "ai_runs_cancelled",
+                    description="AI (M11) runs cancelled",
+                ).add()
 
     # -- worker sweep helpers -------------------------------------------
 

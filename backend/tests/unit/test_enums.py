@@ -235,7 +235,7 @@ def test_agent_run_status_values() -> None:
 
 
 def test_agent_run_trigger_values() -> None:
-    assert set(AgentRunTrigger) == {"manual", "schedule", "workflow", "event"}
+    assert set(AgentRunTrigger) == {"manual", "schedule", "workflow", "event", "ai_run"}
 
 
 def test_agent_state_status_values() -> None:

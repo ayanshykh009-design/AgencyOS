@@ -93,3 +93,48 @@ def plan_for_goal(goal: str, **params: Any) -> Plan | None:
 
 def all_known_goals() -> list[str]:
     return list(_GOAL_PLANS.keys())
+
+
+# --- M11-C: goal-scoped tool allow-list (fail-closed) ---
+# Each known goal is restricted to the exact set of tools it needs. A prompt
+# injection that makes the model emit an off-goal tool call is rejected because
+# the tool is simply not in the goal's allow-list. Unknown goals fall back to a
+# read-only allow-list (no side-effecting tools).
+_GOAL_TOOL_ALLOWLIST: dict[str, set[str]] = {
+    "research_lead": {"lead_research", "lead_search", "web_search"},
+    "search_leads": {"lead_search", "web_search"},
+    "draft_email": {"lead_research", "lead_search", "draft_outreach"},
+    "draft_linkedin": {"lead_research", "lead_search", "draft_outreach"},
+    "dispatch_outreach": {
+        "lead_research",
+        "lead_search",
+        "draft_outreach",
+        "n8n_dispatch",
+    },
+    "enrich_and_dispatch": {
+        "lead_research",
+        "lead_search",
+        "draft_outreach",
+        "n8n_dispatch",
+    },
+}
+
+# Read-only tools that are always safe for any goal (no external side effects).
+DEFAULT_TOOL_ALLOWLIST: set[str] = {
+    "lead_search",
+    "lead_research",
+    "web_search",
+    "growth_analysis",
+    "intelligence_signals",
+}
+
+
+def allowed_tools_for_goal(goal: str | None) -> set[str]:
+    """Return the tools permitted for a goal.
+
+    Fail-safe: an unknown or ``None`` goal gets only read-only tools so a
+    malformed/forged goal cannot unlock side-effecting tools.
+    """
+    if goal is None:
+        return set(DEFAULT_TOOL_ALLOWLIST)
+    return set(_GOAL_TOOL_ALLOWLIST.get(goal, DEFAULT_TOOL_ALLOWLIST))

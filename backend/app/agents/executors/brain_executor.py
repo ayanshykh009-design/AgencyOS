@@ -24,10 +24,13 @@ import httpx
 
 from app.agents.executors.base import ExecutorContext, ExecutorResult
 from app.agents.executors.registry import register_executor
+from app.ai.planner import allowed_tools_for_goal
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.permissions import permissions_for_role
 from app.repositories.lead import LeadRepository
 from app.repositories.lead_research import LeadResearchRepository
+from app.repositories.user import UserRepository
 from app.services.founder_intent_service import FounderIntentService
 from app.services.llm_settings import resolve_ai_config
 
@@ -66,22 +69,51 @@ class BrainAgentExecutor:
                     error="The referenced lead does not exist in this organization",
                 )
 
+            # M11 enforcement context. The AI run surface always carries an
+            # ``actor_user_id`` (set by /api/v1/ai/run); when present we resolve
+            # the actor's permissions and bound the tool set to the goal's
+            # allow-list. Runs created by other (trusted, AGENT_MANAGE) paths do
+            # not set an actor, so enforcement is skipped to preserve their
+            # existing behavior — the AI run path is the one that requires it.
+            goal = ctx.goal or self.default_goal
+            actor_id = _uuid_or_none(ctx.input.get("actor_user_id"))
+            if actor_id is not None:
+                actor = await UserRepository(ctx.session).get(actor_id)
+                caller_permissions = (
+                    permissions_for_role(actor.role) if actor is not None else frozenset()
+                )
+                allowed_tools = allowed_tools_for_goal(goal)
+            else:
+                caller_permissions = None
+                allowed_tools = None
+
             from app.ai.brain import Brain
 
             brain = Brain(deps["llm"], deps["registry"])
-            goal = ctx.goal or self.default_goal
             result = await brain.run_with_plan(
                 goal=goal,
                 lead=lead,
                 research=research,
                 memory_context=deps["memory_context"],
                 persona=self.description,
+                caller_permissions=caller_permissions,
+                allowed_tools=allowed_tools,
+                organization_id=ctx.organization_id,
+                trace_id=ctx.trace_id,
+                run_id=ctx.run_id,
                 **plan_params,
             )
             if result.success:
                 return ExecutorResult(
                     success=True,
-                    output={"response": result.response},
+                    output={
+                        "response": result.response,
+                        "tool_trace": result.tool_trace,
+                        "trace_id": str(ctx.trace_id) if ctx.trace_id else None,
+                        "goal": goal,
+                        "organization_id": str(ctx.organization_id),
+                        "run_id": str(ctx.run_id),
+                    },
                     steps=result.steps_taken,
                 )
             return ExecutorResult(success=False, error=result.error or "Agent execution failed")
@@ -109,7 +141,7 @@ class BrainAgentExecutor:
                 model=model,
                 organization_id=ctx.organization_id,
                 session=ctx.session,
-                feature="agent.run",
+                feature="ai.agent.run",
             )
         except Exception:  # noqa: BLE001 - fail open, reported to run
             llm = None

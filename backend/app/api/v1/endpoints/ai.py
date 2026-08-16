@@ -5,26 +5,30 @@ slowapi's ``functools.wraps`` copies string annotations and FastAPI then
 resolves them against slowapi's globals, producing unresolved ForwardRefs.
 """
 
+from uuid import UUID, uuid4
+
 from fastapi import APIRouter, Depends, Request
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
+from app.core.contextvars import request_id_var
 from app.core.errors import AppError
+from app.core.metrics import get_counter
 from app.core.permissions import Permission, require_permission
 from app.core.rate_limit import limiter
+from app.models.enums import AgentRunStatus, AgentRunTrigger
+from app.schemas.agent_run import AgentRunRead
 from app.schemas.ai import (
     BrainRunRequest,
-    BrainRunResponse,
     DispatchRequest,
     DispatchResponse,
-    ToolCallRead,
     ToolManifestEntry,
-    ToolResultRead,
 )
 from app.schemas.organization import (
     OrganizationAISettingsRead,
     OrganizationAISettingsUpdate,
 )
+from app.services.agent_service import AgentService
 from app.services.ai_service import AIService
 
 router = APIRouter()
@@ -88,9 +92,10 @@ async def list_tools(
 
 @router.post(
     "/run",
-    response_model=BrainRunResponse,
-    summary="Run the AI brain for a goal on a lead",
-    dependencies=[Depends(require_permission(Permission.LEAD_WRITE))],
+    response_model=AgentRunRead,
+    status_code=201,
+    summary="Queue an AI brain run for a goal on a lead",
+    dependencies=[Depends(require_permission(Permission.AI_RUN))],
 )
 @limiter.limit(settings.RATE_LIMIT_AI)
 async def run_brain(
@@ -98,28 +103,45 @@ async def run_brain(
     body: BrainRunRequest,
     db: DbSession,
     current_user: CurrentUser,
-) -> BrainRunResponse:
-    """Execute the brain to draft outreach, research, or dispatch via n8n."""
+) -> AgentRunRead:
+    """Queue an AI run through the unified AgentRuntime lifecycle (M11-C).
+
+    The run is created QUEUED (trigger ``ai_run``) and executed by the worker,
+    so the response is an :class:`AgentRunRead` the client polls to completion.
+    Tool authorization, the goal-scoped allow-list, and the per-org token/cost
+    budget are enforced by the worker path; the HTTP layer only authorizes the
+    request (``ai_run``) and persists the run.
+    """
     service = AIService(db)
-    result = await service.run(
-        goal=body.goal,
-        lead_id=body.lead_id,
-        organization_id=current_user.organization_id,
-        channel=body.channel,
-        recent_messages=body.recent_messages,
+    agent_name = service.agent_for_goal(body.goal)
+
+    # Trace the run end-to-end from the originating request id.
+    raw_trace = request_id_var.get()
+    try:
+        trace_id = UUID(raw_trace)
+    except (ValueError, TypeError):
+        trace_id = uuid4()
+
+    run = await AgentService(db).create_run(
+        current_user.organization_id,
+        agent_name=agent_name,
+        status=AgentRunStatus.QUEUED,
+        trigger=AgentRunTrigger.AI_RUN,
+        input_={
+            "goal": body.goal,
+            "lead_id": str(body.lead_id),
+            "channel": body.channel,
+            "recent_messages": body.recent_messages or [],
+            "actor_user_id": str(current_user.id),
+        },
+        idempotency_key=body.idempotency_key,
+        trace_id=trace_id,
     )
-    return BrainRunResponse(
-        success=result.success,
-        response=result.response,
-        error=result.error,
-        steps_taken=result.steps_taken,
-        tool_calls=[
-            ToolCallRead(name=tc.name, arguments=tc.arguments or {}) for tc in result.tool_calls
-        ],
-        tool_results=[
-            ToolResultRead(ok=tr.ok, error=tr.error, text=tr.text) for tr in result.tool_results
-        ],
-    )
+    get_counter(
+        "ai_runs_total",
+        description="AI (M11) runs queued via /api/v1/ai/run",
+    ).add()
+    return AgentRunRead.model_validate(run)
 
 
 @router.post(
