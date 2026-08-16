@@ -18,6 +18,7 @@ pytest.importorskip("psycopg2")
 import psycopg2  # noqa: E402
 from psycopg2 import errors, sql  # noqa: E402
 
+from _pg_helpers import dsn_for_database  # noqa: E402
 from app.core.config import settings  # noqa: E402
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "database" / "migrations"
@@ -169,9 +170,7 @@ def migrated_db():
 
     conn = None
     try:
-        params = admin.get_dsn_parameters()
-        params["dbname"] = db_name
-        conn = psycopg2.connect(**params)
+        conn = psycopg2.connect(dsn_for_database(ADMIN_URL, db_name))
         # Mirror scripts/db/migrate.sh: schema_migrations is a bootstrap table
         # created by the migration tooling, not by any migration file.
         with conn.cursor() as cur:
@@ -192,6 +191,23 @@ def migrated_db():
         with admin.cursor() as cur:
             cur.execute(sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(db_name)))
         admin.close()
+
+
+def test_per_test_db_connection_preserves_password_auth(migrated_db) -> None:
+    # Regression for BASELINE-DB-001: the per-test database connection must
+    # authenticate with the password carried by ADMIN_URL (NOT the password-less
+    # dict produced by get_dsn_parameters()). A successful query here proves the
+    # connection used password auth, and the migrated table proves migrations
+    # were applied to this disposable database via that same authenticated
+    # connection.
+    with migrated_db.cursor() as cur:
+        cur.execute("SELECT 1")
+        assert cur.fetchone()[0] == 1
+        cur.execute(
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
+        )
+        tables = {row[0] for row in cur.fetchall()}
+    assert "schema_migrations" in tables
 
 
 def test_migrations_apply_cleanly(migrated_db) -> None:

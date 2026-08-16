@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 from sqlalchemy.pool import NullPool  # noqa: E402
 
+from _pg_helpers import dsn_for_database  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.errors import AppError  # noqa: E402
 from app.models.enums import FounderProposalStatus, TaskStatus  # noqa: E402
@@ -85,9 +86,7 @@ async def db():
     conn = None
     engine = None
     try:
-        params = admin.get_dsn_parameters()
-        params["dbname"] = db_name
-        conn = psycopg2.connect(**params)
+        conn = psycopg2.connect(dsn_for_database(ADMIN_URL, db_name))
         with conn.cursor() as cur:
             cur.execute(
                 "CREATE TABLE public.schema_migrations ("

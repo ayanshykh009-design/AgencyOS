@@ -17,6 +17,7 @@ pytest.importorskip("psycopg2")
 import psycopg2  # noqa: E402
 from psycopg2 import sql  # noqa: E402
 
+from _pg_helpers import dsn_for_database  # noqa: E402
 from app.core.config import settings  # noqa: E402
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "database" / "migrations"
@@ -67,9 +68,7 @@ def migrated_db():
 
     conn = None
     try:
-        params = admin.get_dsn_parameters()
-        params["dbname"] = db_name
-        conn = psycopg2.connect(**params)
+        conn = psycopg2.connect(dsn_for_database(ADMIN_URL, db_name))
         with conn.cursor() as cur:
             cur.execute(
                 "CREATE TABLE public.schema_migrations ("

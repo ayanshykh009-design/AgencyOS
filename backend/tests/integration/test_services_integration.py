@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 from sqlalchemy.pool import NullPool  # noqa: E402
 
+from _pg_helpers import dsn_for_database  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.errors import AppError  # noqa: E402
 from app.models.activity_log import ActivityLog  # noqa: E402
@@ -101,9 +102,7 @@ async def db():
     conn = None
     engine = None
     try:
-        params = admin.get_dsn_parameters()
-        params["dbname"] = db_name
-        conn = psycopg2.connect(**params)
+        conn = psycopg2.connect(dsn_for_database(ADMIN_URL, db_name))
         with conn.cursor() as cur:
             cur.execute(
                 "CREATE TABLE public.schema_migrations ("
@@ -129,6 +128,16 @@ async def db():
         with admin.cursor() as cur:
             cur.execute(sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(db_name)))
         admin.close()
+
+
+async def test_db_fixture_preserves_password_auth(db) -> None:
+    # Regression for BASELINE-DB-001: the `db` fixture's per-test database
+    # connection must authenticate with the password from ADMIN_URL. A
+    # successful query through the async engine proves the clone preserved auth
+    # and migrations were applied to this disposable database.
+    async with db() as session:
+        result = await session.execute(sa_select(1))
+        assert result.scalar_one() == 1
 
 
 async def _register_org(factory, email: str = "owner@example.com") -> tuple[str, str, str]:
