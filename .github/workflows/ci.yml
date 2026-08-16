@@ -50,6 +50,11 @@ jobs:
         run: pytest
         env:
           TEST_POSTGRES_URL: postgresql://agencyos:change-me@localhost:5432/agencyos
+          # M11-B budgets are fail-closed (0 = block). The CI test suite executes
+          # real AI runs, so configure a generous budget for the run environment
+          # (mirrors a production deployment that has budgets set).
+          AI_ORG_DAILY_TOKEN_BUDGET: "1000000"
+          AI_ORG_DAILY_COST_BUDGET_USD: "1000.0"
 
   frontend:
     name: Frontend lint, typecheck, tests
