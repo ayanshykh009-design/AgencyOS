@@ -26,11 +26,13 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 from sqlalchemy.pool import NullPool  # noqa: E402
 
 from app.core.config import settings  # noqa: E402
+from app.core.errors import AppError  # noqa: E402
 from app.models.enums import FounderProposalStatus, TaskStatus  # noqa: E402
 from app.models.founder_action_proposal import FounderActionProposal  # noqa: E402
 from app.models.task import Task  # noqa: E402
 from app.models.user import User  # noqa: E402
 from app.schemas.auth import RegisterRequest  # noqa: E402
+from app.services.approval_service import ApprovalService  # noqa: E402
 from app.services.auth_service import AuthService  # noqa: E402
 from app.services.base import utcnow  # noqa: E402
 from app.services.founder_action_service import FounderActionService  # noqa: E402
@@ -232,3 +234,73 @@ async def test_expire_due_all_sweeps_expired(db) -> None:
 
         refreshed = await session.get(FounderActionProposal, proposal.id)
         assert refreshed.proposal_status == FounderProposalStatus.EXPIRED
+
+
+async def test_expired_proposal_rejected_at_synchronous_gate(db) -> None:
+    """A PROPOSED proposal past its ``expires_at`` must be un-approvable even
+    when the background expiry sweep is not running (regression for the
+    time-box bypass where an expired proposal could still be approved/executed).
+    """
+    org_id, user_id = await _register(db)
+    async with db() as session:
+        svc = FounderActionService(session)
+        proposal = await svc.propose(
+            organization_id=org_id,
+            actor_user_id=user_id,
+            conversation_id=None,
+            action_type="create_task",
+            title="Late approval",
+            payload={"title": "Late"},
+        )
+        # Backdate the proposal and its linked approval request.
+        proposal.expires_at = utcnow() - timedelta(hours=1)
+        from app.repositories.approval_request import ApprovalRequestRepository
+
+        approval = await ApprovalRequestRepository(session).get(
+            org_id, proposal.approval_request_id
+        )
+        approval.expires_at = utcnow() - timedelta(hours=1)
+        await session.commit()
+
+        with pytest.raises(AppError) as exc:
+            await svc.decide_proposal(org_id, user_id, proposal.id, approve=True)
+        assert exc.value.status_code == 409
+
+        refreshed = await session.get(FounderActionProposal, proposal.id)
+        assert refreshed.proposal_status == FounderProposalStatus.EXPIRED
+        # No task should have been created by an expired proposal.
+        created = (
+            await session.execute(
+                sa_select(Task).where(Task.organization_id == org_id)
+            )
+        ).scalars().all()
+        assert created == []
+
+
+async def test_expired_approval_request_rejected_at_synchronous_gate(db) -> None:
+    """``ApprovalService.decide`` must reject a PENDING request past its
+    ``expires_at`` (not only the background sweep)."""
+    org_id, user_id = await _register(db)
+    async with db() as session:
+        user = await session.get(User, user_id)
+        approvals = ApprovalService(session)
+        request = await approvals.create_request(
+            organization_id=org_id,
+            requested_by_user_id=user_id,
+            actor=user,
+            workflow_id=None,
+            workflow_execution_id=None,
+            approver_user_id=user_id,
+            title="expired request",
+            details="{}",
+            expires_at=utcnow() - timedelta(hours=1),
+        )
+        with pytest.raises(AppError) as exc:
+            await approvals.decide(
+                org_id,
+                actor=user,
+                request_id=request.id,
+                approve=True,
+                decided_by_user_id=user_id,
+            )
+        assert exc.value.status_code == 409

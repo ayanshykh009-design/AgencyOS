@@ -189,8 +189,10 @@ def _proposal(status: FounderProposalStatus) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid.uuid4(),
         proposal_status=status,
+        expires_at=None,
         decided_at=None,
         decided_by_user_id=None,
+        execution_reference=None,
     )
 
 
@@ -271,6 +273,13 @@ def _patch_action_service(monkeypatch, *, proposal=None, proposals_repo=None):
     monkeypatch.setattr(
         "app.services.founder_action_service.utcnow",
         lambda: datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    # The per-org AI kill switch is enforced inside ``decide_proposal`` but is
+    # exercised exhaustively by the dedicated kill-switch tests; here we keep
+    # AI enabled so the founder decision-logic tests can proceed.
+    monkeypatch.setattr(
+        "app.services.ai_service.AIService.assert_ai_enabled",
+        AsyncMock(),
     )
     return org, actor_id, approval_svc, proposals_repo
 

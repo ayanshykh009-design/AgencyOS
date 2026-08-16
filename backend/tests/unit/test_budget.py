@@ -1,4 +1,12 @@
-"""M11-B: cumulative per-org token/cost budget enforcement (LLMService)."""
+"""M11-B: cumulative per-org token/cost budget enforcement (LLMService).
+
+Semantics are FAIL CLOSED:
+* Both budgets <= 0  -> AI execution denied (not configured = no unlimited).
+* Either budget > 0  -> that dimension is enforced; the zero dimension is simply
+  uncapped (not "unlimited" because the other dimension still caps usage).
+* Budget-infra failure -> execution denied (fail closed, not fail open).
+* Met-or-exceeded budget -> deterministic 429.
+"""
 
 from __future__ import annotations
 
@@ -35,20 +43,20 @@ def _service() -> LLMService:
     return svc
 
 
-async def test_budget_disabled_when_zero() -> None:
+async def test_budget_not_configured_when_zero() -> None:
     svc = _service()
     with (
         patch.object(settings, "AI_ORG_DAILY_TOKEN_BUDGET", 0),
         patch.object(settings, "AI_ORG_DAILY_COST_BUDGET_USD", 0.0),
-        patch(
-            "app.llm.service.ProviderUsageService"
-        ) as pus,
+        patch("app.llm.service.ProviderUsageService") as pus,
     ):
         pus.return_value.totals_since = AsyncMock(
             return_value={"requests": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0}
         )
-        # Must not raise.
-        await svc._enforce_budget()
+        with pytest.raises(AppError) as exc:
+            await svc._enforce_budget()
+        assert exc.value.code == "ai.budget_not_configured"
+        assert exc.value.status_code == 403
 
 
 async def test_budget_blocks_when_tokens_exceeded() -> None:
@@ -95,6 +103,20 @@ async def test_budget_allows_when_under_limit() -> None:
         await svc._enforce_budget()  # no raise
 
 
+async def test_budget_zero_token_positive_cost_allows_under_cap() -> None:
+    # token budget 0 means "no token cap"; cost budget still enforced.
+    svc = _service()
+    with (
+        patch.object(settings, "AI_ORG_DAILY_TOKEN_BUDGET", 0),
+        patch.object(settings, "AI_ORG_DAILY_COST_BUDGET_USD", 10.0),
+        patch("app.llm.service.ProviderUsageService") as pus,
+    ):
+        pus.return_value.totals_since = AsyncMock(
+            return_value={"requests": 5, "input_tokens": 9999, "output_tokens": 0, "cost_usd": 2}
+        )
+        await svc._enforce_budget()  # token uncapped, cost under cap -> allowed
+
+
 async def test_budget_exactly_at_limit_blocks() -> None:
     # ">= budget" so landing exactly on the ceiling is still blocked.
     svc = _service()
@@ -105,6 +127,20 @@ async def test_budget_exactly_at_limit_blocks() -> None:
     ):
         pus.return_value.totals_since = AsyncMock(
             return_value={"requests": 5, "input_tokens": 100, "output_tokens": 0, "cost_usd": 0}
+        )
+        with pytest.raises(AppError):
+            await svc._enforce_budget()
+
+
+async def test_budget_exactly_at_cost_limit_blocks() -> None:
+    svc = _service()
+    with (
+        patch.object(settings, "AI_ORG_DAILY_TOKEN_BUDGET", 0),
+        patch.object(settings, "AI_ORG_DAILY_COST_BUDGET_USD", 10.0),
+        patch("app.llm.service.ProviderUsageService") as pus,
+    ):
+        pus.return_value.totals_since = AsyncMock(
+            return_value={"requests": 5, "input_tokens": 0, "output_tokens": 0, "cost_usd": 10.0}
         )
         with pytest.raises(AppError):
             await svc._enforce_budget()
@@ -125,7 +161,7 @@ async def test_chat_raises_when_budget_exceeded() -> None:
         assert exc.value.code == "ai.budget_exceeded"
 
 
-async def test_budget_infra_failure_fails_open() -> None:
+async def test_budget_infra_failure_fails_closed() -> None:
     svc = _service()
     with (
         patch.object(settings, "AI_ORG_DAILY_TOKEN_BUDGET", 100),
@@ -133,5 +169,8 @@ async def test_budget_infra_failure_fails_open() -> None:
         patch("app.llm.service.ProviderUsageService") as pus,
     ):
         pus.return_value.totals_since = AsyncMock(side_effect=RuntimeError("db down"))
-        # Must not raise — infra failure fails open (availability over strictness).
-        await svc._enforce_budget()
+        # Must raise (fail closed) — a budget-infra failure must NOT proceed.
+        with pytest.raises(AppError) as exc:
+            await svc._enforce_budget()
+        assert exc.value.code == "ai.budget_check_failed"
+        assert exc.value.status_code == 503

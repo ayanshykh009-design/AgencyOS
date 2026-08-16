@@ -56,6 +56,10 @@ async def test_tools_returns_static_manifest() -> None:
         "n8n_dispatch",
         "growth_analysis",
         "intelligence_signals",
+        "summarize_context",
+        "get_recent_activity",
+        "create_task",
+        "propose_founder_action",
     }
     assert expected == names
     for entry in manifest:
@@ -65,21 +69,23 @@ async def test_tools_returns_static_manifest() -> None:
 
 async def test_get_ai_settings_defaults_to_env() -> None:
     service = AIService(_NoOrgSession())
-    provider, model, overridden = await service.get_ai_settings(ORG_ID)
+    provider, model, overridden, kill_switch = await service.get_ai_settings(ORG_ID)
 
     assert provider == settings.LLM_PROVIDER
     assert model == settings.LLM_DEFAULT_MODEL
     assert overridden is False
+    assert kill_switch is False
 
 
 async def test_get_ai_settings_honors_org_override() -> None:
     org = _org(ai={"provider": "anthropic", "model": "claude-3-5-sonnet"})
     service = AIService(_FakeOrgSession(org))
-    provider, model, overridden = await service.get_ai_settings(ORG_ID)
+    provider, model, overridden, kill_switch = await service.get_ai_settings(ORG_ID)
 
     assert provider == "anthropic"
     assert model == "claude-3-5-sonnet"
     assert overridden is True
+    assert kill_switch is False
 
 
 async def test_update_ai_settings_merges_and_commits() -> None:
@@ -107,6 +113,40 @@ async def test_update_ai_settings_noop_when_nothing_changes() -> None:
     await service.update_ai_settings(ORG_ID)
 
     assert org.settings == {}
+
+
+async def test_is_ai_enabled_default_true() -> None:
+    org = _org()
+    service = AIService(_FakeOrgSession(org))
+    assert await service.is_ai_enabled(ORG_ID) is True
+
+
+async def test_is_ai_enabled_kill_switch_disables() -> None:
+    org = _org(ai={"kill_switch": True})
+    service = AIService(_FakeOrgSession(org))
+    assert await service.is_ai_enabled(ORG_ID) is False
+
+
+async def test_is_ai_enabled_missing_org_fails_closed() -> None:
+    service = AIService(_NoOrgSession())
+    assert await service.is_ai_enabled(ORG_ID) is False
+
+
+async def test_assert_ai_enabled_raises_when_disabled() -> None:
+    org = _org(ai={"kill_switch": True})
+    service = AIService(_FakeOrgSession(org))
+    with pytest.raises(AppError) as exc:
+        await service.assert_ai_enabled(ORG_ID)
+    assert exc.value.status_code == 409
+    assert exc.value.code == "ai.disabled"
+
+
+async def test_update_ai_settings_sets_kill_switch() -> None:
+    org = _org()
+    service = AIService(_FakeOrgSession(org))
+    await service.update_ai_settings(ORG_ID, kill_switch=True)
+    assert org.settings["ai"] == {"kill_switch": True}
+    assert await service.is_ai_enabled(ORG_ID) is False
 
 
 async def test_dispatch_fails_cleanly_without_n8n() -> None:

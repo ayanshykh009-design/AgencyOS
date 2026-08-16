@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from sqlalchemy import select, update
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
@@ -178,4 +178,4 @@ class FounderActionProposalRepository(TenantRepository[FounderActionProposal]):
             )
         )
         result = await self._session.execute(stmt)
-        return (result.rowcount or 0) > 0
+        return (cast(CursorResult, result).rowcount or 0) > 0

@@ -112,6 +112,17 @@ class ApprovalService:
                 message="Approval request is not pending",
                 status_code=409,
             )
+        # Enforce the approval time-box at the synchronous gate (not only in the
+        # background sweep). A PENDING request past its expires_at must be rejected.
+        now = utcnow()
+        if request.expires_at is not None and now > request.expires_at:
+            await self._requests.mark_expired(organization_id, request.id, now=now)
+            await commit_with_retry(self._session)
+            raise AppError(
+                code="approval.expired",
+                message="Approval request has expired and can no longer be decided",
+                status_code=409,
+            )
         action = ApprovalLogAction.APPROVED if approve else ApprovalLogAction.DENIED
         request.status = ApprovalRequestStatus.APPROVED if approve else ApprovalRequestStatus.DENIED
         request.decided_by_user_id = decided_by_user_id or actor.id

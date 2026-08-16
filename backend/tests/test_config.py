@@ -1,7 +1,13 @@
 """Tests for configuration parsing and production safeguards."""
 import pytest
 
-from app.core.config import Settings
+from app.core.config import DEFAULT_SECRET_KEY, Settings
+
+# A deliberately strong, non-default production secret (>= 32 chars).
+STRONG_SECRET = (
+    "a-very-long-production-secret-key-that-exceeds-thirty-two-characters-1234567890"
+)
+
 
 
 def test_cors_origins_parsing() -> None:
@@ -18,7 +24,7 @@ def test_production_validation_rejects_debug() -> None:
     settings = Settings(
         APP_ENV="production",
         APP_DEBUG=True,
-        SECRET_KEY="a-strong-secret",
+        SECRET_KEY=STRONG_SECRET,
         DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
     )
     with pytest.raises(RuntimeError, match="APP_DEBUG"):
@@ -36,6 +42,61 @@ def test_production_validation_rejects_default_secret() -> None:
         settings.validate_for_production()
 
 
+def test_production_validation_rejects_hardcoded_dev_secret() -> None:
+    settings = Settings(
+        APP_ENV="production",
+        APP_DEBUG=False,
+        SECRET_KEY=DEFAULT_SECRET_KEY,
+        DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
+    )
+    with pytest.raises(RuntimeError, match="SECRET_KEY"):
+        settings.validate_for_production()
+
+
+def test_production_validation_rejects_short_weak_secret() -> None:
+    settings = Settings(
+        APP_ENV="production",
+        APP_DEBUG=False,
+        SECRET_KEY="short",
+        DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
+    )
+    with pytest.raises(RuntimeError, match="SECRET_KEY"):
+        settings.validate_for_production()
+
+
+def test_production_validation_rejects_empty_secret() -> None:
+    settings = Settings(
+        APP_ENV="production",
+        APP_DEBUG=False,
+        SECRET_KEY="",
+        DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
+    )
+    with pytest.raises(RuntimeError, match="SECRET_KEY"):
+        settings.validate_for_production()
+
+
+def test_production_validation_accepts_strong_secret() -> None:
+    settings = Settings(
+        APP_ENV="production",
+        APP_DEBUG=False,
+        SECRET_KEY=STRONG_SECRET,
+        DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
+        CREDENTIALS_ENC_KEY="Zk9x7mW3pQ2vRtY8uB1cN4dL6eF0gH5jAbCdEfGhIjKl",
+    )
+    settings.validate_for_production()  # must not raise
+
+
+def test_secret_key_default_is_dev_scoped() -> None:
+    # The default is a known, committed dev/test value; production rejects it.
+    assert Settings().SECRET_KEY == DEFAULT_SECRET_KEY
+    dev = Settings(APP_ENV="development")
+    dev.validate_for_production()  # no-op outside production
+    with pytest.raises(RuntimeError, match="SECRET_KEY"):
+        Settings(
+            APP_ENV="production", APP_DEBUG=False, SECRET_KEY=DEFAULT_SECRET_KEY
+        ).validate_for_production()
+
+
 def test_development_skips_production_validation() -> None:
     settings = Settings(
         APP_ENV="development",
@@ -44,6 +105,14 @@ def test_development_skips_production_validation() -> None:
         DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
     )
     settings.validate_for_production()  # must not raise
+
+
+def test_production_risk_flags_default_off() -> None:
+    # Fail-closed: production-risk AI/automation flags must default OFF.
+    settings = Settings()
+    assert settings.DELIVERY_ENABLED is False
+    assert settings.FOUNDER_ASSISTANT_ENABLED is False
+
 
 
 def test_validate_rejects_bad_redis_scheme() -> None:
@@ -62,9 +131,10 @@ def test_production_validation_rejects_bad_redis() -> None:
     settings = Settings(
         APP_ENV="production",
         APP_DEBUG=False,
-        SECRET_KEY="a-strong-secret",
+        SECRET_KEY=STRONG_SECRET,
         DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
         REDIS_URL="sqlite:///rate.db",
+        CREDENTIALS_ENC_KEY="Zk9x7mW3pQ2vRtY8uB1cN4dL6eF0gH5jAbCdEfGhIjKl",
     )
     with pytest.raises(RuntimeError, match="REDIS_URL"):
         settings.validate_for_production()

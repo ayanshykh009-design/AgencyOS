@@ -213,27 +213,54 @@ class LLMService:
     async def _enforce_budget(self) -> None:
         """M11-B: block AI execution when the rolling per-org budget is exceeded.
 
-        Evaluated against the provider_usage rollup filtered to the ``ai.``
-        feature prefix (all AI-run execution) over the last 24h. A 0 budget
-        disables the check (unlimited). Budget-infra failures fail open (the
-        run proceeds) but are logged; an exceeded budget raises a deterministic
-        429 so the caller can surface it.
+        Evaluated against the ``provider_usage`` rollup filtered to the ``ai.``
+        feature prefix (all AI-run execution) over the last 24h.
+
+        Semantics are **fail closed**:
+
+        * At least one positive budget must be configured. When BOTH the token
+          and cost budgets are ``<= 0`` the organization has no AI budget, so
+          AI execution is denied. A zero budget is **never** treated as
+          "unlimited".
+        * Budget-infrastructure failures also fail closed (deny) so an outage
+          cannot silently grant unlimited AI.
+        * A met-or-exceeded budget raises a deterministic 429.
         """
         if self._session is None or self.organization_id is None:
             return
         token_budget = settings.AI_ORG_DAILY_TOKEN_BUDGET
         cost_budget = settings.AI_ORG_DAILY_COST_BUDGET_USD
+
+        # No budget configured at all -> AI execution is unavailable.
         if token_budget <= 0 and cost_budget <= 0:
-            return
+            get_counter(
+                "ai_budget_not_configured",
+                description="AI run blocked: organization has no AI budget configured",
+            ).add()
+            raise AppError(
+                code="ai.budget_not_configured",
+                message="AI usage budget is not configured for this organization",
+                status_code=403,
+            )
+
         try:
             totals = await ProviderUsageService(self._session).totals_since(
                 self.organization_id,
                 since=datetime.now(UTC) - timedelta(hours=24),
                 feature_prefix="ai.",
             )
-        except Exception as exc:  # infra failure -> fail open (availability)
-            logger.warning("AI budget check failed; proceeding: %s", exc)
-            return
+        except Exception as exc:  # infra failure -> fail closed (deny)
+            logger.warning("AI budget check failed; denying: %s", exc)
+            get_counter(
+                "ai_budget_check_error",
+                description="AI budget check failed; execution denied (fail closed)",
+            ).add()
+            raise AppError(
+                code="ai.budget_check_failed",
+                message="AI budget could not be verified; execution denied",
+                status_code=503,
+            ) from None
+
         used_tokens = int(totals["input_tokens"]) + int(totals["output_tokens"])
         used_cost = float(totals["cost_usd"])
         if token_budget > 0 and used_tokens >= token_budget:

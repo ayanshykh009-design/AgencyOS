@@ -71,6 +71,21 @@ def _make_service(**overrides) -> AsyncMock:
     return service
 
 
+@pytest.fixture(autouse=True)
+def _ai_kill_switch_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No-op the per-org AI kill switch for runtime-loop lifecycle tests.
+
+    The kill switch is enforced inside ``execute_run`` but is exercised in full
+    by the dedicated kill-switch tests; these tests focus on the run-loop
+    lifecycle and therefore disable it (AI enabled) so the loop proceeds.
+    """
+
+    async def _noop(self: object, org_id: object) -> None:
+        return None
+
+    monkeypatch.setattr("app.services.ai_service.AIService.assert_ai_enabled", _noop)
+
+
 @patch.object(runtime_mod, "AgentService")
 @pytest.mark.asyncio
 async def test_execute_run_success_lands_succeeded(agent_service) -> None:

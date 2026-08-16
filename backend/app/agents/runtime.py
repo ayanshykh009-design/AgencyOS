@@ -55,6 +55,24 @@ class AgentRuntime:
         """
         service = AgentService(session)
 
+        # Per-org AI kill switch (F-SEC-3): fail closed at the authoritative
+        # worker execution boundary. This also covers the race where the switch
+        # is disabled between enqueue and execution — the run is rejected here
+        # rather than executing.
+        from app.services.ai_service import AIService
+
+        try:
+            await AIService(session).assert_ai_enabled(run.organization_id)
+        except AppError:
+            try:
+                return await service.fail_queued_run(
+                    run.organization_id,
+                    run.id,
+                    error="AI execution disabled for this organization",
+                )
+            except AppError:
+                return None
+
         executor = self._resolve_executor(run.agent_name)
         if executor is None:
             try:

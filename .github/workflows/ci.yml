@@ -84,9 +84,6 @@ jobs:
   contract-diff:
     name: Frontend/backend contract + docs consistency
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
 
@@ -96,7 +93,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: pip install -r backend/requirements-dev.txt
 
       - name: Verify frontend/backend API contract
         run: python scripts/ci/contract_diff.py

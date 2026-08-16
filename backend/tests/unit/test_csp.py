@@ -83,7 +83,7 @@ def test_production_validation_requires_csp() -> None:
     settings = Settings(
         APP_ENV="production",
         APP_DEBUG=False,
-        SECRET_KEY="overridden-secret",
+        SECRET_KEY="overridden-production-secret-key-with-sufficient-length-12345",
         DATABASE_URL="postgresql+asyncpg://user:pass@db:5432/agencyos",
         ENABLE_CSP=False,
     )

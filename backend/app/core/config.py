@@ -11,6 +11,24 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
+# Dev/test-only deterministic default. Production MUST override it (see
+# ``validate_for_production``). It is intentionally a known, committed value so
+# that the failure mode in production is "rejected at boot" rather than
+# "silently uses a public key".
+DEFAULT_SECRET_KEY = "fhUxAL6v2kWmZpQ9e5jR4tYb7cD1n8mF3oP6q7sT4vW"
+# Secrets that must never be accepted in production, even if supplied.
+_KNOWN_WEAK_SECRET_KEYS = frozenset(
+    {
+        DEFAULT_SECRET_KEY,
+        "change-me",
+        "change-me-please",
+        "changeme",
+        "secret",
+        "test",
+        "password",
+    }
+)
+
 
 class Settings(BaseSettings):
     """Runtime settings for the AgencyOS backend."""
@@ -28,7 +46,9 @@ class Settings(BaseSettings):
     API_V1_PREFIX: str = "/api/v1"
 
     # --- Security ---
-    SECRET_KEY: str = "fhUxAL6v2kWmZpQ9e5jR4tYb7cD1n8mF3oP6q7sT4vW"
+    # Dev/test scoped default. Production rejects this value (and any weak key)
+    # at startup via ``validate_for_production`` — see ``_KNOWN_WEAK_SECRET_KEYS``.
+    SECRET_KEY: str = DEFAULT_SECRET_KEY
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
@@ -231,8 +251,9 @@ class Settings(BaseSettings):
     AGENT_RUN_TIMEOUT_SECONDS: int = 300
 
     # --- M6 Founder Communication & Delivery Layer ---
-    # Feature flag for the delivery subsystem.
-    DELIVERY_ENABLED: bool = True
+    # Feature flag for the delivery subsystem. Defaults OFF (fail closed); a
+    # production deployment must deliberately enable it via configuration.
+    DELIVERY_ENABLED: bool = False
     # Max queued deliveries drained in a single sweep (bounded per poll).
     DELIVERY_BATCH_SIZE: int = 10
     # Sweep cadence: seconds between polls of the queued/retry buckets.
@@ -265,7 +286,9 @@ class Settings(BaseSettings):
 
     # --- M8 Founder AI Assistant ---
     # Feature flag: when False the founder assistant refuses to run (fail closed).
-    FOUNDER_ASSISTANT_ENABLED: bool = True
+    # Defaults OFF so production never enables AI execution implicitly; operators
+    # must deliberately opt in.
+    FOUNDER_ASSISTANT_ENABLED: bool = False
     # Max brain loop steps per founder turn (bounded, mirrors AGENT runtime).
     FOUNDER_MAX_STEPS: int = 8
     # How long a founder action proposal stays open before it auto-expires.
@@ -455,10 +478,13 @@ class Settings(BaseSettings):
         if self.APP_DEBUG:
             raise RuntimeError("APP_DEBUG must be false in production")
         if (
-            self.SECRET_KEY in {"change-me", ""}
-            or self.SECRET_KEY == "fhUxAL6v2kWmZpQ9e5jR4tYb7cD1n8mF3oP6q7sT4vW"
+            not self.SECRET_KEY
+            or self.SECRET_KEY in _KNOWN_WEAK_SECRET_KEYS
+            or len(self.SECRET_KEY) < 32
         ):
-            raise RuntimeError("SECRET_KEY must be overridden in production")
+            raise RuntimeError(
+                "SECRET_KEY must be a strong, non-default value (>= 32 chars) in production"
+            )
         if not self.DATABASE_URL.startswith(("postgresql", "postgres")):
             raise RuntimeError("DATABASE_URL must be set in production")
         if not self.ENABLE_CSP:

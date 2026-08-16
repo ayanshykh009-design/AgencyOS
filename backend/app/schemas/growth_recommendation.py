@@ -38,3 +38,4 @@ class GrowthRecommendationListResponse(Page[GrowthRecommendationRead]):
 
 class GrowthRecommendationUpdate(BaseModel):
     status: RecommendationStatus | None = None
+    priority: RecommendationPriority | None = None

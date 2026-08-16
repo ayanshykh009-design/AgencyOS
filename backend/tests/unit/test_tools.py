@@ -69,6 +69,10 @@ def test_manifest_lists_all_builtin_tools() -> None:
         "n8n_dispatch",
         "growth_analysis",
         "intelligence_signals",
+        "summarize_context",
+        "get_recent_activity",
+        "create_task",
+        "propose_founder_action",
     }
 
 

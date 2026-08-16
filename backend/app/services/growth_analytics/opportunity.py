@@ -42,7 +42,7 @@ def compute_opportunities(context: GrowthContext) -> dict:
             for lead in context.leads
             if lead.status == "won" and lead.deal_value is not None and lead.won_at
         ],
-        key=lambda lead: (lead.won_at, float(lead.deal_value or 0)),
+        key=lambda lead: (lead.won_at or datetime.min, float(lead.deal_value or 0)),
         reverse=True,
     )[:5]
 
@@ -56,7 +56,7 @@ def compute_opportunities(context: GrowthContext) -> dict:
                     (stage.name for stage in context.stages if stage.id == lead.stage_id),
                     None,
                 ),
-                "deal_value": float(lead.deal_value),
+                "deal_value": float(lead.deal_value) if lead.deal_value is not None else 0.0,
                 "expected_value": round(expected_value(lead), 2),
                 "probability": probability_of(lead),
             }
@@ -66,8 +66,8 @@ def compute_opportunities(context: GrowthContext) -> dict:
             {
                 "lead_id": str(lead.id),
                 "name": lead.name,
-                "deal_value": float(lead.deal_value),
-                "won_at": lead.won_at.isoformat() + "Z",
+                "deal_value": float(lead.deal_value) if lead.deal_value is not None else 0.0,
+                "won_at": (lead.won_at or datetime.min).isoformat() + "Z",
             }
             for lead in top_won
         ],

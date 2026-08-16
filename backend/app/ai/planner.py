@@ -117,6 +117,15 @@ _GOAL_TOOL_ALLOWLIST: dict[str, set[str]] = {
         "draft_outreach",
         "n8n_dispatch",
     },
+    "founder_assistant": {
+        "summarize_context",
+        "get_recent_activity",
+        "create_task",
+        "propose_founder_action",
+        "growth_analysis",
+        "lead_search",
+        "draft_outreach",
+    },
 }
 
 # Read-only tools that are always safe for any goal (no external side effects).

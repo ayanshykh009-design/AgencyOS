@@ -27,7 +27,7 @@ from app.agents.executors.registry import register_executor
 from app.ai.planner import allowed_tools_for_goal
 from app.core.config import settings
 from app.core.errors import AppError
-from app.core.permissions import permissions_for_role
+from app.core.permissions import Permission, permissions_for_role
 from app.repositories.lead import LeadRepository
 from app.repositories.lead_research import LeadResearchRepository
 from app.repositories.user import UserRepository
@@ -234,6 +234,15 @@ class FounderAssistantExecutor(BrainAgentExecutor):
         if not settings.FOUNDER_ASSISTANT_ENABLED:
             return ExecutorResult(success=False, error="Founder assistant is disabled")
 
+        # Per-org AI kill switch (F-SEC-3): fail closed at the authoritative
+        # execution boundary, before any LLM or tool call.
+        from app.services.ai_service import AIService
+
+        try:
+            await AIService(ctx.session).assert_ai_enabled(ctx.organization_id)
+        except AppError as exc:
+            return ExecutorResult(success=False, error=exc.message)
+
         owns_client = self._http_client is None
         client = self._http_client or httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
         try:
@@ -248,6 +257,19 @@ class FounderAssistantExecutor(BrainAgentExecutor):
             message = (ctx.input.get("message") or "").strip()
             actor_user_id = _uuid_or_none(ctx.input.get("actor_user_id"))
             conversation_id = _uuid_or_none(ctx.input.get("conversation_id"))
+
+            # M11 enforcement context — mirror the main AI run executor: resolve
+            # the actor's permissions and bound the tool set to the founder
+            # assistant goal's allow-list so founder tools are authorized through
+            # the same primitive as every other AI run.
+            caller_permissions: frozenset[Permission] | None = None
+            allowed_tools: set[str] | None = None
+            if actor_user_id is not None:
+                actor = await UserRepository(ctx.session).get(actor_user_id)
+                caller_permissions = (
+                    permissions_for_role(actor.role) if actor is not None else frozenset()
+                )
+                allowed_tools = allowed_tools_for_goal("founder_assistant")
 
             from app.ai.founder_context import FounderContextBuilder
             from app.services.founder_action_service import FounderActionService
@@ -279,6 +301,9 @@ class FounderAssistantExecutor(BrainAgentExecutor):
                 research=None,
                 recent_messages=recent_messages,
                 persona=_founder_persona(context, intent),
+                caller_permissions=caller_permissions,
+                allowed_tools=allowed_tools,
+                organization_id=ctx.organization_id,
             )
             if not result.success:
                 return ExecutorResult(

@@ -500,7 +500,7 @@ async def upsert_health_weights(
     service = GrowthAnalyticsService(db)
     row = await service.upsert_health_weights(
         current_user.organization_id,
-        weights=body.weights,
+        weights={k: float(v) for k, v in body.weights.items()},
         created_by_user_id=current_user.id,
     )
     return GrowthHealthWeightRead.model_validate(row)

@@ -41,9 +41,10 @@ def compute_health(context: GrowthContext) -> dict:
 
     open_leads = [lead for lead in context.leads if lead.stage_id in open_ids]
     weighted_open = sum(
-        float(lead.deal_value) * stage_weight(positions.get(lead.stage_id, 0), max_open_position)
+        float(lead.deal_value)
+        * stage_weight(positions.get(stage_id, 0), max_open_position)
         for lead in open_leads
-        if lead.deal_value is not None
+        if lead.deal_value is not None and (stage_id := lead.stage_id) is not None
     )
 
     revenue_values = [

@@ -33,13 +33,16 @@ def compute_pipeline(context: GrowthContext) -> dict:
     }
     open_leads = [lead for lead in context.leads if lead.stage_id in open_ids]
     for lead in open_leads:
-        row = rows.get(lead.stage_id)
+        stage_id = lead.stage_id
+        if stage_id is None:
+            continue
+        row = rows.get(stage_id)
         if row is None:
             continue
         row["count"] += 1
         if lead.deal_value is not None:
             row["value"] += lead.deal_value
-            probability = stage_weight(positions.get(lead.stage_id, 0), max_open_position)
+            probability = stage_weight(positions.get(stage_id, 0), max_open_position)
             row["weighted"] += float(lead.deal_value) * probability
 
     by_stage = [

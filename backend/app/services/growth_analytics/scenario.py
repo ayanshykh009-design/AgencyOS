@@ -36,8 +36,7 @@ def apply_deltas(context: GrowthContext, params: dict) -> dict:
     win_rate = _historical_win_rate(context)
     avg_deal_value = _historical_avg_deal_value(context)
 
-    projected_leads = leads_count * _decimal(deltas["new_leads_delta"])
-    projected_leads = max(0.0, float(projected_leads))
+    projected_leads = max(0.0, float(leads_count * _decimal(deltas["new_leads_delta"])))
 
     projected_conversion = conversion_rate * float(deltas["conversion_delta"])
     projected_win_rate = win_rate * float(deltas["win_rate_delta"])
@@ -79,5 +78,5 @@ def _historical_win_rate(context: GrowthContext) -> float:
 
 
 def _historical_avg_deal_value(context: GrowthContext) -> float:
-    values = [lead.deal_value for lead in context.leads if lead.deal_value is not None]
+    values = [float(lead.deal_value) for lead in context.leads if lead.deal_value is not None]
     return float(mean(values)) if values else 0.0

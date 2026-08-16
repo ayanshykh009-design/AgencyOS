@@ -47,8 +47,12 @@ async def get_ai_settings(
 ) -> OrganizationAISettingsRead:
     """Return the resolved provider/model (per-org override else env defaults)."""
     service = AIService(db)
-    provider, model, overridden = await service.get_ai_settings(current_user.organization_id)
-    return OrganizationAISettingsRead(provider=provider, model=model, overridden=overridden)
+    provider, model, overridden, kill_switch = await service.get_ai_settings(
+        current_user.organization_id
+    )
+    return OrganizationAISettingsRead(
+        provider=provider, model=model, overridden=overridden, kill_switch=kill_switch
+    )
 
 
 @router.patch(
@@ -64,15 +68,20 @@ async def update_ai_settings(
     db: DbSession,
     current_user: CurrentUser,
 ) -> OrganizationAISettingsRead:
-    """Set per-org LLM provider/model; falls back to env when unset."""
+    """Set per-org LLM provider/model and AI kill switch; falls back to env."""
     service = AIService(db)
     await service.update_ai_settings(
         current_user.organization_id,
         provider=body.provider,
         model=body.model,
+        kill_switch=body.kill_switch,
     )
-    provider, model, overridden = await service.get_ai_settings(current_user.organization_id)
-    return OrganizationAISettingsRead(provider=provider, model=model, overridden=overridden)
+    provider, model, overridden, kill_switch = await service.get_ai_settings(
+        current_user.organization_id
+    )
+    return OrganizationAISettingsRead(
+        provider=provider, model=model, overridden=overridden, kill_switch=kill_switch
+    )
 
 
 @router.get(
@@ -113,6 +122,8 @@ async def run_brain(
     request (``ai_run``) and persists the run.
     """
     service = AIService(db)
+    # Per-org AI kill switch (F-SEC-3): fail fast before enqueuing a run.
+    await service.assert_ai_enabled(current_user.organization_id)
     agent_name = service.agent_for_goal(body.goal)
 
     # Trace the run end-to-end from the originating request id.

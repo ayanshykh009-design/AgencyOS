@@ -242,6 +242,58 @@ TOOL_MANIFEST: list[dict[str, Any]] = [
         "required_permission": Permission.INTELLIGENCE_READ,
         "side_effect": False,
     },
+    {
+        "name": "summarize_context",
+        "description": "Summarize the founder's business context for the assistant.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+        "module": "app.tools.founder_tools:SummarizeContextTool",
+        "required_permission": Permission.FOUNDER_READ,
+        "side_effect": False,
+    },
+    {
+        "name": "get_recent_activity",
+        "description": "List recent org activity for the founder assistant.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": [],
+        },
+        "module": "app.tools.founder_tools:GetRecentActivityTool",
+        "required_permission": Permission.FOUNDER_READ,
+        "side_effect": False,
+    },
+    {
+        "name": "create_task",
+        "description": "Create an internal task on behalf of the founder (requires approval).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Task title."},
+            },
+            "required": ["title"],
+        },
+        "module": "app.tools.founder_tools:CreateTaskTool",
+        "required_permission": Permission.FOUNDER_MANAGE,
+        "side_effect": True,
+    },
+    {
+        "name": "propose_founder_action",
+        "description": "Propose a founder action that requires approval before execution.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Proposal title."},
+            },
+            "required": ["title"],
+        },
+        "module": "app.tools.founder_tools:ProposeFounderActionTool",
+        "required_permission": Permission.FOUNDER_MANAGE,
+        "side_effect": True,
+    },
 ]
 
 

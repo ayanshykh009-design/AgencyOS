@@ -117,8 +117,10 @@ class AIService:
             "enrich_and_dispatch": "outreach_agent",
         }.get(goal, "ai_brain")
 
-    async def get_ai_settings(self, organization_id: uuid.UUID) -> tuple[str, str, bool]:
-        """Return (provider, model, overridden) for the org's effective AI config."""
+    async def get_ai_settings(
+        self, organization_id: uuid.UUID
+    ) -> tuple[str, str, bool, bool]:
+        """Return (provider, model, overridden, kill_switch) for the org."""
         from app.repositories.organization import OrganizationRepository
 
         org = await OrganizationRepository(self._session).get(organization_id)
@@ -131,7 +133,33 @@ class AIService:
         provider = ai.get("provider") or settings.LLM_PROVIDER
         model = ai.get("model") or settings.LLM_DEFAULT_MODEL
         overridden = "provider" in ai or "model" in ai
-        return provider, model, overridden
+        kill_switch = bool(ai.get("kill_switch", False))
+        return provider, model, overridden, kill_switch
+
+    async def is_ai_enabled(self, organization_id: uuid.UUID) -> bool:
+        """Return whether AI execution is allowed for the organization.
+
+        Fail closed: a missing organization or malformed settings denies AI.
+        The default (no ``ai.kill_switch`` key present) is enabled.
+        """
+        from app.repositories.organization import OrganizationRepository
+
+        org = await OrganizationRepository(self._session).get(organization_id)
+        if org is None or not isinstance(org.settings, dict):
+            return False
+        ai = org.settings.get("ai")
+        if not isinstance(ai, dict):
+            return True
+        return not bool(ai.get("kill_switch", False))
+
+    async def assert_ai_enabled(self, organization_id: uuid.UUID) -> None:
+        """Raise ``AppError`` (409) when AI execution is disabled for the org."""
+        if not await self.is_ai_enabled(organization_id):
+            raise AppError(
+                code="ai.disabled",
+                message="AI execution is disabled for this organization",
+                status_code=409,
+            )
 
     async def update_ai_settings(
         self,
@@ -139,8 +167,14 @@ class AIService:
         *,
         provider: str | None = None,
         model: str | None = None,
+        kill_switch: bool | None = None,
     ) -> None:
-        """Merge new AI defaults into ``organizations.settings.ai``."""
+        """Merge new AI defaults into ``organizations.settings.ai``.
+
+        ``kill_switch`` is the per-organization AI execution kill switch (F-SEC-3):
+        ``True`` disables new AI/agent execution for the org (fail closed at the
+        execution boundary).
+        """
         from app.core.errors import AppError
         from app.services.organization_service import OrganizationService
 
@@ -155,7 +189,7 @@ class AIService:
         if model is not None:
             model = model.strip()
 
-        if provider is None and model is None:
+        if provider is None and model is None and kill_switch is None:
             return
 
         org_service = OrganizationService(self._session)
@@ -165,6 +199,8 @@ class AIService:
             ai["provider"] = provider
         if model is not None:
             ai["model"] = model
+        if kill_switch is not None:
+            ai["kill_switch"] = bool(kill_switch)
         await org_service.update_settings(organization_id, {"ai": ai})
 
     async def dispatch(self, *, workflow: str, payload: dict[str, Any]) -> dict[str, Any]:

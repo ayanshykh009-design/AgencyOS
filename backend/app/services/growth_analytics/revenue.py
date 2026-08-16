@@ -48,10 +48,14 @@ def compute_revenue(context: GrowthContext) -> dict:
     monthly: OrderedDict[str, Decimal] = OrderedDict()
     for lead in sorted(
         (lead for lead in won_in_period if lead.won_at and lead.deal_value is not None),
-        key=lambda item: item.won_at,
+        key=lambda item: item.won_at or datetime.min,
     ):
-        key = lead.won_at.strftime("%Y-%m")
-        monthly[key] = monthly.get(key, Decimal("0")) + lead.deal_value
+        won_at = lead.won_at
+        deal = lead.deal_value
+        assert won_at is not None
+        assert deal is not None
+        key = won_at.strftime("%Y-%m")
+        monthly[key] = monthly.get(key, Decimal("0")) + deal
 
     revenue_metrics: dict[str, float] = {}
     latest_revenue: Decimal | None = None

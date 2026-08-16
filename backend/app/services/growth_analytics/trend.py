@@ -6,8 +6,21 @@ trends on lead and revenue metric series within the window.
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import TypedDict
+
 from app.services.growth_analytics.datatypes import GrowthContext
 from app.services.growth_analytics.stats import linear_fit, pct_change
+
+
+class _LeadPoint(TypedDict):
+    month: str
+    count: int
+
+
+class _RevenuePoint(TypedDict):
+    month: str
+    value: float
 
 
 def _trend_label(slope: float) -> str:
@@ -27,7 +40,7 @@ def compute_trends(context: GrowthContext) -> dict:
             leads_by_month.setdefault(key, []).append(lead)
 
     lead_series = sorted(
-        [{"month": month, "count": len(leads)} for month, leads in leads_by_month.items()],
+        [_LeadPoint(month=month, count=len(leads)) for month, leads in leads_by_month.items()],
         key=lambda item: item["month"],
     )
     lead_counts = [float(item["count"]) for item in lead_series]
@@ -37,7 +50,9 @@ def compute_trends(context: GrowthContext) -> dict:
 
     revenue_series = sorted(
         [
-            {"month": metric.period_end.strftime("%Y-%m"), "value": float(metric.value)}
+            _RevenuePoint(
+                month=metric.period_end.strftime("%Y-%m"), value=float(metric.value)
+            )
             for metric in context.metrics
             if metric.metric_type in ("revenue", "mrr", "arr")
         ],
@@ -69,5 +84,5 @@ def compute_trends(context: GrowthContext) -> dict:
             "growth_pct": round(revenue_growth, 4),
             "latest": last_revenue,
         },
-        "generated_at": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.utcnow().isoformat() + "Z",
     }

@@ -13,7 +13,7 @@ from app.services.export_service import ExportService
 
 router = APIRouter()
 
-_read = Depends(require_permission(Permission.LEAD_READ))
+_read = Depends(require_permission(Permission.EXPORT))
 
 
 @router.get(

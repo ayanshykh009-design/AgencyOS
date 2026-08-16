@@ -8,7 +8,7 @@ read-only: it never persists rows; the growth agent executor owns persistence.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from app.models.enums import GrowthAnalysisType
@@ -105,5 +105,5 @@ class GrowthAnalysisTool(Tool):
         except (ValueError, TypeError):
             value = default or datetime.utcnow()
         if value.tzinfo is not None:
-            value = value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+            value = value.astimezone(UTC).replace(tzinfo=None)
         return value

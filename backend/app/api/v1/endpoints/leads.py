@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import CurrentUser, DbSession
+from app.core.permissions import Permission, require_permission
 from app.models.enums import LeadStatus
 from app.schemas.common import Page
 from app.schemas.dashboard import DashboardLeadCounts
@@ -21,8 +22,13 @@ router = APIRouter()
     response_model=LeadRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a lead",
+    dependencies=[Depends(require_permission(Permission.LEAD_WRITE))],
 )
-async def create_lead(body: LeadCreate, db: DbSession, current_user: CurrentUser) -> LeadRead:
+async def create_lead(
+    body: LeadCreate,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> LeadRead:
     """Create a lead (dedup keys are computed by PostgreSQL)."""
     service = LeadService(db)
     data = body.model_dump()
@@ -35,6 +41,7 @@ async def create_lead(body: LeadCreate, db: DbSession, current_user: CurrentUser
     "",
     response_model=Page[LeadRead],
     summary="Search and filter leads",
+    dependencies=[Depends(require_permission(Permission.LEAD_READ))],
 )
 async def list_leads(
     db: DbSession,
@@ -110,6 +117,7 @@ async def check_duplicates(
     "/{lead_id}",
     response_model=LeadRead,
     summary="Get a lead",
+    dependencies=[Depends(require_permission(Permission.LEAD_READ))],
 )
 async def get_lead(lead_id: uuid.UUID, db: DbSession, current_user: CurrentUser) -> LeadRead:
     """Return a single lead."""
@@ -122,6 +130,7 @@ async def get_lead(lead_id: uuid.UUID, db: DbSession, current_user: CurrentUser)
     "/{lead_id}",
     response_model=LeadRead,
     summary="Update a lead",
+    dependencies=[Depends(require_permission(Permission.LEAD_WRITE))],
 )
 async def update_lead(
     lead_id: uuid.UUID,
@@ -143,6 +152,7 @@ async def update_lead(
     "/{lead_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Soft-delete a lead",
+    dependencies=[Depends(require_permission(Permission.LEAD_DELETE))],
 )
 async def delete_lead(lead_id: uuid.UUID, db: DbSession, current_user: CurrentUser):
     """Soft-delete a lead (kept for audit, excluded from queries)."""

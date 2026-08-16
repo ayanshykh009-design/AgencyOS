@@ -76,10 +76,12 @@ def forecast_pipeline_weighted(context: GrowthContext) -> float:
     positions = {stage.id: stage.position for stage in context.stages}
     total = 0.0
     for lead in context.leads:
-        if lead.stage_id in open_ids and lead.deal_value is not None:
-            total += float(lead.deal_value) * stage_weight(
-                positions.get(lead.stage_id, 0), max_open_position
-            )
+        stage_id = lead.stage_id
+        if stage_id is None or stage_id not in open_ids or lead.deal_value is None:
+            continue
+        total += float(lead.deal_value) * stage_weight(
+            positions.get(stage_id, 0), max_open_position
+        )
     return round(total, 2)
 
 

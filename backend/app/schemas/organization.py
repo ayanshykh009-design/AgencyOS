@@ -55,6 +55,8 @@ class AISettings(BaseModel):
 
     provider: str | None = Field(default=None, min_length=1, max_length=50)
     model: str | None = Field(default=None, min_length=1, max_length=100)
+    # Per-org AI execution kill switch (F-SEC-3). True disables AI execution.
+    kill_switch: bool = False
 
 
 class OrganizationAISettingsRead(BaseModel):
@@ -63,6 +65,7 @@ class OrganizationAISettingsRead(BaseModel):
     provider: str
     model: str
     overridden: bool
+    kill_switch: bool
 
 
 class OrganizationAISettingsUpdate(BaseModel):
@@ -70,3 +73,4 @@ class OrganizationAISettingsUpdate(BaseModel):
 
     provider: str | None = Field(default=None, min_length=1, max_length=50)
     model: str | None = Field(default=None, min_length=1, max_length=100)
+    kill_switch: bool | None = None

@@ -127,10 +127,29 @@ class FounderActionService:
     ) -> FounderActionProposal:
         """Approve or deny a proposal; on approval, execute the action."""
         proposal = await self.get_proposal(organization_id, proposal_id)
+
+        # Per-org AI kill switch (F-SEC-3): block execution of approved founder
+        # actions while the organization's AI execution is disabled.
+        from app.services.ai_service import AIService
+
+        await AIService(self._session).assert_ai_enabled(organization_id)
+
         if proposal.proposal_status != FounderProposalStatus.PROPOSED:
             raise AppError(
                 code="founder_proposal.not_pending",
                 message=f"proposal is {proposal.proposal_status.value}, not pending",
+                status_code=409,
+            )
+        # Enforce the approval time-box at the synchronous gate, not only in the
+        # background sweep. Without this an expired-but-still-PROPOSED proposal can
+        # be approved (and executed) if the worker is not deployed or between runs.
+        now = utcnow()
+        if proposal.expires_at is not None and now > proposal.expires_at:
+            await self._proposals.mark_expired(organization_id, proposal.id, now=now)
+            await commit_with_retry(self._session)
+            raise AppError(
+                code="founder_proposal.expired",
+                message="This proposal has expired and can no longer be approved",
                 status_code=409,
             )
         if proposal.approval_request_id is None:
