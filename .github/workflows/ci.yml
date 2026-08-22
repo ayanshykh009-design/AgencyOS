@@ -47,7 +47,7 @@ jobs:
         run: mypy app
 
       - name: Test (pytest, incl. SQL-migration integration tests)
-        run: pytest
+        run: pytest -rA --tb=short --junitxml=pytest-results.xml
         env:
           TEST_POSTGRES_URL: postgresql://agencyos:change-me@localhost:5432/agencyos
           # M11-B budgets are fail-closed (0 = block). The CI test suite executes
