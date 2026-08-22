@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 from sqlalchemy.pool import NullPool  # noqa: E402
 
-from _pg_helpers import dsn_for_database  # noqa: E402
+from _pg_helpers import dsn_for_database, ensure_compat_roles  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.core.errors import AppError  # noqa: E402
 from app.models.enums import FounderProposalStatus, TaskStatus  # noqa: E402
@@ -79,6 +79,7 @@ async def db():
     async session factory, then drop it."""
     admin = psycopg2.connect(ADMIN_URL)
     admin.autocommit = True
+    ensure_compat_roles(ADMIN_URL)
     db_name = f"agencyos_founder_{uuid.uuid4().hex[:8]}"
     with admin.cursor() as cur:
         cur.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(db_name)))

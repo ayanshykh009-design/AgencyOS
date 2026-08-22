@@ -18,7 +18,7 @@ pytest.importorskip("psycopg2")
 import psycopg2  # noqa: E402
 from psycopg2 import errors, sql  # noqa: E402
 
-from _pg_helpers import dsn_for_database  # noqa: E402
+from _pg_helpers import dsn_for_database, ensure_compat_roles  # noqa: E402
 from app.core.config import settings  # noqa: E402
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "database" / "migrations"
@@ -164,6 +164,7 @@ def migrated_db():
     """Create a disposable database, apply all migrations, yield a connection."""
     admin = psycopg2.connect(ADMIN_URL)
     admin.autocommit = True
+    ensure_compat_roles(ADMIN_URL)
     db_name = f"agencyos_test_{uuid.uuid4().hex[:8]}"
     with admin.cursor() as cur:
         cur.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(db_name)))
@@ -208,6 +209,41 @@ def test_per_test_db_connection_preserves_password_auth(migrated_db) -> None:
         )
         tables = {row[0] for row in cur.fetchall()}
     assert "schema_migrations" in tables
+
+
+def test_compat_roles_bootstrapped_before_migrations(migrated_db) -> None:
+    # Regression for BASELINE-DB-002: the test/CI Postgres environment must
+    # provision the Supabase compatibility roles (anon, authenticated) referenced
+    # by 0007_auth.sql (REVOKE ... FROM anon, authenticated) and RLS policies
+    # (FOR ... TO authenticated) BEFORE migrations run. Without them, migration
+    # application fails with `role "anon" does not exist` and every downstream
+    # table is missing. The fact that this test's ``migrated_db`` fixture setup
+    # succeeded already proves the bootstrap ran; here we assert the contract
+    # explicitly and that the exact previously-failing statement is now a no-op.
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "SELECT rolname FROM pg_roles "
+            "WHERE rolname IN ('anon', 'authenticated')"
+        )
+        roles = {row[0] for row in cur.fetchall()}
+        assert roles == {"anon", "authenticated"}, roles
+
+        # The exact statement that previously raised UndefinedObject must now be
+        # idempotent (roles exist).
+        cur.execute(
+            "REVOKE SELECT (password_hash) ON public.users "
+            "FROM anon, authenticated"
+        )
+        migrated_db.commit()
+
+        # Core auth tables created by the migration sequence must exist.
+        cur.execute(
+            "SELECT tablename FROM pg_tables "
+            "WHERE schemaname = 'public' "
+            "AND tablename IN ('organizations', 'users')"
+        )
+        tables = {row[0] for row in cur.fetchall()}
+        assert tables == {"organizations", "users"}, tables
 
 
 def test_migrations_apply_cleanly(migrated_db) -> None:
