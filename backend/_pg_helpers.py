@@ -47,13 +47,29 @@ def ensure_compat_roles(admin_dsn: str) -> None:
     with no grants), or enable trust authentication. The roles carry no
     privileges of their own; tests that need them grant exactly what they
     require (e.g. ``GRANT ... TO authenticated``) themselves.
+
+    Idempotency note: PostgreSQL does NOT support ``CREATE ROLE IF NOT EXISTS``
+    (that clause exists only for CREATE TABLE/DATABASE/SCHEMA/INDEX), so the
+    existence check is performed against ``pg_catalog.pg_roles`` inside a DO
+    block instead. Repeated invocations are therefore safe.
     """
     with psycopg2.connect(admin_dsn) as conn:
         conn.autocommit = True
         with conn.cursor() as cur:
             for role in COMPAT_ROLES:
                 cur.execute(
-                    _sql.SQL("CREATE ROLE IF NOT EXISTS {} NOLOGIN").format(
-                        _sql.Identifier(role)
-                    )
+                    _sql.SQL(
+                        """
+                        DO $$
+                        BEGIN
+                            IF NOT EXISTS (
+                                SELECT 1 FROM pg_catalog.pg_roles
+                                WHERE rolname = {role}
+                            ) THEN
+                                CREATE ROLE {ident} NOLOGIN;
+                            END IF;
+                        END
+                        $$;
+                        """
+                    ).format(role=_sql.Literal(role), ident=_sql.Identifier(role))
                 )

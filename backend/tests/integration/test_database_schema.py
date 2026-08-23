@@ -219,7 +219,10 @@ def test_compat_roles_bootstrapped_before_migrations(migrated_db) -> None:
     # application fails with `role "anon" does not exist` and every downstream
     # table is missing. The fact that this test's ``migrated_db`` fixture setup
     # succeeded already proves the bootstrap ran; here we assert the contract
-    # explicitly and that the exact previously-failing statement is now a no-op.
+    # explicitly, that a REPEATED bootstrap invocation is safe (idempotent), and
+    # that the exact previously-failing statement is now a no-op.
+    ensure_compat_roles(ADMIN_URL)  # second call must not raise
+
     with migrated_db.cursor() as cur:
         cur.execute(
             "SELECT rolname FROM pg_roles "

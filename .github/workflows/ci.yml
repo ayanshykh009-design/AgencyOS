@@ -47,9 +47,7 @@ jobs:
         run: mypy app
 
       - name: Test (pytest, incl. SQL-migration integration tests)
-        run: |
-          set -o pipefail
-          pytest -rA --tb=long --junitxml=pytest-results.xml 2>&1 | tee pytest-output.log
+        run: pytest
         env:
           TEST_POSTGRES_URL: postgresql://agencyos:change-me@localhost:5432/agencyos
           # M11-B budgets are fail-closed (0 = block). The CI test suite executes
@@ -57,16 +55,6 @@ jobs:
           # (mirrors a production deployment that has budgets set).
           AI_ORG_DAILY_TOKEN_BUDGET: "1000000"
           AI_ORG_DAILY_COST_BUDGET_USD: "1000.0"
-
-      - name: Upload pytest diagnostic artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pytest-diagnostic-results
-          path: |
-            **/pytest-output.log
-            **/pytest-results.xml
-          if-no-files-found: warn
 
   frontend:
     name: Frontend lint, typecheck, tests
