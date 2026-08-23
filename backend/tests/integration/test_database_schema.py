@@ -79,7 +79,7 @@ EXPECTED_MIGRATION_SHAS = {
         "0881fe727d6d26464a4eacce9ef0d5e1f0265a34105c38e4c5165a2743c7a0b4"
     ),
     "0013_automation.sql": (
-        "d493f29942e2ea184074b59640d7e069b49ee039ec02139b11df105bb24a0653"
+        "76aab8f3eb12fdbedb416986e30b147e99221648af5667fd05dac54f9c7af0fa"
     ),
     "0014_schedule_last_fired.sql": (
         "a7a65004c360206a14940fb8b59cb68a58176d2539381f27877e49cae44fcebe"
@@ -1044,6 +1044,98 @@ def test_migration_0018_unchanged_sha256() -> None:
     assert hashlib.sha256(normalized).hexdigest() == EXPECTED_MIGRATION_SHAS[
         "0018_phase5d_database_layer.sql"
     ]
+
+
+# BASELINE-DB-003: canonical automation enum contract. Values mirror
+# database/schema/00_enums.sql and database/migrations/enums/10_automation.sql.
+AUTOMATION_ENUM_CONTRACT = {
+    "workflow_status": ["draft", "active", "paused", "archived"],
+    "workflow_trigger_type": ["manual", "event", "schedule"],
+    "execution_status": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "retrying",
+        "cancelled",
+        "timed_out",
+    ],
+    "credential_type": ["n8n_api_key", "api_key", "basic_auth"],
+}
+
+
+def test_automation_enum_types_match_schema_contract(migrated_db) -> None:
+    """BASELINE-DB-003 regression: 0013 must create its own enum types.
+
+    The four automation enums must exist with exactly the canonical labels
+    from ``database/schema/00_enums.sql`` before the workflow tables that
+    reference them (the ``migrated_db`` fixture applying 0013 proves the
+    ordering — a missing creation aborts fixture setup).
+    """
+    with migrated_db.cursor() as cur:
+        for type_name, expected_labels in AUTOMATION_ENUM_CONTRACT.items():
+            cur.execute(
+                "SELECT e.enumlabel FROM pg_enum e "
+                "JOIN pg_type t ON t.oid = e.enumtypid "
+                "JOIN pg_namespace n ON n.oid = t.typnamespace "
+                "WHERE n.nspname = 'public' AND t.typname = %s "
+                "ORDER BY e.enumsortorder",
+                (type_name,),
+            )
+            found = [row[0] for row in cur.fetchall()]
+            assert found == expected_labels, (
+                f"enum public.{type_name} labels drifted: {found}"
+            )
+
+        # Workflow tables actually reference the migration-owned types.
+        cur.execute(
+            "SELECT udt_name FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'workflows' "
+            "AND column_name = 'status'"
+        )
+        assert cur.fetchone()[0] == "workflow_status"
+        cur.execute(
+            "SELECT udt_name FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'credentials' "
+            "AND column_name = 'credential_type'"
+        )
+        assert cur.fetchone()[0] == "credential_type"
+
+
+def test_automation_enum_replay_is_idempotent(migrated_db) -> None:
+    """BASELINE-DB-003 regression: re-applying 0013's guarded enum blocks.
+
+    Replays the pg_type-guarded creation for every automation enum twice;
+    the guard must skip existing types so replay neither errors nor
+    duplicates labels (migration replay/idempotency contract).
+    """
+    replay = """
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_type t
+        JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE n.nspname = 'public' AND t.typname = %(type)s
+      ) THEN
+        EXECUTE format('CREATE TYPE public.%%I AS ENUM (''x'')', %(type)s);
+      END IF;
+    END;
+    $$;
+    """
+    with migrated_db.cursor() as cur:
+        for _round in (1, 2):
+            for type_name in AUTOMATION_ENUM_CONTRACT:
+                cur.execute(replay, {"type": type_name})
+        for type_name, expected_labels in AUTOMATION_ENUM_CONTRACT.items():
+            cur.execute(
+                "SELECT e.enumlabel FROM pg_enum e "
+                "JOIN pg_type t ON t.oid = e.enumtypid "
+                "JOIN pg_namespace n ON n.oid = t.typnamespace "
+                "WHERE n.nspname = 'public' AND t.typname = %s "
+                "ORDER BY e.enumsortorder",
+                (type_name,),
+            )
+            assert [row[0] for row in cur.fetchall()] == expected_labels
 
 
 def test_memory_cleanup_org_scoped_and_working_only(migrated_db) -> None:
