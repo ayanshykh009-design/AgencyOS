@@ -67,9 +67,11 @@ CREATE TABLE IF NOT EXISTS public.team_invites (
     CHECK (email = lower(btrim(email)) AND email LIKE '%_@_%')
 );
 
-CREATE INDEX idx_team_invites_org ON public.team_invites (organization_id);
-CREATE INDEX idx_team_invites_email ON public.team_invites (email);
-CREATE INDEX idx_team_invites_status ON public.team_invites (status);
+CREATE INDEX IF NOT EXISTS idx_team_invites_org ON public.team_invites (organization_id);
+CREATE INDEX IF NOT EXISTS idx_team_invites_email ON public.team_invites (email);
+CREATE INDEX IF NOT EXISTS idx_team_invites_status ON public.team_invites (status);
+
+DROP TRIGGER IF EXISTS trg_team_invites_updated_at ON public.team_invites;
 
 CREATE TRIGGER trg_team_invites_updated_at
   BEFORE UPDATE ON public.team_invites

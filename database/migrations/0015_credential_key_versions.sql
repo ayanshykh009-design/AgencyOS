@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS public.credential_key_versions (
 
 DROP TRIGGER IF EXISTS trg_credential_key_versions_updated_at
   ON public.credential_key_versions;
+
 CREATE TRIGGER trg_credential_key_versions_updated_at
   BEFORE UPDATE ON public.credential_key_versions
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

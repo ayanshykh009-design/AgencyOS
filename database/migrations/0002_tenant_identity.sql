@@ -36,7 +36,9 @@ CREATE TABLE public.organizations (
   CONSTRAINT uq_organizations_slug UNIQUE (slug)
 );
 
-CREATE INDEX idx_organizations_name ON public.organizations (lower(name));
+CREATE INDEX IF NOT EXISTS idx_organizations_name ON public.organizations (lower(name));
+
+DROP TRIGGER IF EXISTS trg_organizations_updated_at ON public.organizations;
 
 CREATE TRIGGER trg_organizations_updated_at
   BEFORE UPDATE ON public.organizations
@@ -61,8 +63,10 @@ CREATE TABLE public.users (
   CONSTRAINT uq_users_org_email UNIQUE (organization_id, email)
 );
 
-CREATE INDEX idx_users_org ON public.users (organization_id);
-CREATE INDEX idx_users_email ON public.users (email);
+CREATE INDEX IF NOT EXISTS idx_users_org ON public.users (organization_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users (email);
+
+DROP TRIGGER IF EXISTS trg_users_updated_at ON public.users;
 
 CREATE TRIGGER trg_users_updated_at
   BEFORE UPDATE ON public.users

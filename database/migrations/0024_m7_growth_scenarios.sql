@@ -39,6 +39,8 @@ CREATE INDEX IF NOT EXISTS idx_growth_scenarios_forecast
 CREATE UNIQUE INDEX IF NOT EXISTS uq_growth_scenarios_org_name
   ON public.growth_scenarios (organization_id, lower(name));
 
+DROP TRIGGER IF EXISTS trg_growth_scenarios_updated_at ON public.growth_scenarios;
+
 CREATE TRIGGER trg_growth_scenarios_updated_at
   BEFORE UPDATE ON public.growth_scenarios
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

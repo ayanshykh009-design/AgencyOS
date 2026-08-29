@@ -88,6 +88,8 @@ CREATE INDEX IF NOT EXISTS idx_growth_recommendations_org_priority
 CREATE INDEX IF NOT EXISTS idx_growth_recommendations_analysis
   ON public.growth_recommendations (source_analysis_id);
 
+DROP TRIGGER IF EXISTS trg_growth_recommendations_updated_at ON public.growth_recommendations;
+
 CREATE TRIGGER trg_growth_recommendations_updated_at
   BEFORE UPDATE ON public.growth_recommendations
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

@@ -169,6 +169,8 @@ CREATE INDEX IF NOT EXISTS idx_deliveries_approval_request
 CREATE INDEX IF NOT EXISTS idx_deliveries_notification
   ON public.deliveries (notification_id);
 
+DROP TRIGGER IF EXISTS trg_deliveries_updated_at ON public.deliveries;
+
 CREATE TRIGGER trg_deliveries_updated_at
   BEFORE UPDATE ON public.deliveries
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

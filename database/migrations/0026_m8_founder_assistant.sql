@@ -65,9 +65,13 @@ CREATE INDEX IF NOT EXISTS idx_founder_action_proposals_approval_request
   ON public.founder_action_proposals (approval_request_id) WHERE approval_request_id IS NOT NULL;
 
 -- Triggers
+DROP TRIGGER IF EXISTS trg_founder_conversations_updated_at ON public.founder_conversations;
+
 CREATE TRIGGER trg_founder_conversations_updated_at
   BEFORE UPDATE ON public.founder_conversations
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_founder_action_proposals_updated_at ON public.founder_action_proposals;
 
 CREATE TRIGGER trg_founder_action_proposals_updated_at
   BEFORE UPDATE ON public.founder_action_proposals

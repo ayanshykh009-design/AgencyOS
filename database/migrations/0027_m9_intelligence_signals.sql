@@ -170,6 +170,8 @@ CREATE INDEX IF NOT EXISTS idx_intelligence_signals_org_created
   ON public.intelligence_signals (organization_id, created_at DESC);
 
 -- Triggers
+DROP TRIGGER IF EXISTS trg_intelligence_signals_updated_at ON public.intelligence_signals;
+
 CREATE TRIGGER trg_intelligence_signals_updated_at
   BEFORE UPDATE ON public.intelligence_signals
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

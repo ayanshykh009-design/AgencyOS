@@ -50,7 +50,9 @@ CREATE TABLE public.lead_sources (
   CONSTRAINT uq_lead_sources_org_name UNIQUE (organization_id, name)
 );
 
-CREATE INDEX idx_lead_sources_org ON public.lead_sources (organization_id);
+CREATE INDEX IF NOT EXISTS idx_lead_sources_org ON public.lead_sources (organization_id);
+
+DROP TRIGGER IF EXISTS trg_lead_sources_updated_at ON public.lead_sources;
 
 CREATE TRIGGER trg_lead_sources_updated_at
   BEFORE UPDATE ON public.lead_sources
@@ -87,23 +89,25 @@ CREATE TABLE public.leads (
 );
 
 -- Org-scoped duplicate protection (NULL-tolerant partial unique indexes).
-CREATE UNIQUE INDEX uq_leads_org_email
+CREATE UNIQUE INDEX IF NOT EXISTS uq_leads_org_email
   ON public.leads (organization_id, email_normalized)
   WHERE email_normalized IS NOT NULL;
-CREATE UNIQUE INDEX uq_leads_org_phone
+CREATE UNIQUE INDEX IF NOT EXISTS uq_leads_org_phone
   ON public.leads (organization_id, phone_normalized)
   WHERE phone_normalized IS NOT NULL;
-CREATE UNIQUE INDEX uq_leads_org_website_domain
+CREATE UNIQUE INDEX IF NOT EXISTS uq_leads_org_website_domain
   ON public.leads (organization_id, website_domain)
   WHERE website_domain IS NOT NULL;
 
 -- Lookups used by the outreach pipeline.
-CREATE INDEX idx_leads_org_status ON public.leads (organization_id, status);
-CREATE INDEX idx_leads_org_owner ON public.leads (organization_id, owner_user_id);
-CREATE INDEX idx_leads_org_source ON public.leads (organization_id, lead_source_id);
-CREATE INDEX idx_leads_org_updated ON public.leads (organization_id, updated_at DESC);
-CREATE INDEX idx_leads_org_active ON public.leads (organization_id)
+CREATE INDEX IF NOT EXISTS idx_leads_org_status ON public.leads (organization_id, status);
+CREATE INDEX IF NOT EXISTS idx_leads_org_owner ON public.leads (organization_id, owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_leads_org_source ON public.leads (organization_id, lead_source_id);
+CREATE INDEX IF NOT EXISTS idx_leads_org_updated ON public.leads (organization_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_leads_org_active ON public.leads (organization_id)
   WHERE deleted_at IS NULL;
+
+DROP TRIGGER IF EXISTS trg_leads_updated_at ON public.leads;
 
 CREATE TRIGGER trg_leads_updated_at
   BEFORE UPDATE ON public.leads
@@ -132,7 +136,9 @@ CREATE TABLE public.lead_research (
   CONSTRAINT uq_lead_research_lead UNIQUE (lead_id)
 );
 
-CREATE INDEX idx_lead_research_org ON public.lead_research (organization_id);
+CREATE INDEX IF NOT EXISTS idx_lead_research_org ON public.lead_research (organization_id);
+
+DROP TRIGGER IF EXISTS trg_lead_research_updated_at ON public.lead_research;
 
 CREATE TRIGGER trg_lead_research_updated_at
   BEFORE UPDATE ON public.lead_research

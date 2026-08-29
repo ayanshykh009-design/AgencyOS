@@ -27,8 +27,10 @@ CREATE TABLE public.import_jobs (
     CHECK (processed_rows <= total_rows AND failed_rows <= total_rows)
 );
 
-CREATE INDEX idx_import_jobs_org_status ON public.import_jobs (organization_id, status);
-CREATE INDEX idx_import_jobs_org_created ON public.import_jobs (organization_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_import_jobs_org_status ON public.import_jobs (organization_id, status);
+CREATE INDEX IF NOT EXISTS idx_import_jobs_org_created ON public.import_jobs (organization_id, created_at DESC);
+
+DROP TRIGGER IF EXISTS trg_import_jobs_updated_at ON public.import_jobs;
 
 CREATE TRIGGER trg_import_jobs_updated_at
   BEFORE UPDATE ON public.import_jobs
@@ -48,7 +50,7 @@ CREATE TABLE public.import_row_errors (
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_import_row_errors_job ON public.import_row_errors (import_job_id);
+CREATE INDEX IF NOT EXISTS idx_import_row_errors_job ON public.import_row_errors (import_job_id);
 
 -- ---------------------------------------------------------------------
 -- provider_usage (token/request accounting — no credentials stored)
@@ -69,8 +71,10 @@ CREATE TABLE public.provider_usage (
   CONSTRAINT uq_provider_usage_daily UNIQUE (organization_id, provider, feature, usage_date)
 );
 
-CREATE INDEX idx_provider_usage_org_date
+CREATE INDEX IF NOT EXISTS idx_provider_usage_org_date
   ON public.provider_usage (organization_id, usage_date DESC);
+
+DROP TRIGGER IF EXISTS trg_provider_usage_updated_at ON public.provider_usage;
 
 CREATE TRIGGER trg_provider_usage_updated_at
   BEFORE UPDATE ON public.provider_usage

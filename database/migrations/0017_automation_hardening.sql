@@ -121,6 +121,7 @@ CREATE INDEX IF NOT EXISTS idx_worker_health_heartbeat
 
 DROP TRIGGER IF EXISTS trg_worker_health_updated_at
   ON public.worker_health;
+
 CREATE TRIGGER trg_worker_health_updated_at
   BEFORE UPDATE ON public.worker_health
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -141,6 +142,7 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
 
 DROP TRIGGER IF EXISTS trg_system_settings_updated_at
   ON public.system_settings;
+
 CREATE TRIGGER trg_system_settings_updated_at
   BEFORE UPDATE ON public.system_settings
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

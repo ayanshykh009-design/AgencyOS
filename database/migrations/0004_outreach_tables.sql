@@ -22,8 +22,10 @@ CREATE TABLE public.outreach_messages (
   CONSTRAINT uq_outreach_messages_org_name UNIQUE (organization_id, name)
 );
 
-CREATE INDEX idx_outreach_messages_org_channel
+CREATE INDEX IF NOT EXISTS idx_outreach_messages_org_channel
   ON public.outreach_messages (organization_id, channel);
+
+DROP TRIGGER IF EXISTS trg_outreach_messages_updated_at ON public.outreach_messages;
 
 CREATE TRIGGER trg_outreach_messages_updated_at
   BEFORE UPDATE ON public.outreach_messages
@@ -54,13 +56,15 @@ CREATE TABLE public.outreach_attempts (
     CHECK (delivered_at IS NULL OR sent_at IS NOT NULL)
 );
 
-CREATE INDEX idx_outreach_attempts_org_lead
+CREATE INDEX IF NOT EXISTS idx_outreach_attempts_org_lead
   ON public.outreach_attempts (organization_id, lead_id);
-CREATE INDEX idx_outreach_attempts_org_status
+CREATE INDEX IF NOT EXISTS idx_outreach_attempts_org_status
   ON public.outreach_attempts (organization_id, status);
-CREATE INDEX idx_outreach_attempts_org_scheduled
+CREATE INDEX IF NOT EXISTS idx_outreach_attempts_org_scheduled
   ON public.outreach_attempts (organization_id, scheduled_at)
   WHERE status = 'queued';
+
+DROP TRIGGER IF EXISTS trg_outreach_attempts_updated_at ON public.outreach_attempts;
 
 CREATE TRIGGER trg_outreach_attempts_updated_at
   BEFORE UPDATE ON public.outreach_attempts
@@ -88,10 +92,12 @@ CREATE TABLE public.follow_ups (
     UNIQUE (lead_id, outreach_attempt_id, sequence_position)
 );
 
-CREATE INDEX idx_follow_ups_org_lead ON public.follow_ups (organization_id, lead_id);
-CREATE INDEX idx_follow_ups_org_scheduled
+CREATE INDEX IF NOT EXISTS idx_follow_ups_org_lead ON public.follow_ups (organization_id, lead_id);
+CREATE INDEX IF NOT EXISTS idx_follow_ups_org_scheduled
   ON public.follow_ups (organization_id, scheduled_at)
   WHERE status = 'queued';
+
+DROP TRIGGER IF EXISTS trg_follow_ups_updated_at ON public.follow_ups;
 
 CREATE TRIGGER trg_follow_ups_updated_at
   BEFORE UPDATE ON public.follow_ups
@@ -117,10 +123,12 @@ CREATE TABLE public.manual_outreach_queue (
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_manual_outreach_org_lead
+CREATE INDEX IF NOT EXISTS idx_manual_outreach_org_lead
   ON public.manual_outreach_queue (organization_id, lead_id);
-CREATE INDEX idx_manual_outreach_org_status_due
+CREATE INDEX IF NOT EXISTS idx_manual_outreach_org_status_due
   ON public.manual_outreach_queue (organization_id, status, due_at);
+
+DROP TRIGGER IF EXISTS trg_manual_outreach_queue_updated_at ON public.manual_outreach_queue;
 
 CREATE TRIGGER trg_manual_outreach_queue_updated_at
   BEFORE UPDATE ON public.manual_outreach_queue

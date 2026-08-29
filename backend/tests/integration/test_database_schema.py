@@ -55,70 +55,70 @@ ORG_ID = "00000000-0000-0000-0000-000000000001"
 EXPECTED_MIGRATION_SHAS = {
     "0001_core_enums.sql": ("d7f6a2d73496941edf7ec7afff8393218689447a585e5e30c3d688710f1ccea9"),
     "0002_tenant_identity.sql": (
-        "4996b95bac0dfc707426498c06a0f944fce01a7a265ff8a8645f591bcbe23a86"
+        "0973f86e2613831fc1dd07e0ad730f9aa5b833fb849e49a66148a64dce4910b3"
     ),
-    "0003_lead_tables.sql": ("14f25bf42ad1a7ab35299e48dcd3083d0f6eb2aec45bf73a7314ef9fd1bdb175"),
+    "0003_lead_tables.sql": ("a2af0f29dde779deaa6d521d6881a684f3d451c41dfb979c34b53e42dea7ab8c"),
     "0004_outreach_tables.sql": (
-        "d7dbffba166c116cf5cd45366de009c9eef27e75c450584159eb80f04b151895"
+        "2cedda862a55f156020b16fe095a11a7c9ec27c5e0e404580124c2dd2015bf1c"
     ),
     "0005_conversations_activity.sql": (
-        "fa28f3def1a7be83af84f6681159b11c0f3f256ba926f20fb0c4c3e45efc516f"
+        "e681d210fc9e506f28519dce8bfdffcd590a5de0ea5eb3ea8bf5417811a725ba"
     ),
     "0006_imports_provider.sql": (
-        "7940a2d956220db620210e7977007f05243a25f2aa7f0764b02e9950d9168d7c"
+        "35fde0c2f7e19a7ec91f6d4977e0ed2aa018d7a17aa2d9cd94009134f4ae43f6"
     ),
     "0007_auth.sql": ("85b13573becc50de037b5ea7a02af687a89be2372e39168c67e1413f3bd9587b"),
     "0008_team_management.sql": (
-        "1de23545693e46ed0a8ffa97044e6db372554ae3e48fda0903e715f383d2d70d"
+        "afc27c6bc12bff8fa5b593ce040ac70456077d291b35eb7d093aefa112e6f97e"
     ),
     "0009_lead_assignment.sql": (
-        "bb01e52145d0045f00cdd5ca7f12464dd3bfe82dddc0df37bf4bf6c2c38648e5"
+        "1af8cad6a1bfca32677430f396bb5f5f02ce4fd0eaf047eb05f623d7ea0a0cdf"
     ),
     "0010_pipeline_management.sql": (
-        "9d5921b55b4c681e182126df7e52772750c685c58bcafd9a5d73fc74c53683bd"
+        "01efb962859eb1f2175c6972f595966007df1c29d9f9aa1a51641d2b203512c6"
     ),
-    "0011_tasks.sql": ("2aaabb3a556fc5c2f5b4ec114d4e83d70db16f414737eb5a0167f186950a5aa9"),
-    "0012_notes.sql": ("0881fe727d6d26464a4eacce9ef0d5e1f0265a34105c38e4c5165a2743c7a0b4"),
-    "0013_automation.sql": ("d493f29942e2ea184074b59640d7e069b49ee039ec02139b11df105bb24a0653"),
+    "0011_tasks.sql": ("e14fbca185e5c2fbd5ca5395570075f86f687aa539bfbc1589da0c71a69757f8"),
+    "0012_notes.sql": ("737769feece03ac7e434000ced8ab045a805f2f292ba3fdec167ce7a227fcf00"),
+    "0013_automation.sql": ("16f0a5f6b5810a38c68b07f7f8f9fc8ab6f37c8300e9553765b633d964c6e435"),
     "0014_schedule_last_fired.sql": (
         "a7a65004c360206a14940fb8b59cb68a58176d2539381f27877e49cae44fcebe"
     ),
     "0015_credential_key_versions.sql": (
-        "1e42e3e576b9fd60e0e572b4ef30c499a222e579c3364c55bc97c04c83243249"
+        "7f29251cc33faa947e6fe7aa81e462733ca60543f8def76fb2a39f1e263bcd2e"
     ),
     "0016_search_trigram_indexes.sql": (
         "6db58d884d91d4f299f5f66be708a737e0ae6c5578d764c67e92746fc3e6fdf1"
     ),
     "0017_automation_hardening.sql": (
-        "e748d2a559ebae157f8f67b1f6bbca53de2e407e6ff806b4ada94a129b57189b"
+        "fdcd3f9fb596db2f29eeee7cbbedcfe32cc550a7dfda7579c230f3c28459fc08"
     ),
     "0018_phase5d_database_layer.sql": (
-        "78d81482401b8a74af3bc75acb36066c578a991255a31348cef9b72ae5e925bc"
+        "86e1bc090b3f8e232c2233d63df863deb6e1fb19e8dcc4e97d1612871ce0c4f1"
     ),
     "0019_phase5d_agent_runtime.sql": (
         "cf7a1c61c73d00c50398b3df99b88f54b39005d5b29a76296a0df7390fc0d507"
     ),
-    "0020_m6_delivery.sql": ("7d00678b844654421b6f207f5b5ce177872f2a1566b7fa4ccc5bbed8e69b0f9e"),
+    "0020_m6_delivery.sql": ("dee39fa4d630ffed972d555b302fc86429736e24afd71ddcd0e1a502e621e084"),
     "0021_m6_delivery_hardening.sql": (
         "114d70dd991dcbcd5ee6d898bbef088fb29024bd5e7f7716c22dd4e394932f74"
     ),
     "0022_m7_growth_analyses.sql": (
-        "9b236875b021c33ad57208104b1f6b67f15ebd6f14d550758d59d1401e246dd6"
+        "8dbd759ab8f149a559b2bf6c8e1b5cec16aa871217f61e4f2011ffa596f8f4ce"
     ),
     "0023_m7_growth_forecasts_extended.sql": (
         "133be989d95010b3770f86635c6127baafde7f796e800a30936874c84999bd00"
     ),
     "0024_m7_growth_scenarios.sql": (
-        "b1604be03fe2847e4e408a72df1bf10e86b13fe86e1018d79d36846d80787c1d"
+        "c0d0f76c73809992a132aa8b2f40d1dc8e1c793085d7112646d11942d538b9c7"
     ),
     "0025_m7_growth_recommendations.sql": (
-        "60ab69fd780d53f1090f7db3720b6c6bd5f35ec9e9411c849be13f824a21005a"
+        "243b55f437fa384fcef9e563db2488f79a6a061cf63d41ac0acd3bf96f22d051"
     ),
     "0026_m8_founder_assistant.sql": (
-        "b457f7cfc1292b93de4059b0ba19af8822bf363d4c4d5a2dfc444e42ddbf430c"
+        "727cdd256393a39aca4ff23338774849fd2748a90999afd1d4fec31fb27d3123"
     ),
     "0027_m9_intelligence_signals.sql": (
-        "3f9db7b8e62134161f2b3771478562d4eabacaed2286f0f335bbe0325f889e6a"
+        "c30e9dbd8150cd39de0ac5ce47663b9fb88cedff1c1994ddf4b7807dcb09d263"
     ),
     "0028_m11_ai_run_trace.sql": (
         "c89a344871ee97d6a77c1038c9dde609413cf640622c65377b3042459250a522"

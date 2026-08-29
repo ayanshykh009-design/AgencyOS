@@ -84,6 +84,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_growth_health_weights_org_active
 CREATE INDEX IF NOT EXISTS idx_growth_health_weights_org_version
   ON public.growth_health_weights (organization_id, version DESC);
 
+DROP TRIGGER IF EXISTS trg_growth_health_weights_updated_at ON public.growth_health_weights;
+
 CREATE TRIGGER trg_growth_health_weights_updated_at
   BEFORE UPDATE ON public.growth_health_weights
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -136,6 +138,8 @@ CREATE INDEX IF NOT EXISTS idx_growth_analyses_org_status_created
 -- Latest-within-window lookups (period filters on the dashboard).
 CREATE INDEX IF NOT EXISTS idx_growth_analyses_org_period
   ON public.growth_analyses (organization_id, period_start, period_end);
+
+DROP TRIGGER IF EXISTS trg_growth_analyses_updated_at ON public.growth_analyses;
 
 CREATE TRIGGER trg_growth_analyses_updated_at
   BEFORE UPDATE ON public.growth_analyses

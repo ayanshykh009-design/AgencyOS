@@ -23,12 +23,14 @@ CREATE TABLE public.conversations (
 );
 
 -- A lead has at most one OPEN conversation per channel.
-CREATE UNIQUE INDEX uq_conversations_open_per_channel
+CREATE UNIQUE INDEX IF NOT EXISTS uq_conversations_open_per_channel
   ON public.conversations (lead_id, channel)
   WHERE is_open;
 
-CREATE INDEX idx_conversations_org_lead ON public.conversations (organization_id, lead_id);
-CREATE INDEX idx_conversations_org_updated ON public.conversations (organization_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_conversations_org_lead ON public.conversations (organization_id, lead_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_org_updated ON public.conversations (organization_id, updated_at DESC);
+
+DROP TRIGGER IF EXISTS trg_conversations_updated_at ON public.conversations;
 
 CREATE TRIGGER trg_conversations_updated_at
   BEFORE UPDATE ON public.conversations
@@ -50,9 +52,9 @@ CREATE TABLE public.conversation_messages (
   created_at       timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_conversation_messages_thread
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_thread
   ON public.conversation_messages (conversation_id, sent_at);
-CREATE INDEX idx_conversation_messages_org
+CREATE INDEX IF NOT EXISTS idx_conversation_messages_org
   ON public.conversation_messages (organization_id, sent_at DESC);
 
 -- ---------------------------------------------------------------------
@@ -72,11 +74,11 @@ CREATE TABLE public.activity_logs (
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_activity_logs_org_event
+CREATE INDEX IF NOT EXISTS idx_activity_logs_org_event
   ON public.activity_logs (organization_id, event_type, occurred_at DESC);
-CREATE INDEX idx_activity_logs_org_lead
+CREATE INDEX IF NOT EXISTS idx_activity_logs_org_lead
   ON public.activity_logs (organization_id, lead_id, occurred_at DESC);
-CREATE INDEX idx_activity_logs_org_entity
+CREATE INDEX IF NOT EXISTS idx_activity_logs_org_entity
   ON public.activity_logs (organization_id, entity_type, entity_id);
 
 -- ---------------------------------------------------------------------

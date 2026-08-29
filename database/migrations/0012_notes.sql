@@ -49,7 +49,9 @@ CREATE TABLE IF NOT EXISTS public.notes (
   updated_at           timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_notes_org_lead ON public.notes (organization_id, lead_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notes_org_lead ON public.notes (organization_id, lead_id, created_at DESC);
+
+DROP TRIGGER IF EXISTS trg_notes_updated_at ON public.notes;
 
 CREATE TRIGGER trg_notes_updated_at
   BEFORE UPDATE ON public.notes

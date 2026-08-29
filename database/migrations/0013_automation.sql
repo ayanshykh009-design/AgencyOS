@@ -61,8 +61,10 @@ CREATE TABLE IF NOT EXISTS public.workflows (
   updated_at           timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_workflows_org_status ON public.workflows (organization_id, status);
-CREATE INDEX idx_workflows_org_created ON public.workflows (organization_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_workflows_org_status ON public.workflows (organization_id, status);
+CREATE INDEX IF NOT EXISTS idx_workflows_org_created ON public.workflows (organization_id, created_at DESC);
+
+DROP TRIGGER IF EXISTS trg_workflows_updated_at ON public.workflows;
 
 CREATE TRIGGER trg_workflows_updated_at
   BEFORE UPDATE ON public.workflows
@@ -87,8 +89,10 @@ CREATE TABLE IF NOT EXISTS public.workflow_triggers (
   updated_at           timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_workflow_triggers_org_workflow ON public.workflow_triggers (organization_id, workflow_id);
-CREATE INDEX idx_workflow_triggers_event_type ON public.workflow_triggers (event_type) WHERE event_type IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_workflow_triggers_org_workflow ON public.workflow_triggers (organization_id, workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_triggers_event_type ON public.workflow_triggers (event_type) WHERE event_type IS NOT NULL;
+
+DROP TRIGGER IF EXISTS trg_workflow_triggers_updated_at ON public.workflow_triggers;
 
 CREATE TRIGGER trg_workflow_triggers_updated_at
   BEFORE UPDATE ON public.workflow_triggers
@@ -121,10 +125,12 @@ CREATE TABLE IF NOT EXISTS public.workflow_executions (
   updated_at           timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_workflow_executions_org_status ON public.workflow_executions (organization_id, status);
-CREATE INDEX idx_workflow_executions_org_workflow ON public.workflow_executions (organization_id, workflow_id);
-CREATE INDEX idx_workflow_executions_next_retry ON public.workflow_executions (next_retry_at) WHERE status = 'retrying';
-CREATE INDEX idx_workflow_executions_trace_id ON public.workflow_executions (trace_id) WHERE trace_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_workflow_executions_org_status ON public.workflow_executions (organization_id, status);
+CREATE INDEX IF NOT EXISTS idx_workflow_executions_org_workflow ON public.workflow_executions (organization_id, workflow_id);
+CREATE INDEX IF NOT EXISTS idx_workflow_executions_next_retry ON public.workflow_executions (next_retry_at) WHERE status = 'retrying';
+CREATE INDEX IF NOT EXISTS idx_workflow_executions_trace_id ON public.workflow_executions (trace_id) WHERE trace_id IS NOT NULL;
+
+DROP TRIGGER IF EXISTS trg_workflow_executions_updated_at ON public.workflow_executions;
 
 CREATE TRIGGER trg_workflow_executions_updated_at
   BEFORE UPDATE ON public.workflow_executions
@@ -145,9 +151,9 @@ CREATE TABLE IF NOT EXISTS public.workflow_events (
   occurred_at          timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_workflow_events_org_type ON public.workflow_events (organization_id, event_type);
-CREATE INDEX idx_workflow_events_org_consumed ON public.workflow_events (organization_id, consumed) WHERE NOT consumed;
-CREATE INDEX idx_workflow_events_occurred ON public.workflow_events (occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_workflow_events_org_type ON public.workflow_events (organization_id, event_type);
+CREATE INDEX IF NOT EXISTS idx_workflow_events_org_consumed ON public.workflow_events (organization_id, consumed) WHERE NOT consumed;
+CREATE INDEX IF NOT EXISTS idx_workflow_events_occurred ON public.workflow_events (occurred_at DESC);
 
 ALTER TABLE public.workflow_events ENABLE ROW LEVEL SECURITY;
 
@@ -169,8 +175,10 @@ CREATE TABLE IF NOT EXISTS public.credentials (
   updated_at           timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_credentials_org_type ON public.credentials (organization_id, credential_type);
-CREATE UNIQUE INDEX uq_credentials_org_name ON public.credentials (organization_id, name);
+CREATE INDEX IF NOT EXISTS idx_credentials_org_type ON public.credentials (organization_id, credential_type);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_credentials_org_name ON public.credentials (organization_id, name);
+
+DROP TRIGGER IF EXISTS trg_credentials_updated_at ON public.credentials;
 
 CREATE TRIGGER trg_credentials_updated_at
   BEFORE UPDATE ON public.credentials

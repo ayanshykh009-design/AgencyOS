@@ -59,7 +59,9 @@ CREATE TABLE IF NOT EXISTS public.lead_assignment_rules (
   CONSTRAINT uq_lead_assignment_rules_org UNIQUE (organization_id)
 );
 
-CREATE INDEX idx_lead_assignment_rules_org ON public.lead_assignment_rules (organization_id);
+CREATE INDEX IF NOT EXISTS idx_lead_assignment_rules_org ON public.lead_assignment_rules (organization_id);
+
+DROP TRIGGER IF EXISTS trg_lead_assignment_rules_updated_at ON public.lead_assignment_rules;
 
 CREATE TRIGGER trg_lead_assignment_rules_updated_at
   BEFORE UPDATE ON public.lead_assignment_rules
@@ -80,9 +82,9 @@ CREATE TABLE IF NOT EXISTS public.lead_assignment_logs (
   created_at           timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_lead_assignment_logs_org ON public.lead_assignment_logs (organization_id);
-CREATE INDEX idx_lead_assignment_logs_lead ON public.lead_assignment_logs (lead_id);
-CREATE INDEX idx_lead_assignment_logs_created ON public.lead_assignment_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_lead_assignment_logs_org ON public.lead_assignment_logs (organization_id);
+CREATE INDEX IF NOT EXISTS idx_lead_assignment_logs_lead ON public.lead_assignment_logs (lead_id);
+CREATE INDEX IF NOT EXISTS idx_lead_assignment_logs_created ON public.lead_assignment_logs (created_at DESC);
 
 ALTER TABLE public.lead_assignment_rules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.lead_assignment_logs ENABLE ROW LEVEL SECURITY;

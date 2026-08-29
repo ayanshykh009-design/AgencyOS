@@ -99,11 +99,13 @@ CREATE TABLE IF NOT EXISTS public.tasks (
     CHECK ((recurrence_frequency IS NULL) = (recurrence_interval IS NULL))
 );
 
-CREATE INDEX idx_tasks_org_due ON public.tasks (organization_id, due_at);
-CREATE INDEX idx_tasks_org_status ON public.tasks (organization_id, status);
-CREATE INDEX idx_tasks_org_lead ON public.tasks (organization_id, lead_id);
-CREATE INDEX idx_tasks_org_assignee ON public.tasks (organization_id, assignee_user_id);
-CREATE INDEX idx_tasks_org_reminder ON public.tasks (organization_id, reminder_at);
+CREATE INDEX IF NOT EXISTS idx_tasks_org_due ON public.tasks (organization_id, due_at);
+CREATE INDEX IF NOT EXISTS idx_tasks_org_status ON public.tasks (organization_id, status);
+CREATE INDEX IF NOT EXISTS idx_tasks_org_lead ON public.tasks (organization_id, lead_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_org_assignee ON public.tasks (organization_id, assignee_user_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_org_reminder ON public.tasks (organization_id, reminder_at);
+
+DROP TRIGGER IF EXISTS trg_tasks_updated_at ON public.tasks;
 
 CREATE TRIGGER trg_tasks_updated_at
   BEFORE UPDATE ON public.tasks

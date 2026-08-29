@@ -59,8 +59,10 @@ CREATE TABLE IF NOT EXISTS public.pipeline_stages (
     UNIQUE (organization_id, lifecycle, name)
 );
 
-CREATE INDEX idx_pipeline_stages_org_position
+CREATE INDEX IF NOT EXISTS idx_pipeline_stages_org_position
   ON public.pipeline_stages (organization_id, position);
+
+DROP TRIGGER IF EXISTS trg_pipeline_stages_updated_at ON public.pipeline_stages;
 
 CREATE TRIGGER trg_pipeline_stages_updated_at
   BEFORE UPDATE ON public.pipeline_stages
@@ -81,7 +83,7 @@ CREATE TABLE IF NOT EXISTS public.close_reasons (
   CONSTRAINT chk_close_reasons_lifecycle CHECK (lifecycle IN ('won', 'lost'))
 );
 
-CREATE INDEX idx_close_reasons_org ON public.close_reasons (organization_id);
+CREATE INDEX IF NOT EXISTS idx_close_reasons_org ON public.close_reasons (organization_id);
 
 -- ---------------------------------------------------------------------
 -- leads: pipeline placement + win/loss bookkeeping

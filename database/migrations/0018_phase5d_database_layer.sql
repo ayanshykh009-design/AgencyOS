@@ -298,6 +298,8 @@ CREATE INDEX IF NOT EXISTS idx_ai_memories_title_trgm
 CREATE INDEX IF NOT EXISTS idx_ai_memories_content_trgm
   ON public.ai_memories USING gin (content gin_trgm_ops);
 
+DROP TRIGGER IF EXISTS trg_ai_memories_updated_at ON public.ai_memories;
+
 CREATE TRIGGER trg_ai_memories_updated_at
   BEFORE UPDATE ON public.ai_memories
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -337,6 +339,8 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_items_title_trgm
   ON public.knowledge_items USING gin (title gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_knowledge_items_content_trgm
   ON public.knowledge_items USING gin (content gin_trgm_ops);
+
+DROP TRIGGER IF EXISTS trg_knowledge_items_updated_at ON public.knowledge_items;
 
 CREATE TRIGGER trg_knowledge_items_updated_at
   BEFORE UPDATE ON public.knowledge_items
@@ -384,6 +388,8 @@ CREATE INDEX IF NOT EXISTS idx_agent_runs_org_workflow
 CREATE INDEX IF NOT EXISTS idx_agent_runs_created_retention
   ON public.agent_runs (created_at);
 
+DROP TRIGGER IF EXISTS trg_agent_runs_updated_at ON public.agent_runs;
+
 CREATE TRIGGER trg_agent_runs_updated_at
   BEFORE UPDATE ON public.agent_runs
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -422,6 +428,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_agent_state_org_agent
 CREATE INDEX IF NOT EXISTS idx_agent_state_status_health
   ON public.agent_state (status, health);
 
+DROP TRIGGER IF EXISTS trg_agent_state_updated_at ON public.agent_state;
+
 CREATE TRIGGER trg_agent_state_updated_at
   BEFORE UPDATE ON public.agent_state
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -459,6 +467,8 @@ CREATE INDEX IF NOT EXISTS idx_notifications_org_created
 -- Retention sweep.
 CREATE INDEX IF NOT EXISTS idx_notifications_created_retention
   ON public.notifications (created_at);
+
+DROP TRIGGER IF EXISTS trg_notifications_updated_at ON public.notifications;
 
 CREATE TRIGGER trg_notifications_updated_at
   BEFORE UPDATE ON public.notifications
@@ -503,6 +513,8 @@ CREATE INDEX IF NOT EXISTS idx_approval_requests_pending_expiry
 -- FK support (execution-gated approvals).
 CREATE INDEX IF NOT EXISTS idx_approval_requests_execution
   ON public.approval_requests (workflow_execution_id);
+
+DROP TRIGGER IF EXISTS trg_approval_requests_updated_at ON public.approval_requests;
 
 CREATE TRIGGER trg_approval_requests_updated_at
   BEFORE UPDATE ON public.approval_requests
@@ -558,6 +570,8 @@ CREATE INDEX IF NOT EXISTS idx_briefings_org_type_created
 CREATE INDEX IF NOT EXISTS idx_briefings_org_created
   ON public.briefings (organization_id, created_at DESC);
 
+DROP TRIGGER IF EXISTS trg_briefings_updated_at ON public.briefings;
+
 CREATE TRIGGER trg_briefings_updated_at
   BEFORE UPDATE ON public.briefings
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -595,6 +609,8 @@ CREATE INDEX IF NOT EXISTS idx_growth_metrics_org_type_recorded
 CREATE INDEX IF NOT EXISTS idx_growth_metrics_recorded_retention
   ON public.growth_metrics (recorded_at);
 
+DROP TRIGGER IF EXISTS trg_growth_metrics_updated_at ON public.growth_metrics;
+
 CREATE TRIGGER trg_growth_metrics_updated_at
   BEFORE UPDATE ON public.growth_metrics
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -630,6 +646,8 @@ CREATE INDEX IF NOT EXISTS idx_growth_forecasts_org_type_horizon
   ON public.growth_forecasts (organization_id, forecast_type, horizon_start DESC);
 CREATE INDEX IF NOT EXISTS idx_growth_forecasts_org_created
   ON public.growth_forecasts (organization_id, created_at DESC);
+
+DROP TRIGGER IF EXISTS trg_growth_forecasts_updated_at ON public.growth_forecasts;
 
 CREATE TRIGGER trg_growth_forecasts_updated_at
   BEFORE UPDATE ON public.growth_forecasts
@@ -673,6 +691,8 @@ CREATE INDEX IF NOT EXISTS idx_business_insights_org_created
 CREATE INDEX IF NOT EXISTS idx_business_insights_source
   ON public.business_insights (source_table, source_row_id)
   WHERE source_row_id IS NOT NULL;
+
+DROP TRIGGER IF EXISTS trg_business_insights_updated_at ON public.business_insights;
 
 CREATE TRIGGER trg_business_insights_updated_at
   BEFORE UPDATE ON public.business_insights
