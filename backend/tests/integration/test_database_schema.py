@@ -14,6 +14,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+from sqlalchemy import DateTime  # noqa: E402
 
 pytest.importorskip("psycopg2")
 import psycopg2  # noqa: E402
@@ -25,7 +26,9 @@ from _pg_helpers import (  # noqa: E402
     enum_bootstrap_files,
 )
 from app.core.config import settings  # noqa: E402
+from app.models.approval_request import ApprovalRequest  # noqa: E402
 from app.models.enums import InviteStatus, UserRole  # noqa: E402
+from app.models.refresh_token import RefreshToken  # noqa: E402
 from app.models.team_invite import TeamInvite  # noqa: E402
 from app.models.user import User  # noqa: E402
 
@@ -81,13 +84,13 @@ EXPECTED_MIGRATION_SHAS = {
         "a7a65004c360206a14940fb8b59cb68a58176d2539381f27877e49cae44fcebe"
     ),
     "0015_credential_key_versions.sql": (
-        "7d1c596abfe3f0d674e30806030289abc8e9a4556687baf8f5c563e88d3ae650"
+        "1e42e3e576b9fd60e0e572b4ef30c499a222e579c3364c55bc97c04c83243249"
     ),
     "0016_search_trigram_indexes.sql": (
         "6db58d884d91d4f299f5f66be708a737e0ae6c5578d764c67e92746fc3e6fdf1"
     ),
     "0017_automation_hardening.sql": (
-        "49bba14159244e14a772fff20a190262a6b0d583173ab9f13bcde08a90aa4c4a"
+        "e748d2a559ebae157f8f67b1f6bbca53de2e407e6ff806b4ada94a129b57189b"
     ),
     "0018_phase5d_database_layer.sql": (
         "78d81482401b8a74af3bc75acb36066c578a991255a31348cef9b72ae5e925bc"
@@ -119,6 +122,9 @@ EXPECTED_MIGRATION_SHAS = {
     ),
     "0028_m11_ai_run_trace.sql": (
         "c89a344871ee97d6a77c1038c9dde609413cf640622c65377b3042459250a522"
+    ),
+    "0029_datetime_timezone_alignment.sql": (
+        "ae9649320ef69fd841582f84584a92a910a83c03873696a20e7c03d6b384c806"
     ),
 }
 
@@ -767,7 +773,7 @@ def test_migration_0018_phase5d_database_layer_additive_idempotent(migrated_db) 
         # RLS is enabled on every new table.
         cur.execute(
             "SELECT count(*) FROM pg_tables WHERE schemaname = 'public' "
-            "AND relrowsecurity = true AND tablename IN ("
+            "AND rowsecurity = true AND tablename IN ("
             "'ai_memories', 'knowledge_items', 'agent_runs', 'agent_state', "
             "'notifications', 'approval_requests', 'approval_logs', 'briefings', "
             "'growth_metrics', 'growth_forecasts', 'business_insights', "
@@ -1705,3 +1711,29 @@ def test_user_role_pg_enum_labels_match_python_values(migrated_db) -> None:
     assert labels == {m.value for m in UserRole}, labels
     # Sanity: labels are lowercase values, never uppercase member names.
     assert labels == {"owner", "admin", "manager", "member", "sales_agent", "viewer"}
+
+
+def test_datetime_columns_timezone_aware() -> None:
+    # Regression for BASELINE-DB-005: timestamp columns of the auth/approval/
+    # team-invite flows must be declared timezone-aware (DateTime(timezone=True))
+    # so SQLAlchemy reads the timestamptz column back as an aware UTC datetime.
+    # A naive declaration makes reads naive and triggers
+    #   asyncpg.exceptions.DataError: can't subtract offset-naive and offset-aware
+    # datetimes
+    # on lifetime arithmetic (e.g. team_service `invite.expires_at <= utcnow()`
+    # and approval_service `now > request.expires_at`). This is the canonical
+    # convention used by every other timestamp column (TimestampMixin).
+    expected = {
+        RefreshToken: ("expires_at", "created_at", "revoked_at"),
+        ApprovalRequest: ("expires_at", "decided_at", "gate_handled_at"),
+        TeamInvite: ("expires_at", "accepted_at", "revoked_at"),
+    }
+    for model, col_names in expected.items():
+        for col_name in col_names:
+            col_type = model.__table__.c[col_name].type
+            assert isinstance(col_type, DateTime), (
+                f"{model.__name__}.{col_name} is not DateTime: {col_type!r}"
+            )
+            assert col_type.timezone is True, (
+                f"{model.__name__}.{col_name} must be timezone-aware; got {col_type!r}"
+            )

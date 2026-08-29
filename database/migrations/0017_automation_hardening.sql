@@ -84,9 +84,9 @@ CREATE TABLE IF NOT EXISTS public.execution_events (
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_execution_events_execution_occurred
+CREATE INDEX IF NOT EXISTS idx_execution_events_execution_occurred
   ON public.execution_events (execution_id, occurred_at);
-CREATE INDEX idx_execution_events_org_workflow_occurred
+CREATE INDEX IF NOT EXISTS idx_execution_events_org_workflow_occurred
   ON public.execution_events (organization_id, workflow_id, occurred_at);
 -- Supports the retention sweep's global chunked DELETE (occurred_at ordering).
 CREATE INDEX IF NOT EXISTS idx_execution_events_occurred_at
@@ -111,14 +111,16 @@ CREATE TABLE IF NOT EXISTS public.worker_health (
   updated_at        timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX uq_worker_health_type_instance
+CREATE UNIQUE INDEX IF NOT EXISTS uq_worker_health_type_instance
   ON public.worker_health (worker_type, instance_id);
-CREATE INDEX idx_worker_health_type_heartbeat
+CREATE INDEX IF NOT EXISTS idx_worker_health_type_heartbeat
   ON public.worker_health (worker_type, last_heartbeat_at DESC);
 -- Supports the retention sweep's pruning of long-dead heartbeat rows.
 CREATE INDEX IF NOT EXISTS idx_worker_health_heartbeat
   ON public.worker_health (last_heartbeat_at);
 
+DROP TRIGGER IF EXISTS trg_worker_health_updated_at
+  ON public.worker_health;
 CREATE TRIGGER trg_worker_health_updated_at
   BEFORE UPDATE ON public.worker_health
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -137,6 +139,8 @@ CREATE TABLE IF NOT EXISTS public.system_settings (
   updated_at         timestamptz NOT NULL DEFAULT now()
 );
 
+DROP TRIGGER IF EXISTS trg_system_settings_updated_at
+  ON public.system_settings;
 CREATE TRIGGER trg_system_settings_updated_at
   BEFORE UPDATE ON public.system_settings
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
