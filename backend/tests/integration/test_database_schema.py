@@ -18,7 +18,11 @@ pytest.importorskip("psycopg2")
 import psycopg2  # noqa: E402
 from psycopg2 import errors, sql  # noqa: E402
 
-from _pg_helpers import dsn_for_database, ensure_compat_roles  # noqa: E402
+from _pg_helpers import (  # noqa: E402
+    dsn_for_database,
+    ensure_compat_roles,
+    enum_bootstrap_files,
+)
 from app.core.config import settings  # noqa: E402
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "database" / "migrations"
@@ -79,7 +83,7 @@ EXPECTED_MIGRATION_SHAS = {
         "0881fe727d6d26464a4eacce9ef0d5e1f0265a34105c38e4c5165a2743c7a0b4"
     ),
     "0013_automation.sql": (
-        "76aab8f3eb12fdbedb416986e30b147e99221648af5667fd05dac54f9c7af0fa"
+        "d493f29942e2ea184074b59640d7e069b49ee039ec02139b11df105bb24a0653"
     ),
     "0014_schedule_last_fired.sql": (
         "a7a65004c360206a14940fb8b59cb68a58176d2539381f27877e49cae44fcebe"
@@ -144,7 +148,10 @@ pytestmark = pytest.mark.skipif(
 
 
 def _migration_files() -> list[Path]:
-    return sorted(
+    # Canonical order: enum bootstrap first, then numbered migrations. Mirrors
+    # scripts/db/migrate.sh (enum files whose types are not created inline by a
+    # numbered migration are applied before the numbered migrations run).
+    return enum_bootstrap_files() + sorted(
         Path(MIGRATIONS_DIR).glob("[0-9][0-9][0-9][0-9]_*.sql"),
         key=lambda p: p.name,
     )
@@ -1136,6 +1143,81 @@ def test_automation_enum_replay_is_idempotent(migrated_db) -> None:
                 (type_name,),
             )
             assert [row[0] for row in cur.fetchall()] == expected_labels
+
+
+FOUNDER_ENUM_CONTRACT = {
+    "founder_message_sender": ["user", "assistant"],
+    "founder_proposal_status": [
+        "proposed",
+        "approved",
+        "denied",
+        "expired",
+        "cancelled",
+        "executing",
+        "succeeded",
+        "failed",
+    ],
+    "founder_action_type": [
+        "create_task",
+        "draft_email",
+        "send_email",
+        "run_workflow",
+        "export",
+        "general",
+    ],
+}
+
+
+def test_founder_enums_bootstrapped_before_dependent_migrations(migrated_db) -> None:
+    """BASELINE-DB-003 regression: canonical enum bootstrap runs before 0026.
+
+    The founder enums live only in database/migrations/enums/14_founder.sql and
+    are never created inline by a numbered migration. The harness must apply
+    that enum file (via ``enum_bootstrap_files``) before 0026_m8_founder_
+    assistant.sql, otherwise the founder tables fail with
+    ``type "public.founder_message_sender" does not exist``.
+    """
+    with migrated_db.cursor() as cur:
+        for type_name, expected_labels in FOUNDER_ENUM_CONTRACT.items():
+            cur.execute(
+                "SELECT e.enumlabel FROM pg_enum e "
+                "JOIN pg_type t ON t.oid = e.enumtypid "
+                "JOIN pg_namespace n ON n.oid = t.typnamespace "
+                "WHERE n.nspname = 'public' AND t.typname = %s "
+                "ORDER BY e.enumsortorder",
+                (type_name,),
+            )
+            found = [row[0] for row in cur.fetchall()]
+            assert found == expected_labels, (
+                f"enum public.{type_name} labels drifted: {found}"
+            )
+        # Founder tables reference the bootstrapped enums.
+        cur.execute(
+            "SELECT udt_name FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'founder_messages' "
+            "AND column_name = 'sender_type'"
+        )
+        assert cur.fetchone()[0] == "founder_message_sender"
+
+
+def test_enum_bootstrap_covers_uncreated_enums() -> None:
+    """BASELINE-DB-003: bootstrap applies only enums not created inline.
+
+    The harness must apply enums/14_founder.sql and enums/10_automation.sql
+    (types used by numbered migrations but never created inline), while
+    skipping enum files whose types ARE created inline by numbered migrations
+    (otherwise a ``type already exists`` collision aborts the run).
+    """
+    from _pg_helpers import enum_bootstrap_files
+
+    names = {p.name for p in enum_bootstrap_files()}
+    assert "14_founder.sql" in names
+    assert "10_automation.sql" in names
+    assert "01_channel.sql" not in names
+    assert "07_assignment.sql" not in names
+    assert "11_automation_hardening.sql" not in names
+    assert "12_phase5d.sql" not in names
+    assert "13_delivery.sql" not in names
 
 
 def test_memory_cleanup_org_scoped_and_working_only(migrated_db) -> None:

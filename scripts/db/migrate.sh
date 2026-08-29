@@ -21,7 +21,27 @@ CREATE TABLE IF NOT EXISTS public.schema_migrations (
   applied_at timestamptz NOT NULL DEFAULT now()
 );"
 
+# Canonical enum bootstrap: apply enum-definition files whose types are NOT
+# created inline by a numbered migration (e.g. the automation and founder
+# enums). The other enums/*.sql files duplicate inline CREATE TYPE statements in
+# numbered migrations and are intentionally skipped to avoid "type already
+# exists" collisions. This mirrors the test/CI migration bootstrap order.
+ENUMS_DIR="$MIGRATIONS_DIR/enums"
 applied_any=false
+for f in "$ENUMS_DIR"/10_automation.sql "$ENUMS_DIR"/14_founder.sql; do
+  [ -e "$f" ] || continue
+  name="$(basename "$f")"
+  already="$(psql "$PSQL_TARGET" -tA -c "SELECT 1 FROM public.schema_migrations WHERE version = 'enum-${name}'" | head -n1)"
+  if [ "$already" = "1" ]; then
+    echo "skip  enum-$name (already applied)"
+    continue
+  fi
+  echo "apply enum $name"
+  psql "$PSQL_TARGET" -v ON_ERROR_STOP=1 -1 -f "$f"
+  psql "$PSQL_TARGET" -q -c "INSERT INTO public.schema_migrations (version) VALUES ('enum-${name}');"
+  applied_any=true
+done
+
 for f in "$MIGRATIONS_DIR"/[0-9][0-9][0-9][0-9]_*.sql; do
   [ -e "$f" ] || { echo "No migrations found in $MIGRATIONS_DIR"; exit 0; }
   name="$(basename "$f")"

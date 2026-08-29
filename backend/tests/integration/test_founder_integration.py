@@ -25,7 +25,11 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 from sqlalchemy.pool import NullPool  # noqa: E402
 
-from _pg_helpers import dsn_for_database, ensure_compat_roles  # noqa: E402
+from _pg_helpers import (  # noqa: E402
+    dsn_for_database,
+    ensure_compat_roles,
+    enum_bootstrap_files,
+)
 from app.core.config import settings  # noqa: E402
 from app.core.errors import AppError  # noqa: E402
 from app.models.enums import FounderProposalStatus, TaskStatus  # noqa: E402
@@ -61,7 +65,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def _migration_files() -> list[Path]:
-    return sorted(
+    return enum_bootstrap_files() + sorted(
         Path(MIGRATIONS_DIR).glob("[0-9][0-9][0-9][0-9]_*.sql"),
         key=lambda p: p.name,
     )

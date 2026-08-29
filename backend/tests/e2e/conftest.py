@@ -17,7 +17,11 @@ pytest.importorskip("psycopg2")
 import psycopg2  # noqa: E402
 from psycopg2 import sql  # noqa: E402
 
-from _pg_helpers import dsn_for_database, ensure_compat_roles  # noqa: E402
+from _pg_helpers import (  # noqa: E402
+    dsn_for_database,
+    ensure_compat_roles,
+    enum_bootstrap_files,
+)
 from app.core.config import settings  # noqa: E402
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "database" / "migrations"
@@ -43,7 +47,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def _migration_files():
-    return sorted(MIGRATIONS_DIR.glob("*.sql"))
+    return enum_bootstrap_files() + sorted(MIGRATIONS_DIR.glob("*.sql"))
 
 
 def _insert_org(conn, org_id: str | None = None) -> None:
