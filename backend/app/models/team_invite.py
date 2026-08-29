@@ -37,7 +37,13 @@ class TeamInvite(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     email: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     full_name: Mapped[str | None] = mapped_column(Text)
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role", native_enum=True, validate_strings=True),
+        Enum(
+            UserRole,
+            name="user_role",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
     )
     token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
@@ -45,7 +51,13 @@ class TeamInvite(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL")
     )
     status: Mapped[InviteStatus] = mapped_column(
-        Enum(InviteStatus, name="invite_status", native_enum=True, validate_strings=True),
+        Enum(
+            InviteStatus,
+            name="invite_status",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=InviteStatus.PENDING,
         nullable=False,
     )

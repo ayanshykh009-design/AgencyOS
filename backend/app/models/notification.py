@@ -44,7 +44,13 @@ class Notification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     type: Mapped[NotificationType] = mapped_column(
-        Enum(NotificationType, name="notification_type", native_enum=True, validate_strings=True),
+        Enum(
+            NotificationType,
+            name="notification_type",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)

@@ -39,7 +39,13 @@ class Workflow(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         JSONB, default=dict, server_default="{}", nullable=False
     )
     status: Mapped[WorkflowStatus] = mapped_column(
-        Enum(WorkflowStatus, name="workflow_status", native_enum=True, validate_strings=True),
+        Enum(
+            WorkflowStatus,
+            name="workflow_status",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=WorkflowStatus.DRAFT,
         nullable=False,
     )

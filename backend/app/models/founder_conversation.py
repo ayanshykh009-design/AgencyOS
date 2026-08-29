@@ -44,9 +44,7 @@ class FounderConversation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     title: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    last_message_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     messages: Mapped[list[FounderMessage]] = relationship(
         back_populates="conversation",

@@ -41,7 +41,13 @@ class PipelineStage(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     lifecycle: Mapped[StageLifecycle] = mapped_column(
-        Enum(StageLifecycle, name="stage_lifecycle", native_enum=True, validate_strings=True),
+        Enum(
+            StageLifecycle,
+            name="stage_lifecycle",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=StageLifecycle.OPEN,
         nullable=False,
     )

@@ -33,7 +33,13 @@ class Credential(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     credential_type: Mapped[CredentialType] = mapped_column(
-        Enum(CredentialType, name="credential_type", native_enum=True, validate_strings=True),
+        Enum(
+            CredentialType,
+            name="credential_type",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
     )
     encrypted_value: Mapped[str] = mapped_column(Text, nullable=False)

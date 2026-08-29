@@ -71,6 +71,7 @@ class FounderActionProposal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="founder_proposal_status",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         default=FounderProposalStatus.PROPOSED,
         nullable=False,
@@ -81,13 +82,12 @@ class FounderActionProposal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="founder_action_type",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         nullable=False,
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
-    payload: Mapped[dict] = mapped_column(
-        JSONB, default=dict, server_default="{}", nullable=False
-    )
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
     justification: Mapped[str | None] = mapped_column(Text, nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

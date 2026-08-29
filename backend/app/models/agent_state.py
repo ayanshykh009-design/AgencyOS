@@ -43,12 +43,24 @@ class AgentState(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     agent_name: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[AgentStateStatus] = mapped_column(
-        Enum(AgentStateStatus, name="agent_state_status", native_enum=True, validate_strings=True),
+        Enum(
+            AgentStateStatus,
+            name="agent_state_status",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=AgentStateStatus.ACTIVE,
         nullable=False,
     )
     health: Mapped[AgentHealth] = mapped_column(
-        Enum(AgentHealth, name="agent_health", native_enum=True, validate_strings=True),
+        Enum(
+            AgentHealth,
+            name="agent_health",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=AgentHealth.HEALTHY,
         nullable=False,
     )

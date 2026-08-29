@@ -73,7 +73,13 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL"), index=True
     )
     status: Mapped[LeadStatus] = mapped_column(
-        Enum(LeadStatus, name="lead_status", native_enum=True, validate_strings=True),
+        Enum(
+            LeadStatus,
+            name="lead_status",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=LeadStatus.NEW,
         nullable=False,
     )

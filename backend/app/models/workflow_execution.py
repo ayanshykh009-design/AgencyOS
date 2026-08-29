@@ -73,7 +73,13 @@ class WorkflowExecution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("workflow_triggers.id", ondelete="SET NULL")
     )
     status: Mapped[ExecutionStatus] = mapped_column(
-        Enum(ExecutionStatus, name="execution_status", native_enum=True, validate_strings=True),
+        Enum(
+            ExecutionStatus,
+            name="execution_status",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=ExecutionStatus.QUEUED,
         nullable=False,
     )

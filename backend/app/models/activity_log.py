@@ -34,6 +34,7 @@ class ActivityLog(UUIDPrimaryKeyMixin, Base):
             name="activity_event_type",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         nullable=False,
     )

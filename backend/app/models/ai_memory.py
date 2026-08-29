@@ -49,12 +49,24 @@ class AiMemory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     memory_type: Mapped[MemoryType] = mapped_column(
-        Enum(MemoryType, name="memory_type", native_enum=True, validate_strings=True),
+        Enum(
+            MemoryType,
+            name="memory_type",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=MemoryType.WORKING,
         nullable=False,
     )
     scope: Mapped[MemoryScope] = mapped_column(
-        Enum(MemoryScope, name="memory_scope", native_enum=True, validate_strings=True),
+        Enum(
+            MemoryScope,
+            name="memory_scope",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
     )
     source_id: Mapped[uuid.UUID | None] = mapped_column()

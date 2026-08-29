@@ -32,7 +32,13 @@ class Briefing(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     briefing_type: Mapped[BriefingType] = mapped_column(
-        Enum(BriefingType, name="briefing_type", native_enum=True, validate_strings=True),
+        Enum(
+            BriefingType,
+            name="briefing_type",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=BriefingType.DAILY,
         nullable=False,
     )

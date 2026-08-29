@@ -67,12 +67,24 @@ class AgentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     agent_name: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[AgentRunStatus] = mapped_column(
-        Enum(AgentRunStatus, name="agent_run_status", native_enum=True, validate_strings=True),
+        Enum(
+            AgentRunStatus,
+            name="agent_run_status",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=AgentRunStatus.QUEUED,
         nullable=False,
     )
     trigger: Mapped[AgentRunTrigger] = mapped_column(
-        Enum(AgentRunTrigger, name="agent_run_trigger", native_enum=True, validate_strings=True),
+        Enum(
+            AgentRunTrigger,
+            name="agent_run_trigger",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=AgentRunTrigger.MANUAL,
         nullable=False,
     )

@@ -45,7 +45,13 @@ class ImportJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("lead_sources.id", ondelete="SET NULL")
     )
     status: Mapped[ImportStatus] = mapped_column(
-        Enum(ImportStatus, name="import_status", native_enum=True, validate_strings=True),
+        Enum(
+            ImportStatus,
+            name="import_status",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=ImportStatus.PENDING,
         nullable=False,
     )

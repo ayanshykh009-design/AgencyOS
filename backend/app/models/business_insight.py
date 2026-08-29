@@ -48,16 +48,34 @@ class BusinessInsight(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     insight_type: Mapped[InsightType] = mapped_column(
-        Enum(InsightType, name="insight_type", native_enum=True, validate_strings=True),
+        Enum(
+            InsightType,
+            name="insight_type",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
     )
     severity: Mapped[InsightSeverity] = mapped_column(
-        Enum(InsightSeverity, name="insight_severity", native_enum=True, validate_strings=True),
+        Enum(
+            InsightSeverity,
+            name="insight_severity",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=InsightSeverity.INFO,
         nullable=False,
     )
     status: Mapped[InsightStatus] = mapped_column(
-        Enum(InsightStatus, name="insight_status", native_enum=True, validate_strings=True),
+        Enum(
+            InsightStatus,
+            name="insight_status",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=InsightStatus.ACTIVE,
         nullable=False,
     )

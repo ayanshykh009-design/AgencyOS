@@ -33,11 +33,23 @@ class ManualOutreachQueue(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL"), index=True
     )
     channel: Mapped[OutreachChannel] = mapped_column(
-        Enum(OutreachChannel, name="outreach_channel", native_enum=True, validate_strings=True),
+        Enum(
+            OutreachChannel,
+            name="outreach_channel",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
     )
     status: Mapped[OutreachStatus] = mapped_column(
-        Enum(OutreachStatus, name="outreach_status", native_enum=True, validate_strings=True),
+        Enum(
+            OutreachStatus,
+            name="outreach_status",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=OutreachStatus.QUEUED,
         nullable=False,
     )

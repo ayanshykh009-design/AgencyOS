@@ -43,7 +43,13 @@ class FollowUp(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("outreach_attempts.id", ondelete="CASCADE")
     )
     channel: Mapped[OutreachChannel] = mapped_column(
-        Enum(OutreachChannel, name="outreach_channel", native_enum=True, validate_strings=True),
+        Enum(
+            OutreachChannel,
+            name="outreach_channel",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
     )
     sequence_position: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -52,7 +58,13 @@ class FollowUp(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     delay_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     scheduled_at: Mapped[datetime | None] = mapped_column()
     status: Mapped[OutreachStatus] = mapped_column(
-        Enum(OutreachStatus, name="outreach_status", native_enum=True, validate_strings=True),
+        Enum(
+            OutreachStatus,
+            name="outreach_status",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=OutreachStatus.QUEUED,
         nullable=False,
     )

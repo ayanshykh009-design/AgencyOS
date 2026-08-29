@@ -27,9 +27,7 @@ class FounderMessage(UUIDPrimaryKeyMixin, Base):
 
     __tablename__ = "founder_messages"
     __table_args__ = (
-        CheckConstraint(
-            "length(btrim(body)) > 0", name="chk_founder_messages_body_not_blank"
-        ),
+        CheckConstraint("length(btrim(body)) > 0", name="chk_founder_messages_body_not_blank"),
         Index("idx_founder_messages_conversation_sent", "conversation_id", "sent_at"),
         Index("idx_founder_messages_org_sent", "organization_id", "sent_at"),
     )
@@ -46,6 +44,7 @@ class FounderMessage(UUIDPrimaryKeyMixin, Base):
             name="founder_message_sender",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         nullable=False,
     )

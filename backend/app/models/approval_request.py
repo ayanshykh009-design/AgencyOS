@@ -75,6 +75,7 @@ class ApprovalRequest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="approval_request_status",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         default=ApprovalRequestStatus.PENDING,
         nullable=False,

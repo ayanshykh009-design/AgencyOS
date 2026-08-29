@@ -36,6 +36,7 @@ class LeadAssignmentRule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="assignment_strategy",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         default=AssignmentStrategy.MANUAL,
         nullable=False,
@@ -78,6 +79,7 @@ class LeadAssignmentLog(UUIDPrimaryKeyMixin, Base):
             name="assignment_method",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         nullable=False,
     )

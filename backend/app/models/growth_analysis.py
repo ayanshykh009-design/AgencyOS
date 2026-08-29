@@ -65,7 +65,11 @@ class GrowthAnalysis(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     analysis_type: Mapped[GrowthAnalysisType] = mapped_column(
         Enum(
-            GrowthAnalysisType, name="growth_analysis_type", native_enum=True, validate_strings=True
+            GrowthAnalysisType,
+            name="growth_analysis_type",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         nullable=False,
     )
@@ -75,6 +79,7 @@ class GrowthAnalysis(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="growth_analysis_status",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         default=GrowthAnalysisStatus.COMPLETED,
         nullable=False,

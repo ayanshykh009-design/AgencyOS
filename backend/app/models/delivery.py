@@ -91,6 +91,7 @@ class Delivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="delivery_channel",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         nullable=False,
     )
@@ -112,6 +113,7 @@ class Delivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="delivery_status",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         default=DeliveryStatus.QUEUED,
         nullable=False,

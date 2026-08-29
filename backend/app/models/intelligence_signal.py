@@ -76,11 +76,23 @@ class IntelligenceSignal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     signal_category: Mapped[SignalCategory] = mapped_column(
-        Enum(SignalCategory, name="signal_category", native_enum=True, validate_strings=True),
+        Enum(
+            SignalCategory,
+            name="signal_category",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
     )
     source_type: Mapped[SignalSourceType] = mapped_column(
-        Enum(SignalSourceType, name="signal_source_type", native_enum=True, validate_strings=True),
+        Enum(
+            SignalSourceType,
+            name="signal_source_type",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
     )
     source_row_id: Mapped[uuid.UUID | None] = mapped_column()
@@ -92,6 +104,7 @@ class IntelligenceSignal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="intelligence_signal_severity",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         default=IntelligenceSignalSeverity.INFO,
         nullable=False,
@@ -105,9 +118,7 @@ class IntelligenceSignal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     priority_components: Mapped[dict] = mapped_column(
         JSONB, default=dict, server_default="{}", nullable=False
     )
-    evidence: Mapped[list] = mapped_column(
-        JSONB, default=list, server_default="[]", nullable=False
-    )
+    evidence: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
     recommended_next_step: Mapped[str | None] = mapped_column(Text)
     confidence: Mapped[IntelligenceConfidence] = mapped_column(
         Enum(
@@ -115,6 +126,7 @@ class IntelligenceSignal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="intelligence_confidence",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         default=IntelligenceConfidence.LOW,
         nullable=False,
@@ -125,6 +137,7 @@ class IntelligenceSignal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="intelligence_signal_status",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         default=IntelligenceSignalStatus.ACTIVE,
         nullable=False,

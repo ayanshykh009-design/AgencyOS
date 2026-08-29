@@ -38,6 +38,7 @@ class ConversationMessage(UUIDPrimaryKeyMixin, Base):
             name="conversation_sender",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         nullable=False,
     )

@@ -51,6 +51,7 @@ class WorkflowTrigger(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="workflow_trigger_type",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         nullable=False,
     )

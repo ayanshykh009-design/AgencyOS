@@ -39,7 +39,13 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     email: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     full_name: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole, name="user_role", native_enum=True, validate_strings=True),
+        Enum(
+            UserRole,
+            name="user_role",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=UserRole.MEMBER,
         nullable=False,
     )

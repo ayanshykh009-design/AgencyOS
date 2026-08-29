@@ -55,12 +55,24 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[TaskStatus] = mapped_column(
-        Enum(TaskStatus, name="task_status", native_enum=True, validate_strings=True),
+        Enum(
+            TaskStatus,
+            name="task_status",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=TaskStatus.TODO,
         nullable=False,
     )
     priority: Mapped[TaskPriority] = mapped_column(
-        Enum(TaskPriority, name="task_priority", native_enum=True, validate_strings=True),
+        Enum(
+            TaskPriority,
+            name="task_priority",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=TaskPriority.MEDIUM,
         nullable=False,
     )
@@ -73,6 +85,7 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="recurrence_frequency",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         )
     )
     recurrence_interval: Mapped[int | None] = mapped_column(Integer)

@@ -47,6 +47,7 @@ class ApprovalLog(UUIDPrimaryKeyMixin, Base):
             name="approval_log_action",
             native_enum=True,
             validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
         ),
         nullable=False,
     )

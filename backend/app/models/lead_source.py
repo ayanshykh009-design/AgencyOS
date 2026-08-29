@@ -29,7 +29,13 @@ class LeadSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     channel: Mapped[OutreachChannel] = mapped_column(
-        Enum(OutreachChannel, name="outreach_channel", native_enum=True, validate_strings=True),
+        Enum(
+            OutreachChannel,
+            name="outreach_channel",
+            native_enum=True,
+            validate_strings=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=OutreachChannel.CONTACT_FORM,
         nullable=False,
     )

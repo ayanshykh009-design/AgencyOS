@@ -5,6 +5,7 @@ These tests are skipped automatically when no PostgreSQL server is reachable
 (local dev without the docker compose postgres service). They run in a
 disposable database that is dropped on teardown.
 """
+
 from __future__ import annotations
 
 import os
@@ -24,6 +25,9 @@ from _pg_helpers import (  # noqa: E402
     enum_bootstrap_files,
 )
 from app.core.config import settings  # noqa: E402
+from app.models.enums import InviteStatus, UserRole  # noqa: E402
+from app.models.team_invite import TeamInvite  # noqa: E402
+from app.models.user import User  # noqa: E402
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "database" / "migrations"
 POLICIES_DIR = Path(__file__).resolve().parents[3] / "database" / "supabase" / "policies"
@@ -46,15 +50,11 @@ ORG_ID = "00000000-0000-0000-0000-000000000001"
 #           p.read_bytes().replace(b"\r\n", b"\n")).hexdigest())
 #   PY
 EXPECTED_MIGRATION_SHAS = {
-    "0001_core_enums.sql": (
-        "d7f6a2d73496941edf7ec7afff8393218689447a585e5e30c3d688710f1ccea9"
-    ),
+    "0001_core_enums.sql": ("d7f6a2d73496941edf7ec7afff8393218689447a585e5e30c3d688710f1ccea9"),
     "0002_tenant_identity.sql": (
         "4996b95bac0dfc707426498c06a0f944fce01a7a265ff8a8645f591bcbe23a86"
     ),
-    "0003_lead_tables.sql": (
-        "14f25bf42ad1a7ab35299e48dcd3083d0f6eb2aec45bf73a7314ef9fd1bdb175"
-    ),
+    "0003_lead_tables.sql": ("14f25bf42ad1a7ab35299e48dcd3083d0f6eb2aec45bf73a7314ef9fd1bdb175"),
     "0004_outreach_tables.sql": (
         "d7dbffba166c116cf5cd45366de009c9eef27e75c450584159eb80f04b151895"
     ),
@@ -64,9 +64,7 @@ EXPECTED_MIGRATION_SHAS = {
     "0006_imports_provider.sql": (
         "7940a2d956220db620210e7977007f05243a25f2aa7f0764b02e9950d9168d7c"
     ),
-    "0007_auth.sql": (
-        "85b13573becc50de037b5ea7a02af687a89be2372e39168c67e1413f3bd9587b"
-    ),
+    "0007_auth.sql": ("85b13573becc50de037b5ea7a02af687a89be2372e39168c67e1413f3bd9587b"),
     "0008_team_management.sql": (
         "1de23545693e46ed0a8ffa97044e6db372554ae3e48fda0903e715f383d2d70d"
     ),
@@ -76,15 +74,9 @@ EXPECTED_MIGRATION_SHAS = {
     "0010_pipeline_management.sql": (
         "9d5921b55b4c681e182126df7e52772750c685c58bcafd9a5d73fc74c53683bd"
     ),
-    "0011_tasks.sql": (
-        "2aaabb3a556fc5c2f5b4ec114d4e83d70db16f414737eb5a0167f186950a5aa9"
-    ),
-    "0012_notes.sql": (
-        "0881fe727d6d26464a4eacce9ef0d5e1f0265a34105c38e4c5165a2743c7a0b4"
-    ),
-    "0013_automation.sql": (
-        "d493f29942e2ea184074b59640d7e069b49ee039ec02139b11df105bb24a0653"
-    ),
+    "0011_tasks.sql": ("2aaabb3a556fc5c2f5b4ec114d4e83d70db16f414737eb5a0167f186950a5aa9"),
+    "0012_notes.sql": ("0881fe727d6d26464a4eacce9ef0d5e1f0265a34105c38e4c5165a2743c7a0b4"),
+    "0013_automation.sql": ("d493f29942e2ea184074b59640d7e069b49ee039ec02139b11df105bb24a0653"),
     "0014_schedule_last_fired.sql": (
         "a7a65004c360206a14940fb8b59cb68a58176d2539381f27877e49cae44fcebe"
     ),
@@ -103,9 +95,7 @@ EXPECTED_MIGRATION_SHAS = {
     "0019_phase5d_agent_runtime.sql": (
         "cf7a1c61c73d00c50398b3df99b88f54b39005d5b29a76296a0df7390fc0d507"
     ),
-    "0020_m6_delivery.sql": (
-        "7d00678b844654421b6f207f5b5ce177872f2a1566b7fa4ccc5bbed8e69b0f9e"
-    ),
+    "0020_m6_delivery.sql": ("7d00678b844654421b6f207f5b5ce177872f2a1566b7fa4ccc5bbed8e69b0f9e"),
     "0021_m6_delivery_hardening.sql": (
         "114d70dd991dcbcd5ee6d898bbef088fb29024bd5e7f7716c22dd4e394932f74"
     ),
@@ -142,9 +132,7 @@ def _database_available() -> bool:
         return False
 
 
-pytestmark = pytest.mark.skipif(
-    not _database_available(), reason="PostgreSQL server not reachable"
-)
+pytestmark = pytest.mark.skipif(not _database_available(), reason="PostgreSQL server not reachable")
 
 
 def _migration_files() -> list[Path]:
@@ -211,9 +199,7 @@ def test_per_test_db_connection_preserves_password_auth(migrated_db) -> None:
     with migrated_db.cursor() as cur:
         cur.execute("SELECT 1")
         assert cur.fetchone()[0] == 1
-        cur.execute(
-            "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
-        )
+        cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
         tables = {row[0] for row in cur.fetchall()}
     assert "schema_migrations" in tables
 
@@ -231,19 +217,13 @@ def test_compat_roles_bootstrapped_before_migrations(migrated_db) -> None:
     ensure_compat_roles(ADMIN_URL)  # second call must not raise
 
     with migrated_db.cursor() as cur:
-        cur.execute(
-            "SELECT rolname FROM pg_roles "
-            "WHERE rolname IN ('anon', 'authenticated')"
-        )
+        cur.execute("SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')")
         roles = {row[0] for row in cur.fetchall()}
         assert roles == {"anon", "authenticated"}, roles
 
         # The exact statement that previously raised UndefinedObject must now be
         # idempotent (roles exist).
-        cur.execute(
-            "REVOKE SELECT (password_hash) ON public.users "
-            "FROM anon, authenticated"
-        )
+        cur.execute("REVOKE SELECT (password_hash) ON public.users FROM anon, authenticated")
         migrated_db.commit()
 
         # Core auth tables created by the migration sequence must exist.
@@ -258,22 +238,46 @@ def test_compat_roles_bootstrapped_before_migrations(migrated_db) -> None:
 
 def test_migrations_apply_cleanly(migrated_db) -> None:
     expected = {
-        "organizations", "users", "lead_sources", "leads", "lead_research",
-        "outreach_messages", "outreach_attempts", "follow_ups",
-        "manual_outreach_queue", "conversations", "conversation_messages",
-        "activity_logs", "import_jobs", "import_row_errors", "provider_usage",
-        "schema_migrations", "workflows", "workflow_triggers",
-        "workflow_executions", "workflow_events", "credentials",
-        "credential_key_versions", "execution_events", "worker_health",
-        "system_settings", "ai_memories", "knowledge_items", "agent_runs",
-        "agent_state", "notifications", "approval_requests", "approval_logs",
-        "briefings", "growth_metrics", "growth_forecasts", "business_insights",
+        "organizations",
+        "users",
+        "lead_sources",
+        "leads",
+        "lead_research",
+        "outreach_messages",
+        "outreach_attempts",
+        "follow_ups",
+        "manual_outreach_queue",
+        "conversations",
+        "conversation_messages",
+        "activity_logs",
+        "import_jobs",
+        "import_row_errors",
+        "provider_usage",
+        "schema_migrations",
+        "workflows",
+        "workflow_triggers",
+        "workflow_executions",
+        "workflow_events",
+        "credentials",
+        "credential_key_versions",
+        "execution_events",
+        "worker_health",
+        "system_settings",
+        "ai_memories",
+        "knowledge_items",
+        "agent_runs",
+        "agent_state",
+        "notifications",
+        "approval_requests",
+        "approval_logs",
+        "briefings",
+        "growth_metrics",
+        "growth_forecasts",
+        "business_insights",
         "intelligence_signals",
     }
     with migrated_db.cursor() as cur:
-        cur.execute(
-            "SELECT tablename FROM pg_tables WHERE schemaname = 'public'"
-        )
+        cur.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
         tables = {row[0] for row in cur.fetchall()}
     assert expected <= tables
 
@@ -459,9 +463,7 @@ def test_migration_0014_schedule_last_fired_additive_idempotent(migrated_db) -> 
 
     org_id = str(uuid.uuid4())
     _insert_org(migrated_db, org_id)
-    migration_0014 = (MIGRATIONS_DIR / "0014_schedule_last_fired.sql").read_text(
-        encoding="utf-8"
-    )
+    migration_0014 = (MIGRATIONS_DIR / "0014_schedule_last_fired.sql").read_text(encoding="utf-8")
     with migrated_db.cursor() as cur:
         cur.execute(
             "INSERT INTO public.users (organization_id, email, full_name, role) "
@@ -592,9 +594,7 @@ def test_migration_0017_automation_hardening_additive_idempotent(migrated_db) ->
 
     org_id = str(uuid.uuid4())
     _insert_org(migrated_db, org_id)
-    migration_0017 = (MIGRATIONS_DIR / "0017_automation_hardening.sql").read_text(
-        encoding="utf-8"
-    )
+    migration_0017 = (MIGRATIONS_DIR / "0017_automation_hardening.sql").read_text(encoding="utf-8")
     with migrated_db.cursor() as cur:
         cur.execute(
             "INSERT INTO public.users (organization_id, email, full_name, role) "
@@ -693,9 +693,17 @@ def test_migration_0018_phase5d_database_layer_additive_idempotent(migrated_db) 
     """
     with migrated_db.cursor() as cur:
         for table in (
-            "ai_memories", "knowledge_items", "agent_runs", "agent_state",
-            "notifications", "approval_requests", "approval_logs", "briefings",
-            "growth_metrics", "growth_forecasts", "business_insights",
+            "ai_memories",
+            "knowledge_items",
+            "agent_runs",
+            "agent_state",
+            "notifications",
+            "approval_requests",
+            "approval_logs",
+            "briefings",
+            "growth_metrics",
+            "growth_forecasts",
+            "business_insights",
         ):
             cur.execute(
                 "SELECT EXISTS (SELECT 1 FROM information_schema.tables "
@@ -704,12 +712,24 @@ def test_migration_0018_phase5d_database_layer_additive_idempotent(migrated_db) 
             )
             assert cur.fetchone()[0] is True
         for enum_name in (
-            "memory_type", "memory_scope", "agent_run_status", "agent_run_trigger",
-            "agent_state_status", "agent_health", "notification_type",
-            "approval_request_status", "approval_log_action", "briefing_type",
-            "insight_type", "insight_severity", "insight_status",
-            "signal_category", "signal_source_type", "intelligence_signal_status",
-            "intelligence_signal_severity", "intelligence_confidence",
+            "memory_type",
+            "memory_scope",
+            "agent_run_status",
+            "agent_run_trigger",
+            "agent_state_status",
+            "agent_health",
+            "notification_type",
+            "approval_request_status",
+            "approval_log_action",
+            "briefing_type",
+            "insight_type",
+            "insight_severity",
+            "insight_status",
+            "signal_category",
+            "signal_source_type",
+            "intelligence_signal_status",
+            "intelligence_signal_severity",
+            "intelligence_confidence",
         ):
             cur.execute(
                 "SELECT EXISTS (SELECT 1 FROM pg_type t "
@@ -887,13 +907,9 @@ def test_worker_health_retention_prunes_dead_instances(migrated_db) -> None:
             ")",
             (stale + timedelta(days=1),),
         )
-        cur.execute(
-            "SELECT count(*) FROM public.worker_health WHERE hostname = 'dead'"
-        )
+        cur.execute("SELECT count(*) FROM public.worker_health WHERE hostname = 'dead'")
         assert cur.fetchone()[0] == 0
-        cur.execute(
-            "SELECT count(*) FROM public.worker_health WHERE hostname = 'alive'"
-        )
+        cur.execute("SELECT count(*) FROM public.worker_health WHERE hostname = 'alive'")
         assert cur.fetchone()[0] == 1
     migrated_db.commit()
 
@@ -975,16 +991,10 @@ def _agent_runs_additions_0019() -> tuple[set[str], set[str]]:
     Derived from the migration (the schema source of truth) so the mirror
     parity guard tracks migration edits instead of hardcoding identifiers.
     """
-    text = (MIGRATIONS_DIR / "0019_phase5d_agent_runtime.sql").read_text(
-        encoding="utf-8"
-    )
-    statements = "\n".join(
-        line for line in text.splitlines() if not line.strip().startswith("--")
-    )
+    text = (MIGRATIONS_DIR / "0019_phase5d_agent_runtime.sql").read_text(encoding="utf-8")
+    statements = "\n".join(line for line in text.splitlines() if not line.strip().startswith("--"))
     columns = set(re.findall(r"ADD COLUMN IF NOT EXISTS\s+([a-z_]+)", statements))
-    indexes = set(
-        re.findall(r"CREATE (?:UNIQUE )?INDEX IF NOT EXISTS\s+([a-z_]+)", statements)
-    )
+    indexes = set(re.findall(r"CREATE (?:UNIQUE )?INDEX IF NOT EXISTS\s+([a-z_]+)", statements))
     return columns, indexes
 
 
@@ -1035,8 +1045,7 @@ def test_all_migrations_immutable_sha256() -> None:
     migration_files = sorted(MIGRATIONS_DIR.glob("*.sql"))
     found = {p.name: _sha256(p) for p in migration_files}
     assert set(found) == set(EXPECTED_MIGRATION_SHAS), (
-        "migration set changed; expected "
-        f"{sorted(EXPECTED_MIGRATION_SHAS)} got {sorted(found)}"
+        f"migration set changed; expected {sorted(EXPECTED_MIGRATION_SHAS)} got {sorted(found)}"
     )
     for name, digest in EXPECTED_MIGRATION_SHAS.items():
         assert found[name] == digest, f"migration content drift: {name}"
@@ -1048,9 +1057,10 @@ def test_migration_0018_unchanged_sha256() -> None:
     normalized = raw.replace(b"\r\n", b"\n")
     import hashlib
 
-    assert hashlib.sha256(normalized).hexdigest() == EXPECTED_MIGRATION_SHAS[
-        "0018_phase5d_database_layer.sql"
-    ]
+    assert (
+        hashlib.sha256(normalized).hexdigest()
+        == EXPECTED_MIGRATION_SHAS["0018_phase5d_database_layer.sql"]
+    )
 
 
 # BASELINE-DB-003: canonical automation enum contract. Values mirror
@@ -1090,9 +1100,7 @@ def test_automation_enum_types_match_schema_contract(migrated_db) -> None:
                 (type_name,),
             )
             found = [row[0] for row in cur.fetchall()]
-            assert found == expected_labels, (
-                f"enum public.{type_name} labels drifted: {found}"
-            )
+            assert found == expected_labels, f"enum public.{type_name} labels drifted: {found}"
 
         # Workflow tables actually reference the migration-owned types.
         cur.execute(
@@ -1188,9 +1196,7 @@ def test_founder_enums_bootstrapped_before_dependent_migrations(migrated_db) -> 
                 (type_name,),
             )
             found = [row[0] for row in cur.fetchall()]
-            assert found == expected_labels, (
-                f"enum public.{type_name} labels drifted: {found}"
-            )
+            assert found == expected_labels, f"enum public.{type_name} labels drifted: {found}"
         # Founder tables reference the bootstrapped enums.
         cur.execute(
             "SELECT udt_name FROM information_schema.columns "
@@ -1256,7 +1262,7 @@ def test_memory_cleanup_org_scoped_and_working_only(migrated_db) -> None:
             "INSERT INTO public.ai_memories "
             "(organization_id, memory_type, scope, content, metadata, created_at) "
             "VALUES (%s, 'long_term', 'manual', 'durable row', "
-            "'{\"category\": \"founder\"}'::jsonb, %s)",
+            '\'{"category": "founder"}\'::jsonb, %s)',
             (org_a, old),
         )
 
@@ -1280,8 +1286,10 @@ def test_memory_cleanup_org_scoped_and_working_only(migrated_db) -> None:
             "WHERE organization_id = %s ORDER BY content",
             (org_a,),
         )
-        assert cur.fetchall() == [("working", "research", "fresh row"),
-                                  ("long_term", "manual", "durable row")]
+        assert cur.fetchall() == [
+            ("working", "research", "fresh row"),
+            ("long_term", "manual", "durable row"),
+        ]
         cur.execute(
             "SELECT count(*) FROM public.ai_memories "
             "WHERE organization_id = %s AND content = 'expired row'",
@@ -1355,16 +1363,10 @@ def test_rls_org_isolation_ai_memories_knowledge(migrated_db) -> None:
             "SECURITY DEFINER AS $$ SELECT (NULLIF(current_setting('request.jwt.claims', true), '')"
             "::jsonb ->> 'sub')::uuid $$"
         )
-        cur.execute(
-            (POLICIES_DIR / "_helpers.sql").read_text(encoding="utf-8")
-        )
+        cur.execute((POLICIES_DIR / "_helpers.sql").read_text(encoding="utf-8"))
         cur.execute("ALTER FUNCTION public.tenant_org_id() SECURITY DEFINER")
-        cur.execute(
-            (POLICIES_DIR / "ai_memories.sql").read_text(encoding="utf-8")
-        )
-        cur.execute(
-            (POLICIES_DIR / "knowledge_items.sql").read_text(encoding="utf-8")
-        )
+        cur.execute((POLICIES_DIR / "ai_memories.sql").read_text(encoding="utf-8"))
+        cur.execute((POLICIES_DIR / "knowledge_items.sql").read_text(encoding="utf-8"))
         cur.execute("GRANT USAGE ON SCHEMA auth TO authenticated")
         cur.execute(
             "GRANT SELECT, INSERT, UPDATE, DELETE ON public.ai_memories, "
@@ -1468,14 +1470,12 @@ def test_rls_org_isolation_leads_conversations(migrated_db) -> None:
         user_b = cur.fetchone()[0]
         # A lead + an open conversation for org A (conversation needs a lead).
         cur.execute(
-            "INSERT INTO public.leads (organization_id, name) "
-            "VALUES (%s, 'lead-a') RETURNING id",
+            "INSERT INTO public.leads (organization_id, name) VALUES (%s, 'lead-a') RETURNING id",
             (ORG_ID,),
         )
         lead_a = cur.fetchone()[0]
         cur.execute(
-            "INSERT INTO public.leads (organization_id, name) "
-            "VALUES (%s, 'lead-b') RETURNING id",
+            "INSERT INTO public.leads (organization_id, name) VALUES (%s, 'lead-b') RETURNING id",
             (org_b,),
         )
         lead_b = cur.fetchone()[0]
@@ -1587,8 +1587,7 @@ def test_migration_0027_m9_intelligence_signals(migrated_db) -> None:
             (signal_id,),
         )
         cur.execute(
-            "SELECT length(btrim(title)) > 0 FROM public.intelligence_signals "
-            "WHERE id = %s",
+            "SELECT length(btrim(title)) > 0 FROM public.intelligence_signals WHERE id = %s",
             (signal_id,),
         )
         assert cur.fetchone()[0] is True
@@ -1660,3 +1659,49 @@ def test_migration_0027_m9_intelligence_signals(migrated_db) -> None:
             )
     migrated_db.rollback()
 
+
+def _enum_column(model, attr):
+    col = model.__table__.c[attr]
+    enum_type = col.type
+    assert enum_type.__class__.__name__ == "Enum", (model, attr, enum_type)
+    return enum_type
+
+
+def test_user_role_enum_binds_by_value_not_name() -> None:
+    # Regression for BASELINE-DB-004: SQLAlchemy must bind/read the user_role
+    # column by the Python enum VALUE (lowercase, e.g. "owner") which matches the
+    # Postgres enum labels, NOT by the member NAME (uppercase, e.g. "OWNER")
+    # which the DB rejects. If the values_callable fix is removed, this fails
+    # loudly (both locally and in CI) instead of only surfacing as 34 broken
+    # ORM inserts at runtime.
+    role_col = _enum_column(User, "role")
+    assert role_col.values_callable is not None, "user_role Enum missing values_callable"
+    bound = set(role_col.values_callable(UserRole))
+    assert bound == {m.value for m in UserRole}, bound
+    # The drift condition: no bound value may equal a member NAME (uppercase).
+    assert bound.isdisjoint({m.name for m in UserRole}), bound
+
+    invite_role_col = _enum_column(TeamInvite, "role")
+    assert invite_role_col.values_callable is not None
+    assert set(invite_role_col.values_callable(UserRole)) == {m.value for m in UserRole}
+
+    invite_status_col = _enum_column(TeamInvite, "status")
+    assert invite_status_col.values_callable is not None
+    assert set(invite_status_col.values_callable(InviteStatus)) == {m.value for m in InviteStatus}
+
+
+def test_user_role_pg_enum_labels_match_python_values(migrated_db) -> None:
+    # Regression for BASELINE-DB-004: the Postgres user_role enum labels must
+    # equal the Python UserRole values (the contract the values_callable fix
+    # relies on). A mismatch here is the root cause of the "invalid input value
+    # for enum user_role: OWNER" failure.
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "SELECT e.enumlabel FROM pg_type t "
+            "JOIN pg_enum e ON e.enumtypid = t.oid "
+            "WHERE t.typname = 'user_role'"
+        )
+        labels = {row[0] for row in cur.fetchall()}
+    assert labels == {m.value for m in UserRole}, labels
+    # Sanity: labels are lowercase values, never uppercase member names.
+    assert labels == {"owner", "admin", "manager", "member", "sales_agent", "viewer"}
