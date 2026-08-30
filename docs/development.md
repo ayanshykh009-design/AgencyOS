@@ -14,6 +14,13 @@ make test
 make format   # auto-fix ruff + prettier
 ```
 
+> **`make ci` requires PostgreSQL.** The integration + e2e suites delete/skip
+> when no server is reachable, so `make ci` now runs a `pgcheck` guard that
+> aborts (instead of a false-green skip) if PostgreSQL is not running. Start
+> it with `make up`/`docker compose up -d postgres` (or point
+> `TEST_POSTGRES_URL` at an existing server) before `make ci`. Override only
+> for frontend-only runs with `make ci SKIP_DB_GUARD=1`.
+
 4. Open a PR with a concise description; update related docs in the same PR.
 
 ## Conventions

@@ -54,7 +54,16 @@ yarn-error.log*
 pnpm-debug.log*
 
 # --- n8n / workflows ---
+# Runtime data n8n writes into its data dir (mount: ./workflows/n8n). These
+# hold n8n's database + encryption key and MUST never be committed.
 workflows/n8n/.n8n/
+workflows/n8n/database.sqlite
+workflows/n8n/database.sqlite-shm
+workflows/n8n/database.sqlite-wal
+workflows/n8n/config
+workflows/n8n/encryptionKey
+workflows/n8n/error.log
+workflows/n8n/logs/
 workflows/**/*.tmp
 workflows/**/*.log
 

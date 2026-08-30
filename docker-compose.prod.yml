@@ -25,6 +25,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - dbnet
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 10s
@@ -54,6 +56,9 @@ services:
         condition: service_healthy
     volumes:
       - storage:/storage
+    networks:
+      - dbnet
+      - appnet
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/live')\""]
       interval: 10s
@@ -83,6 +88,8 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+    networks:
+      - appnet
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:3000 || exit 1"]
       interval: 15s
@@ -115,6 +122,9 @@ services:
         condition: service_started
     volumes:
       - storage:/storage
+    networks:
+      - dbnet
+      - appnet
     logging:
       driver: json-file
       options:
@@ -131,7 +141,9 @@ services:
     image: n8nio/n8n:${N8N_IMAGE_TAG:-2.32.7}
     container_name: agencyos-prod-n8n
     restart: unless-stopped
-    env_file: .env.production
+    # Deliberately NOT env_file: .env.production. The n8n container only needs
+    # its own N8N_* variables; binding the whole env file copies every secret
+    # (DB, SMTP, LLM, CREDENTIALS_ENC_KEY, SECRET_KEY, ...) into n8n's process.
     environment:
       N8N_HOST: ${N8N_HOST}
       N8N_PORT: 5678
@@ -145,9 +157,10 @@ services:
       - "${N8N_PORT:-5678}:5678"
     volumes:
       - n8ndata:/home/node/.n8n
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # n8n persists to its own SQLite volume and does not use Postgres, and it
+    # must never reach the internal database network (appnet only).
+    networks:
+      - appnet
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:5678/healthz || exit 1"]
       interval: 15s
@@ -157,6 +170,16 @@ services:
       resources:
         limits:
           memory: 512m
+
+networks:
+  # Internal database network: reachable only by services that need Postgres.
+  dbnet:
+    internal: true
+  # Application network: backend, worker, frontend, and n8n (backend/worker
+  # must reach n8n's webhook for dispatch; n8n offers workflow + static egress
+  # but is isolated from the database network).
+  appnet:
+    driver: bridge
 
 volumes:
   pgdata:

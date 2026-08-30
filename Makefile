@@ -116,7 +116,28 @@ verify-contract: ## Verify frontend/backend API contract + docs consistency
 	cd $(BACKEND_DIR) && python scripts/ci/docs_api_consistency.py
 
 .PHONY: ci
-ci: lint test verify-contract ## Run the full local CI pipeline
+ci: pgcheck lint test verify-contract ## Run the full local CI pipeline
+
+# Fail loudly (rather than silently skip) when the integration/e2e DB layer
+# cannot run. Without this guard, `pytest` would report a green run with all
+# DB/schema/migration tests skipped, producing a false-green `make ci`.
+# Override with SKIP_DB_GUARD=1 only when you truly intend to run the frontend
+# checks without the backend DB integration layer.
+.PHONY: pgcheck
+pgcheck: ## Verify PostgreSQL is reachable before running the full CI pipeline
+	@if [ "$$SKIP_DB_GUARD" = "1" ]; then \
+		echo "SKIP_DB_GUARD=1: skipping PostgreSQL reachability check."; \
+	elif command -v python >/dev/null 2>&1; then \
+		python scripts/ci/pg_guard.py && echo "PostgreSQL reachable." \
+		|| { echo "ERROR: PostgreSQL not reachable (or TEST_POSTGRES_URL/DATABASE_URL invalid)."; \
+		     echo "Start it with 'make up' (or 'docker compose up -d postgres') then re-run 'make ci'."; \
+		     echo "Point TEST_POSTGRES_URL at an existing server if non-default."; \
+		     echo "Override this guard (at your own risk) with: make ci SKIP_DB_GUARD=1"; \
+		     exit 1; }; \
+	else \
+		echo "ERROR: 'python' not found; cannot verify PostgreSQL reachability for CI."; \
+		exit 1; \
+	fi
 
 .PHONY: lint
 lint: ## Lint backend (ruff) + frontend (eslint + prettier + typecheck)

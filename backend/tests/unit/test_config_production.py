@@ -40,6 +40,9 @@ def test_prod_accepts_safe_config():
         {"SECRET_KEY": "fhUxAL6v2kWmZpQ9e5jR4tYb7cD1n8mF3oP6q7sT4vW"},
         {"DATABASE_URL": "sqlite:///x.db"},
         {"ENABLE_CSP": False},
+        {"CREDENTIALS_ENC_KEY": ""},
+        {"CREDENTIALS_ENC_KEY_PREVIOUS": "rotate-me", "CREDENTIAL_KEY_VERSION": "1"},
+        {"CREDENTIAL_KEY_VERSION": "0"},
     ],
 )
 def test_prod_rejects_unsafe_config(bad):

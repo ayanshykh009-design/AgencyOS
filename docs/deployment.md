@@ -48,11 +48,26 @@ Before pointing real traffic at it:
    self-hosting Postgres, enable backups (PITR) and strong credentials. See
    [Operations → Backup & Recovery](operations/backup-recovery.md) for the
    backup/restore runbook and RPO/RTO targets.
-3. Pin `N8N_IMAGE_TAG` and rotate `N8N_ENCRYPTION_KEY`; keep n8n private
-   (VPN/IP allow-list).
+3. Pin `N8N_IMAGE_TAG` and set a strong, unique `N8N_ENCRYPTION_KEY` (replace
+   the template placeholder — it is not fail-closed against weak values);
+   keep n8n private (VPN/IP allow-list).
 4. Set production `SECRET_KEY`, `CORS_ORIGINS`, `TRUSTED_HOSTS`, rate-limit
    values, and OTLP endpoint in `.env.production`.
 5. Apply migrations (`make migrate`) and seeds before deploying new code.
+
+### Networking & secret scoping
+
+`docker-compose.prod.yml` now segments the stack onto two networks:
+
+- **`dbnet`** (`internal: true`) — only `postgres`. `backend` and `worker`
+  join it to reach the database; it is unreachable from `frontend` and `n8n`.
+- **`appnet`** (bridge) — `backend`, `worker`, `frontend`, and `n8n`.
+  `backend`/`worker` reach n8n's webhook here for dispatch.
+
+The `n8n` container deliberately **no longer loads the whole `.env.production`**
+(`env_file`) — it receives only its own `N8N_*` variables, so DB/SMTP/LLM/
+credential secrets are not copied into the automation host. n8n persists to its
+own SQLite volume (`n8ndata`) and does not use, or reach, Postgres.
 
 ## CI/CD
 
