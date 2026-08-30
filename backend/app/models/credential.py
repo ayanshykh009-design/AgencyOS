@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -45,16 +45,16 @@ class Credential(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     encrypted_value: Mapped[str] = mapped_column(Text, nullable=False)
     value_preview: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    expires_at: Mapped[datetime | None] = mapped_column()
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
-    last_used_at: Mapped[datetime | None] = mapped_column()
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     # Envelope-encryption key version. "0" marks rows stored before key
     # versioning existed (plaintext or legacy envelope) — the rekey worker
     # upgrades them to the current version.
     key_version: Mapped[str] = mapped_column(Text, nullable=False, default="0", server_default="0")
-    last_rotated_at: Mapped[datetime | None] = mapped_column()
+    last_rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     created_by: Mapped[User] = relationship()
     organization: Mapped[Organization] = relationship(back_populates="credentials")
@@ -82,7 +82,7 @@ class CredentialKeyVersion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     version: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     key_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
-    retired_at: Mapped[datetime | None] = mapped_column()
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<CredentialKeyVersion version={self.version!r} status={self.status!r}>"

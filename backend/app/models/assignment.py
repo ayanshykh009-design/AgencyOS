@@ -6,7 +6,16 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Integer, Text, UniqueConstraint, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -87,7 +96,7 @@ class LeadAssignmentLog(UUIDPrimaryKeyMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL")
     )
     reason: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), 
         server_default=func.now(), nullable=False, index=True
     )
 

@@ -113,6 +113,10 @@ class LeadService:
         if lead.owner_user_id is None:
             await AssignmentService(self._session).auto_assign(organization_id, lead)
         await commit_with_retry(self._session)
+        # Reload so GENERATED/computed columns (email_normalized, etc.) are
+        # populated; otherwise async attribute access would lazy-load and raise
+        # MissingGreenlet during serialization.
+        await self._session.refresh(lead)
         return lead
 
     async def update(
@@ -141,10 +145,15 @@ class LeadService:
             "stage_id",
             "deal_value",
         }
+        # Status/stage/close-reason are owned by PipelineService.reconcile, which
+        # needs the *original* values to detect bucket transitions (e.g. emit a
+        # LEAD_WON activity log). Don't pre-set them here or reconcile will see
+        # the new status as the previous one and skip the transition.
+        reconciled_keys = ("status", "stage_id", "close_reason_id")
         for field in allowed:
-            if field in data:
+            if field in data and field not in reconciled_keys:
                 setattr(lead, field, data[field])
-        if any(key in data for key in ("status", "stage_id", "close_reason_id")):
+        if any(key in data for key in reconciled_keys):
             await PipelineService(self._session).reconcile(
                 organization_id,
                 lead,
@@ -158,6 +167,9 @@ class LeadService:
         except IntegrityError as exc:
             await self._session.rollback()
             await self._leads.handle_integrity_error(exc)
+        # Reload so GENERATED/computed columns are populated for callers that
+        # serialize or read the returned lead.
+        await self._session.refresh(lead)
         return lead
 
     async def soft_delete(self, organization_id: uuid.UUID, lead_id: uuid.UUID) -> None:

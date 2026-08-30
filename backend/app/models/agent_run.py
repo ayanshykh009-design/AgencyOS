@@ -12,7 +12,17 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Integer, Numeric, Text, Uuid
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    Text,
+    Uuid,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -98,9 +108,9 @@ class AgentRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     cost: Mapped[Decimal] = mapped_column(
         Numeric(18, 6), default=Decimal("0"), server_default="0", nullable=False
     )
-    started_at: Mapped[datetime | None] = mapped_column()
-    finished_at: Mapped[datetime | None] = mapped_column()
-    cancel_requested_at: Mapped[datetime | None] = mapped_column()
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     cancelled_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )

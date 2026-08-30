@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Text, func
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -48,7 +48,9 @@ class Briefing(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     metadata_: Mapped[dict] = mapped_column(
         "metadata", JSONB, default=dict, server_default="{}", nullable=False
     )
-    generated_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     organization: Mapped[Organization] = relationship(back_populates="briefings")
 

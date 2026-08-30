@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,8 +38,12 @@ class WorkflowEvent(UUIDPrimaryKeyMixin, Base):
     event_type: Mapped[str] = mapped_column(Text, nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
     consumed: Mapped[bool] = mapped_column(default=False, nullable=False)
-    consumed_at: Mapped[datetime | None] = mapped_column()
-    occurred_at: Mapped[datetime] = mapped_column(nullable=False, index=True)
+    consumed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
 
     organization: Mapped[Organization] = relationship(back_populates="workflow_events")
 

@@ -13,7 +13,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Computed, Enum, ForeignKey, Index, Integer, Numeric, Text, text
+from sqlalchemy import Computed, DateTime, Enum, ForeignKey, Index, Integer, Numeric, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -104,8 +104,8 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("close_reasons.id", ondelete="SET NULL"), index=True
     )
     deal_value: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    won_at: Mapped[datetime | None] = mapped_column()
-    lost_at: Mapped[datetime | None] = mapped_column()
+    won_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
+    lost_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     # Generated, read-only dedup keys (mirror PostgreSQL GENERATED columns).
     email_normalized: Mapped[str | None] = mapped_column(
@@ -118,7 +118,7 @@ class Lead(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Computed("normalize_domain(website)"), nullable=True
     )
 
-    deleted_at: Mapped[datetime | None] = mapped_column()
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     lead_source: Mapped[LeadSource | None] = relationship(back_populates="leads")
     owner: Mapped[User | None] = relationship()

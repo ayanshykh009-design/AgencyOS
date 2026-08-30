@@ -24,7 +24,7 @@ from _pg_helpers import (  # noqa: E402
 )
 from app.core.config import settings  # noqa: E402
 
-MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "database" / "migrations"
+MIGRATIONS_DIR = Path(__file__).resolve().parents[3] / "database" / "migrations"
 ADMIN_URL = os.getenv(
     "TEST_POSTGRES_URL",
     settings.DATABASE_URL.replace("+asyncpg", "").rsplit("/", 1)[0] + "/postgres",

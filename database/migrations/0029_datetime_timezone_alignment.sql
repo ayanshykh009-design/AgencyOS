@@ -1,19 +1,25 @@
 -- =====================================================================
 -- 0029_datetime_timezone_alignment.sql
--- BASELINE-DB-005: align timestamp columns of the auth/approval/team-invite
--- flows with the canonical timezone-aware UTC convention (every other
--- timestamp column in the schema is timestamptz). The ORM previously inferred
--- naive DateTime for these columns, which made SQLAlchemy read the timestamptz
--- column back as a naive datetime and triggered
---   asyncpg.exceptions.DataError: can't subtract offset-naive and offset-aware
--- datetimes
--- on token/invite/approval lifetime arithmetic (e.g. team_service
--- `invite.expires_at <= utcnow()` and approval_service `now > request.expires_at`).
+-- BASELINE-DB-005: align every timestamp column with the canonical
+-- timezone-aware UTC convention.
 --
--- Idempotent: only alters columns currently stored WITHOUT time zone. If a
--- column is already timestamptz the ALTER is skipped (safe no-op), so this
--- migration can be replayed without error and is a no-op on databases that
--- already applied the corrected type.
+-- The application always writes UTC-aware datetimes
+-- (e.g. `datetime.now(timezone.utc)` / `utcnow()`) into these columns.
+-- Any column stored as `timestamp without time zone` therefore triggers
+--   asyncpg.exceptions.DataError: can't subtract offset-naive and offset-aware
+--   datetimes
+-- on insert/update (the DBAPI cannot encode an aware value into a naive
+-- column) and returns naive values on read (breaking lifetime arithmetic such
+-- as `expires_at <= utcnow()`).
+--
+-- Fix: convert EVERY `timestamp without time zone` column in the public schema
+-- to `timestamptz`, interpreting existing values as UTC. This matches the
+-- convention already used by the rest of the schema (created_at/updated_at and
+-- the auth/approval/team-invite timestamp columns) and the SQLAlchemy models.
+--
+-- Idempotent: the conversion only touches columns currently stored WITHOUT
+-- time zone, so replaying this migration is a no-op on an already-aligned
+-- database.
 -- =====================================================================
 
 DO $$
@@ -21,30 +27,17 @@ DECLARE
   col record;
 BEGIN
   FOR col IN
-    SELECT * FROM (VALUES
-      ('refresh_tokens', 'expires_at'),
-      ('refresh_tokens', 'created_at'),
-      ('refresh_tokens', 'revoked_at'),
-      ('approval_requests', 'expires_at'),
-      ('approval_requests', 'decided_at'),
-      ('approval_requests', 'gate_handled_at'),
-      ('team_invites', 'expires_at'),
-      ('team_invites', 'accepted_at'),
-      ('team_invites', 'revoked_at')
-    ) AS t(tbl, col)
+    SELECT table_name, column_name
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND data_type = 'timestamp without time zone'
+      -- bootstrap tables created outside the migration set are timestamptz
+      -- already and are simply skipped by the data_type filter above.
   LOOP
-    IF (
-      SELECT data_type
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name = col.tbl
-        AND column_name = col.col
-    ) = 'timestamp without time zone' THEN
-      EXECUTE format(
-        'ALTER TABLE public.%I ALTER COLUMN %I TYPE timestamptz USING %I AT TIME ZONE ''UTC''',
-        col.tbl, col.col, col.col
-      );
-    END IF;
+    EXECUTE format(
+      'ALTER TABLE public.%I ALTER COLUMN %I TYPE timestamptz USING %I AT TIME ZONE ''UTC''',
+      col.table_name, col.column_name, col.column_name
+    );
   END LOOP;
 END $$;
 
@@ -56,30 +49,15 @@ END $$;
 --   col record;
 -- BEGIN
 --   FOR col IN
---     SELECT * FROM (VALUES
---       ('refresh_tokens', 'expires_at'),
---       ('refresh_tokens', 'created_at'),
---       ('refresh_tokens', 'revoked_at'),
---       ('approval_requests', 'expires_at'),
---       ('approval_requests', 'decided_at'),
---       ('approval_requests', 'gate_handled_at'),
---       ('team_invites', 'expires_at'),
---       ('team_invites', 'accepted_at'),
---       ('team_invites', 'revoked_at')
---     ) AS t(tbl, col)
+--     SELECT table_name, column_name
+--     FROM information_schema.columns
+--     WHERE table_schema = 'public'
+--       AND data_type = 'timestamp with time zone'
 --   LOOP
---     IF (
---       SELECT data_type
---       FROM information_schema.columns
---       WHERE table_schema = 'public'
---         AND table_name = col.tbl
---         AND column_name = col.col
---     ) = 'timestamp with time zone' THEN
---       EXECUTE format(
---         'ALTER TABLE public.%I ALTER COLUMN %I TYPE timestamp',
---         col.tbl, col.col
---       );
---     END IF;
+--     EXECUTE format(
+--       'ALTER TABLE public.%I ALTER COLUMN %I TYPE timestamp without time zone',
+--       col.table_name, col.column_name
+--     );
 --   END LOOP;
 -- END $$;
 -- =====================================================================

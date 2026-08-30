@@ -63,6 +63,10 @@ class FakeSession:
     async def rollback(self) -> None:
         self.rolled_back = True
 
+    async def refresh(self, instance: object) -> None:
+        # No-op: the fake has no database to reload attributes from.
+        return None
+
 
 def _make_user(**overrides: object) -> User:
     user = User(
@@ -456,7 +460,13 @@ async def test_lead_update_to_won_delegates_reconcile(monkeypatch) -> None:
     lead.id = uuid.uuid4()
     service._leads.get_or_404 = AsyncMock(return_value=lead)
     pipeline = MagicMock()
-    pipeline.reconcile = AsyncMock()
+
+    async def _apply_status(_org, _lead, **kw):
+        if kw.get("status") is not None:
+            _lead.status = kw["status"]
+
+    # Faithful to production: reconcile owns the status transition.
+    pipeline.reconcile = AsyncMock(side_effect=_apply_status)
     monkeypatch.setattr("app.services.lead_service.PipelineService", lambda s: pipeline)
 
     await service.update(ORG_ID, LEAD_ID, {"status": LeadStatus.WON})
@@ -500,7 +510,13 @@ async def test_lead_update_to_lost_delegates_reconcile(monkeypatch) -> None:
     lead.id = uuid.uuid4()
     service._leads.get_or_404 = AsyncMock(return_value=lead)
     pipeline = MagicMock()
-    pipeline.reconcile = AsyncMock()
+
+    async def _apply_status(_org, _lead, **kw):
+        if kw.get("status") is not None:
+            _lead.status = kw["status"]
+
+    # Faithful to production: reconcile owns the status transition.
+    pipeline.reconcile = AsyncMock(side_effect=_apply_status)
     monkeypatch.setattr("app.services.lead_service.PipelineService", lambda s: pipeline)
 
     await service.update(ORG_ID, LEAD_ID, {"status": LeadStatus.LOST})

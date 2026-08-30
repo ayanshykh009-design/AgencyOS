@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,7 +49,7 @@ class LeadResearch(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     icp_match_score: Mapped[int | None] = mapped_column(Integer)
     raw_data: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
     research_source: Mapped[str | None] = mapped_column(Text)
-    researched_at: Mapped[datetime | None] = mapped_column()
+    researched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     lead: Mapped[Lead] = relationship(back_populates="research")
 

@@ -14,7 +14,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Numeric, Text, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Numeric, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -68,8 +68,8 @@ class GrowthForecast(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     forecast_type: Mapped[str] = mapped_column(Text, nullable=False)
-    horizon_start: Mapped[datetime] = mapped_column(nullable=False)
-    horizon_end: Mapped[datetime] = mapped_column(nullable=False)
+    horizon_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    horizon_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     total_value: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     confidence_low: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
     confidence_high: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
@@ -77,14 +77,20 @@ class GrowthForecast(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         JSONB, default=dict, server_default="{}", nullable=False
     )
     method: Mapped[str | None] = mapped_column(Text)
-    base_period_start: Mapped[datetime | None] = mapped_column()
-    base_period_end: Mapped[datetime | None] = mapped_column()
+    base_period_start: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+    base_period_end: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
     point_estimate: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
     lower_bound: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
     upper_bound: Mapped[Decimal | None] = mapped_column(Numeric(18, 6))
     series: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]", nullable=False)
     errors: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
-    generated_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     organization: Mapped[Organization] = relationship(back_populates="growth_forecasts")
     scenarios: Mapped[list[GrowthScenario]] = relationship(back_populates="forecast")

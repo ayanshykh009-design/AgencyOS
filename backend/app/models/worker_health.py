@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, Index, UniqueConstraint, func
+from sqlalchemy import CheckConstraint, DateTime, Index, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,7 +37,9 @@ class WorkerHealth(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     loop_ok: Mapped[bool] = mapped_column(default=True, server_default="true", nullable=False)
     last_error: Mapped[str | None] = mapped_column()
     counters: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
-    last_heartbeat_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    last_heartbeat_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     def __repr__(self) -> str:  # pragma: no cover - debug helper
         return f"<WorkerHealth type={self.worker_type} instance={self.instance_id}>"

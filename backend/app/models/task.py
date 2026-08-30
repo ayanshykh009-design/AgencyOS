@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Integer, Text
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -76,9 +76,9 @@ class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=TaskPriority.MEDIUM,
         nullable=False,
     )
-    due_at: Mapped[datetime | None] = mapped_column()
-    reminder_at: Mapped[datetime | None] = mapped_column()
-    completed_at: Mapped[datetime | None] = mapped_column()
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
+    reminder_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     recurrence_frequency: Mapped[RecurrenceFrequency | None] = mapped_column(
         Enum(
             RecurrenceFrequency,

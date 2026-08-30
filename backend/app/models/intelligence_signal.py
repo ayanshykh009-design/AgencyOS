@@ -146,12 +146,12 @@ class IntelligenceSignal(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     first_seen_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    last_triaged_at: Mapped[datetime | None] = mapped_column()
+    last_triaged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     acknowledged_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
-    acknowledged_at: Mapped[datetime | None] = mapped_column()
-    last_notified_at: Mapped[datetime | None] = mapped_column()
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
+    last_notified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     organization: Mapped[Organization] = relationship(back_populates="intelligence_signals")
 

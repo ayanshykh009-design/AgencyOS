@@ -83,6 +83,8 @@ class FounderActionService:
         justification: str | None = None,
     ) -> FounderActionProposal:
         """Record a proposal and link it to a pending approval request."""
+        if not isinstance(action_type, FounderActionType):
+            action_type = FounderActionType(action_type)
         actor = await self._load_actor(actor_user_id)
         expires_at = utcnow() + timedelta(seconds=settings.FOUNDER_APPROVAL_TTL_SECONDS)
 

@@ -30,7 +30,7 @@ def test_critical_journey_lead_note_pipeline(migrated_db) -> None:
     with migrated_db.cursor() as cur:
         # -- Lead created for org A.
         cur.execute(
-            "INSERT INTO public.leads (organization_id, name) "
+            "INSERT INTO public.leads (organization_id, first_name) "
             "VALUES (%s, 'Acme Co') RETURNING id",
             (org_a,),
         )
@@ -58,7 +58,7 @@ def test_critical_journey_lead_note_pipeline(migrated_db) -> None:
 
         # -- Assertions: the journey persisted and is queryable by org.
         cur.execute(
-            "SELECT l.name, ps.name FROM public.leads l "
+            "SELECT l.first_name, ps.name FROM public.leads l "
             "JOIN public.pipeline_stages ps ON ps.id = l.stage_id "
             "WHERE l.id = %s",
             (lead_a,),
@@ -77,7 +77,7 @@ def test_critical_journey_lead_note_pipeline(migrated_db) -> None:
         cur.execute("SELECT count(*) FROM public.leads WHERE organization_id = %s", (org_b,))
         assert cur.fetchone()[0] == 0
         cur.execute(
-            "SELECT count(*) FROM public.notes WHERE lead_id = %s", (note_a,)
+            "SELECT count(*) FROM public.notes WHERE id = %s", (note_a,)
         )
         assert cur.fetchone()[0] == 1
     migrated_db.commit()

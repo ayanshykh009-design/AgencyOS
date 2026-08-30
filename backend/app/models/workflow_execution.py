@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -86,18 +86,18 @@ class WorkflowExecution(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     input: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
     output: Mapped[dict | None] = mapped_column(JSONB)
     error: Mapped[dict | None] = mapped_column(JSONB)
-    started_at: Mapped[datetime | None] = mapped_column()
-    finished_at: Mapped[datetime | None] = mapped_column()
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     attempts: Mapped[int] = mapped_column(default=0, nullable=False)
     max_attempts: Mapped[int] = mapped_column(default=3, nullable=False)
     retry_delay_seconds: Mapped[int] = mapped_column(default=60, nullable=False)
     retry_backoff: Mapped[str] = mapped_column(default="exponential", nullable=False)
-    next_retry_at: Mapped[datetime | None] = mapped_column()
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     requested_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
     trace_id: Mapped[uuid.UUID | None] = mapped_column()
-    cancel_requested_at: Mapped[datetime | None] = mapped_column()
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     cancelled_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )

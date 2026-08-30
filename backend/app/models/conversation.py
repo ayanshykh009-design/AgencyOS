@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, Enum, ForeignKey, Index, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -56,7 +56,7 @@ class Conversation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     external_thread_id: Mapped[str | None] = mapped_column(Text)
     subject: Mapped[str | None] = mapped_column(Text)
     is_open: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    last_message_at: Mapped[datetime | None] = mapped_column()
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     lead: Mapped[Lead] = relationship(back_populates="conversations")
     messages: Mapped[list[ConversationMessage]] = relationship(

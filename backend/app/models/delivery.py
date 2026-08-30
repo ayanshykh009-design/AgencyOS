@@ -20,7 +20,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Text, text
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -120,9 +120,15 @@ class Delivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     attempts: Mapped[int] = mapped_column(default=0, nullable=False)
     max_attempts: Mapped[int] = mapped_column(default=4, nullable=False)
-    next_attempt_at: Mapped[datetime | None] = mapped_column()
-    attempt_started_at: Mapped[datetime | None] = mapped_column()
-    cancel_requested_at: Mapped[datetime | None] = mapped_column()
+    next_attempt_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+    attempt_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
     cancelled_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
@@ -132,10 +138,18 @@ class Delivery(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     payload: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
     idempotency_key: Mapped[str | None] = mapped_column()
-    scheduled_for: Mapped[datetime] = mapped_column(server_default=text("now()"), nullable=False)
-    delivered_at: Mapped[datetime | None] = mapped_column()
-    failed_at: Mapped[datetime | None] = mapped_column()
-    cancelled_at: Mapped[datetime | None] = mapped_column()
+    scheduled_for: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False
+    )
+    delivered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+    failed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+    cancelled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
 
     organization: Mapped[Organization] = relationship(back_populates="deliveries")
     recipient: Mapped[User | None] = relationship(foreign_keys=[recipient_user_id])

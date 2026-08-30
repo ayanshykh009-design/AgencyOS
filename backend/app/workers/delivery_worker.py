@@ -80,10 +80,8 @@ class DeliveryWorker:
     @staticmethod
     async def _set_statement_timeout(session: AsyncSession) -> None:
         """Bound the phase's statements inside the current transaction."""
-        await session.execute(
-            text("SET LOCAL statement_timeout = :ms"),
-            {"ms": settings.DELIVERY_STATEMENT_TIMEOUT_SECONDS * 1000},
-        )
+        timeout_ms = settings.DELIVERY_STATEMENT_TIMEOUT_SECONDS * 1000
+        await session.execute(text(f"SET LOCAL statement_timeout = {timeout_ms}"))
 
     # -- heartbeat -------------------------------------------------------
 

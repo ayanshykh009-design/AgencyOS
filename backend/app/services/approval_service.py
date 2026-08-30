@@ -83,6 +83,7 @@ class ApprovalService:
             values["expires_at"] = expires_at
         request = ApprovalRequest(**values)
         self._requests.add(request)
+        await self._session.flush()
         self._logs.add(
             ApprovalLog(
                 organization_id=organization_id,
@@ -102,7 +103,7 @@ class ApprovalService:
         *,
         approve: bool,
         decided_by_user_id: uuid.UUID | None,
-        decision_note: str | None,
+        decision_note: str | None = None,
     ) -> ApprovalRequest:
         """Transition a pending request to approved/denied and log the decision."""
         request = await self._requests.get_or_404(organization_id, request_id)

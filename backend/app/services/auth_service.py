@@ -73,7 +73,7 @@ class AuthService:
 
         access, refresh, _record = await self._issue_tokens(user)
         await commit_with_retry(self._session)
-        return self._auth_response(user, access, refresh)
+        return await self._auth_response(user, access, refresh)
 
     async def login(self, payload: LoginRequest) -> AuthResponse:
         """Authenticate a user and return a session token pair."""
@@ -87,7 +87,7 @@ class AuthService:
         user.last_login_at = utcnow()
         access, refresh, _record = await self._issue_tokens(user)
         await commit_with_retry(self._session)
-        return self._auth_response(user, access, refresh)
+        return await self._auth_response(user, access, refresh)
 
     async def refresh(self, raw_token: str) -> AuthResponse:
         """Rotate a refresh token and issue a fresh token pair."""
@@ -110,7 +110,7 @@ class AuthService:
         access, refresh, new_record = await self._issue_tokens(user)
         await self._tokens.mark_replaced(record.id, new_record.id, now=now)
         await commit_with_retry(self._session)
-        return self._auth_response(user, access, refresh)
+        return await self._auth_response(user, access, refresh)
 
     async def logout(self, user_id) -> None:
         """Revoke every outstanding refresh token for a user."""
@@ -169,8 +169,11 @@ class AuthService:
         )
         return access, raw_refresh, record
 
-    @staticmethod
-    def _auth_response(user: User, access: str, refresh: str) -> AuthResponse:
+    async def _auth_response(self, user: User, access: str, refresh: str) -> AuthResponse:
+        # The user may carry expired attributes (e.g. updated_at refreshed by the
+        # database on the preceding UPDATE). Reload so Pydantic serialization never
+        # triggers an async lazy-load (which raises MissingGreenlet).
+        await self._session.refresh(user)
         return AuthResponse(
             access_token=access,
             refresh_token=refresh,

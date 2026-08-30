@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Text
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -62,9 +62,9 @@ class OutreachAttempt(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     subject: Mapped[str | None] = mapped_column(Text)
     body: Mapped[str | None] = mapped_column(Text)
-    scheduled_at: Mapped[datetime | None] = mapped_column(index=True)
-    sent_at: Mapped[datetime | None] = mapped_column()
-    delivered_at: Mapped[datetime | None] = mapped_column()
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     external_id: Mapped[str | None] = mapped_column(Text)
     error_code: Mapped[str | None] = mapped_column(Text)
     error_message: Mapped[str | None] = mapped_column(Text)

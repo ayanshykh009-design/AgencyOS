@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, CheckConstraint, Enum, ForeignKey, Integer, Text
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, Enum, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -63,8 +63,8 @@ class ImportJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     metadata_: Mapped[dict] = mapped_column(
         "metadata", JSONB, default=dict, server_default="{}", nullable=False
     )
-    started_at: Mapped[datetime | None] = mapped_column()
-    finished_at: Mapped[datetime | None] = mapped_column()
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     created_by: Mapped[User] = relationship()
     lead_source: Mapped[LeadSource | None] = relationship()

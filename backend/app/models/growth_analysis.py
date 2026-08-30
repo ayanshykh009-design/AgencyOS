@@ -13,7 +13,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Numeric, Text, func
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Numeric, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -84,8 +84,8 @@ class GrowthAnalysis(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=GrowthAnalysisStatus.COMPLETED,
         nullable=False,
     )
-    period_start: Mapped[datetime] = mapped_column(nullable=False)
-    period_end: Mapped[datetime] = mapped_column(nullable=False)
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     health_score: Mapped[Decimal | None] = mapped_column(Numeric(5, 2))
     summary: Mapped[str] = mapped_column(Text, nullable=False)
     details: Mapped[dict] = mapped_column(JSONB, default=dict, server_default="{}", nullable=False)
@@ -98,7 +98,9 @@ class GrowthAnalysis(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     generated_by: Mapped[str] = mapped_column(
         Text, default="agent", server_default="agent", nullable=False
     )
-    generated_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     organization: Mapped[Organization] = relationship(back_populates="growth_analyses")
 

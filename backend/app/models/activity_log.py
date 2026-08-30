@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Enum, ForeignKey, Text, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -45,9 +45,11 @@ class ActivityLog(UUIDPrimaryKeyMixin, Base):
         "metadata", JSONB, default=dict, server_default="{}", nullable=False
     )
     occurred_at: Mapped[datetime] = mapped_column(
-        server_default=func.now(), nullable=False, index=True
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     user: Mapped[User | None] = relationship()
     lead: Mapped[Lead | None] = relationship(back_populates="activity_logs")

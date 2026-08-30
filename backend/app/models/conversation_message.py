@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Text, func
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -50,8 +50,10 @@ class ConversationMessage(UUIDPrimaryKeyMixin, Base):
     metadata_: Mapped[dict] = mapped_column(
         "metadata", JSONB, default=dict, server_default="{}", nullable=False
     )
-    sent_at: Mapped[datetime] = mapped_column(nullable=False, index=True)
-    created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
     sender_user: Mapped[User | None] = relationship()

@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Text, text
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Text, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -80,15 +80,15 @@ class ApprovalRequest(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=ApprovalRequestStatus.PENDING,
         nullable=False,
     )
-    expires_at: Mapped[datetime] = mapped_column(
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), 
         server_default=text("now() + interval '24 hours'"), nullable=False
     )
     decided_by_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
-    decided_at: Mapped[datetime | None] = mapped_column()
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     decision_note: Mapped[str | None] = mapped_column(Text)
-    gate_handled_at: Mapped[datetime | None] = mapped_column()
+    gate_handled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     organization: Mapped[Organization] = relationship(back_populates="approval_requests")
     workflow: Mapped[Workflow | None] = relationship()

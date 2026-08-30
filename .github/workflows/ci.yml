@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   backend:
@@ -59,15 +58,6 @@ jobs:
           # (mirrors a production deployment that has budgets set).
           AI_ORG_DAILY_TOKEN_BUDGET: "1000000"
           AI_ORG_DAILY_COST_BUDGET_USD: "1000.0"
-
-      - name: Publish pytest diagnostics to issue
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          if [ -f pytest-output.log ]; then
-            gh issue create --title "CI diagnostic: pytest run ${{ github.run_id }}" --body-file pytest-output.log || true
-          fi
 
   frontend:
     name: Frontend lint, typecheck, tests

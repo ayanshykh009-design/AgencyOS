@@ -124,7 +124,13 @@ EXPECTED_MIGRATION_SHAS = {
         "c89a344871ee97d6a77c1038c9dde609413cf640622c65377b3042459250a522"
     ),
     "0029_datetime_timezone_alignment.sql": (
-        "ae9649320ef69fd841582f84584a92a910a83c03873696a20e7c03d6b384c806"
+        "02329addbedca81e6f6e4158746e96c7aa8a4d4894657040f1722a35b53b6d53"
+    ),
+    "0030_fix_founder_messages_metadata_column.sql": (
+        "512848f0ecc1f673aa90b2c2e38e5a052fb0c02cab1935756912112d455a342b"
+    ),
+    "0031_fix_users_email_global_unique.sql": (
+        "f8c04de960393dcb1835037cb0038d1c73cde36be7bfe9b1da26f07bd9fd08e6"
     ),
 }
 
@@ -289,7 +295,7 @@ def test_migrations_apply_cleanly(migrated_db) -> None:
 
 
 def test_duplicate_email_same_org_rejected(migrated_db) -> None:
-    _insert_org(migrated_db)
+    _insert_org(migrated_db, ORG_ID)
     with migrated_db.cursor() as cur:
         cur.execute(
             "INSERT INTO public.leads (organization_id, email) VALUES (%s, %s)",
@@ -298,7 +304,7 @@ def test_duplicate_email_same_org_rejected(migrated_db) -> None:
         with pytest.raises(errors.UniqueViolation):
             cur.execute(
                 "INSERT INTO public.leads (organization_id, email) VALUES (%s, %s)",
-                (ORG_ID, "DUP@example.com"),
+                (ORG_ID, "dup@example.com"),
             )
     migrated_db.rollback()
 
@@ -317,7 +323,7 @@ def test_same_email_different_org_allowed(migrated_db) -> None:
 
 
 def test_duplicate_phone_vs_whatsapp_rejected(migrated_db) -> None:
-    _insert_org(migrated_db)
+    _insert_org(migrated_db, ORG_ID)
     with migrated_db.cursor() as cur:
         cur.execute(
             "INSERT INTO public.leads (organization_id, phone) VALUES (%s, %s)",
@@ -332,7 +338,7 @@ def test_duplicate_phone_vs_whatsapp_rejected(migrated_db) -> None:
 
 
 def test_duplicate_website_domain_rejected(migrated_db) -> None:
-    _insert_org(migrated_db)
+    _insert_org(migrated_db, ORG_ID)
     with migrated_db.cursor() as cur:
         cur.execute(
             "INSERT INTO public.leads (organization_id, website) VALUES (%s, %s)",
@@ -384,7 +390,7 @@ def test_org_delete_cascades_to_leads(migrated_db) -> None:
 
 
 def test_generated_normalized_columns(migrated_db) -> None:
-    _insert_org(migrated_db)
+    _insert_org(migrated_db, ORG_ID)
     with migrated_db.cursor() as cur:
         cur.execute(
             "INSERT INTO public.leads (organization_id, email, phone, website) "
@@ -397,7 +403,7 @@ def test_generated_normalized_columns(migrated_db) -> None:
 
 
 def test_lead_research_one_to_one(migrated_db) -> None:
-    _insert_org(migrated_db)
+    _insert_org(migrated_db, ORG_ID)
     with migrated_db.cursor() as cur:
         cur.execute(
             "INSERT INTO public.leads (organization_id, email) VALUES (%s, %s) RETURNING id",
@@ -417,7 +423,7 @@ def test_lead_research_one_to_one(migrated_db) -> None:
 
 
 def test_provider_usage_daily_unique(migrated_db) -> None:
-    _insert_org(migrated_db)
+    _insert_org(migrated_db, ORG_ID)
     with migrated_db.cursor() as cur:
         cur.execute(
             "INSERT INTO public.provider_usage "
@@ -1293,8 +1299,8 @@ def test_memory_cleanup_org_scoped_and_working_only(migrated_db) -> None:
             (org_a,),
         )
         assert cur.fetchall() == [
-            ("working", "research", "fresh row"),
             ("long_term", "manual", "durable row"),
+            ("working", "research", "fresh row"),
         ]
         cur.execute(
             "SELECT count(*) FROM public.ai_memories "
@@ -1321,14 +1327,14 @@ def test_rls_org_isolation_ai_memories_knowledge(migrated_db) -> None:
     with migrated_db.cursor() as cur:
         cur.execute(
             "INSERT INTO public.users (organization_id, email, full_name, role) "
-            "VALUES (%s, %s, %s, 'owner') RETURNING id",
-            (ORG_ID, "owner-a@example.com"),
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (ORG_ID, "owner-a@example.com", "Owner A", "owner"),
         )
         user_a = cur.fetchone()[0]
         cur.execute(
             "INSERT INTO public.users (organization_id, email, full_name, role) "
-            "VALUES (%s, %s, %s, 'owner') RETURNING id",
-            (org_b, "owner-b@example.com"),
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (org_b, "owner-b@example.com", "Owner B", "owner"),
         )
         user_b = cur.fetchone()[0]
         cur.execute(
@@ -1434,6 +1440,7 @@ def test_rls_org_isolation_ai_memories_knowledge(migrated_db) -> None:
                 "VALUES (%s, 'sneaky', 'x', 'knowledge')",
                 (org_b,),
             )
+        migrated_db.rollback()
         cur.execute("RESET ROLE")
     migrated_db.commit()
 
@@ -1464,24 +1471,26 @@ def test_rls_org_isolation_leads_conversations(migrated_db) -> None:
     with migrated_db.cursor() as cur:
         cur.execute(
             "INSERT INTO public.users (organization_id, email, full_name, role) "
-            "VALUES (%s, %s, %s, 'owner') RETURNING id",
-            (ORG_ID, "owner-a@example.com"),
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (ORG_ID, "owner-a@example.com", "Owner A", "owner"),
         )
         user_a = cur.fetchone()[0]
         cur.execute(
             "INSERT INTO public.users (organization_id, email, full_name, role) "
-            "VALUES (%s, %s, %s, 'owner') RETURNING id",
-            (org_b, "owner-b@example.com"),
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (org_b, "owner-b@example.com", "Owner B", "owner"),
         )
         user_b = cur.fetchone()[0]
         # A lead + an open conversation for org A (conversation needs a lead).
         cur.execute(
-            "INSERT INTO public.leads (organization_id, name) VALUES (%s, 'lead-a') RETURNING id",
+            "INSERT INTO public.leads (organization_id, first_name) "
+            "VALUES (%s, 'lead-a') RETURNING id",
             (ORG_ID,),
         )
         lead_a = cur.fetchone()[0]
         cur.execute(
-            "INSERT INTO public.leads (organization_id, name) VALUES (%s, 'lead-b') RETURNING id",
+            "INSERT INTO public.leads (organization_id, first_name) "
+            "VALUES (%s, 'lead-b') RETURNING id",
             (org_b,),
         )
         lead_b = cur.fetchone()[0]
@@ -1528,7 +1537,7 @@ def test_rls_org_isolation_leads_conversations(migrated_db) -> None:
         cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{user_a}"}}',))
         cur.execute("SELECT count(*) FROM public.leads")
         assert cur.fetchone()[0] == 1
-        cur.execute("SELECT name FROM public.leads")
+        cur.execute("SELECT first_name FROM public.leads")
         assert cur.fetchone()[0] == "lead-a"
         cur.execute("SELECT count(*) FROM public.conversations")
         assert cur.fetchone()[0] == 1
@@ -1543,7 +1552,7 @@ def test_rls_org_isolation_leads_conversations(migrated_db) -> None:
     with migrated_db.cursor() as cur:
         cur.execute("SET ROLE authenticated")
         cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{user_b}"}}',))
-        cur.execute("SELECT name FROM public.leads")
+        cur.execute("SELECT first_name FROM public.leads")
         assert cur.fetchone()[0] == "lead-b"
         cur.execute("SELECT count(*) FROM public.leads")
         assert cur.fetchone()[0] == 1
@@ -1555,15 +1564,22 @@ def test_rls_org_isolation_leads_conversations(migrated_db) -> None:
         cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{user_a}"}}',))
         with pytest.raises(errors.InsufficientPrivilege):
             cur.execute(
-                "INSERT INTO public.leads (organization_id, name) VALUES (%s, 'sneaky')",
+                "INSERT INTO public.leads (organization_id, first_name) VALUES (%s, 'sneaky')",
                 (org_b,),
             )
+        migrated_db.rollback()
+        # The rollback above also reverts the transaction-scoped
+        # ``SET request.jwt.claims`` to user_b (from the previous block), so the
+        # auth context must be re-asserted before the next cross-org attempt.
+        cur.execute("SET ROLE authenticated")
+        cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{user_a}"}}',))
         with pytest.raises(errors.InsufficientPrivilege):
             cur.execute(
                 "INSERT INTO public.conversations (organization_id, lead_id, channel) "
-                "VALUES (%s, %s, 'email')",
+                "VALUES (%s, %s, 'whatsapp')",
                 (org_b, lead_b),
             )
+        migrated_db.rollback()
         cur.execute("RESET ROLE")
     migrated_db.commit()
 
@@ -1637,6 +1653,7 @@ def test_migration_0027_m9_intelligence_signals(migrated_db) -> None:
                 " 'hash-2', 1.5)",
                 (org_id,),
             )
+        migrated_db.rollback()
         # Blank title/summary/hash rejected by the CHECK constraints.
         with pytest.raises(errors.CheckViolation):
             cur.execute(
@@ -1646,6 +1663,7 @@ def test_migration_0027_m9_intelligence_signals(migrated_db) -> None:
                 "VALUES (%s, 'pipeline_risk', 'pipeline_fact', '   ', 'ok', 'hash-3')",
                 (org_id,),
             )
+        migrated_db.rollback()
         with pytest.raises(errors.CheckViolation):
             cur.execute(
                 "INSERT INTO public.intelligence_signals "
@@ -1654,6 +1672,7 @@ def test_migration_0027_m9_intelligence_signals(migrated_db) -> None:
                 "VALUES (%s, 'pipeline_risk', 'pipeline_fact', 'ok', 'ok', '   ')",
                 (org_id,),
             )
+        migrated_db.rollback()
         # Enum values are enforced.
         with pytest.raises(errors.InvalidTextRepresentation):
             cur.execute(

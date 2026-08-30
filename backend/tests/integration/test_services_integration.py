@@ -223,6 +223,10 @@ async def test_lead_lifecycle_and_status_activity(db) -> None:
         )
         assert lead.status is LeadStatus.NEW
         assert lead.email_normalized == "ada@example.com"
+        # Capture the id now: the duplicate-create below rolls back the session,
+        # which expires this ORM object; reusing lead.id later would trigger an
+        # async lazy-reload (MissingGreenlet) under the async engine.
+        lead_id = lead.id
 
         # Duplicate normalized email -> 409.
         with pytest.raises(AppError) as exc_info:
@@ -235,8 +239,8 @@ async def test_lead_lifecycle_and_status_activity(db) -> None:
         assert funnel.get(LeadStatus.NEW) == 1
 
         # Marking won writes an activity log row.
-        await service.update(org_id, lead.id, {"status": LeadStatus.WON})
-        updated = await service.get(org_id, lead.id)
+        await service.update(org_id, lead_id, {"status": LeadStatus.WON})
+        updated = await service.get(org_id, lead_id)
         assert updated.status is LeadStatus.WON
 
         result = await session.execute(

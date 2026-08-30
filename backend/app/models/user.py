@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, Enum, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -51,7 +51,7 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     password_hash: Mapped[str | None] = mapped_column(Text)
-    last_login_at: Mapped[datetime | None] = mapped_column()
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     organization: Mapped[Organization] = relationship(back_populates="users")
     created_workflows: Mapped[list[Workflow]] = relationship(back_populates="created_by")

@@ -12,7 +12,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Index, Integer, Numeric, Text
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Index, Integer, Numeric, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -72,7 +72,7 @@ class AgentState(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     average_cost: Mapped[Decimal] = mapped_column(
         Numeric(18, 6), default=Decimal("0"), server_default="0", nullable=False
     )
-    last_execution: Mapped[datetime | None] = mapped_column()
+    last_execution: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     last_error: Mapped[str | None] = mapped_column(Text)
 
     organization: Mapped[Organization] = relationship(back_populates="agent_states")

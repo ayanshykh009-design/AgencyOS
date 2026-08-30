@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, SmallInteger, Text
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, SmallInteger, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -54,11 +54,11 @@ class ManualOutreachQueue(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
     priority: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
-    due_at: Mapped[datetime | None] = mapped_column()
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     subject: Mapped[str | None] = mapped_column(Text)
     body: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
-    completed_at: Mapped[datetime | None] = mapped_column()
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     lead: Mapped[Lead] = relationship(back_populates="manual_outreach_queue")
     assigned_user: Mapped[User | None] = relationship()

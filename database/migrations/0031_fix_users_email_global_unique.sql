@@ -1,0 +1,13 @@
+-- Enforce app-wide unique email on users.
+--
+-- The ORM layer and AuthService both assume a user's email is unique across the
+-- whole platform (see UserRepository.get_by_email / get_active_by_email
+-- docstrings and AuthService._resolve_register_conflict). The original
+-- 0002 migration only added an org-scoped unique constraint
+-- (uq_users_org_email), which permitted the same email in two organizations and
+-- made duplicate-email registration slip through. Add a global unique index so
+-- the database rejects it and AuthService can surface user.email_taken (409).
+--
+-- The chk_users_email_normalized check guarantees email is already stored
+-- lower/trimmed, so a plain unique index on the column is sufficient.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email ON public.users (email);

@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Text
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -61,12 +61,12 @@ class TeamInvite(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=InviteStatus.PENDING,
         nullable=False,
     )
-    expires_at: Mapped[datetime] = mapped_column(nullable=False)
-    accepted_at: Mapped[datetime | None] = mapped_column()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     accepted_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
-    revoked_at: Mapped[datetime | None] = mapped_column()
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     invited_by: Mapped[User | None] = relationship(foreign_keys=[invited_by_user_id])
 

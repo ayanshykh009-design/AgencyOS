@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Enum, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Integer, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -56,7 +56,7 @@ class FollowUp(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     subject: Mapped[str | None] = mapped_column(Text)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     delay_days: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    scheduled_at: Mapped[datetime | None] = mapped_column()
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
     status: Mapped[OutreachStatus] = mapped_column(
         Enum(
             OutreachStatus,
@@ -68,7 +68,7 @@ class FollowUp(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=OutreachStatus.QUEUED,
         nullable=False,
     )
-    sent_at: Mapped[datetime | None] = mapped_column()
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
 
     lead: Mapped[Lead] = relationship(back_populates="follow_ups")
     outreach_attempt: Mapped[OutreachAttempt | None] = relationship(back_populates="follow_ups")
