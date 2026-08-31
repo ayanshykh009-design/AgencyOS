@@ -37,16 +37,21 @@ class IntelligenceTriageWorker:
     async def heartbeat(
         self, *, loop_ok: bool, last_error: str | None, counters: dict | None = None
     ) -> None:
-        async with self._session_factory() as session:
-            svc = WorkerHealthService(session)
-            await svc.heartbeat(
-                worker_type=_WORKER_TYPE,
-                instance_id=INSTANCE_ID,
-                loop_ok=loop_ok,
-                last_error=last_error,
-                counters=counters or {},
-            )
-            await session.commit()
+        """Upsert this instance's heartbeat row. Best-effort: a heartbeat
+        failure must never take down the worker loop."""
+        try:
+            async with self._session_factory() as session:
+                svc = WorkerHealthService(session)
+                await svc.heartbeat(
+                    worker_type=_WORKER_TYPE,
+                    instance_id=INSTANCE_ID,
+                    loop_ok=loop_ok,
+                    last_error=last_error,
+                    counters=counters or {},
+                )
+                await session.commit()
+        except Exception:  # noqa: BLE001 - heartbeat must never kill the loop
+            logger.exception("intelligence triage worker heartbeat failed")
 
     async def sweep_once(self) -> dict[str, int]:
         totals = {"orgs": 0, "candidates": 0, "created": 0, "updated": 0, "superseded": 0}

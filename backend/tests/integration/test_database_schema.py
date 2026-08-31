@@ -132,6 +132,9 @@ EXPECTED_MIGRATION_SHAS = {
     "0031_fix_users_email_global_unique.sql": (
         "f8c04de960393dcb1835037cb0038d1c73cde36be7bfe9b1da26f07bd9fd08e6"
     ),
+    "0032_m6_worker_health_all_worker_types.sql": (
+        "82659154a892713b45ad752c39a9f95fd6b3dadca9723e3dfa7ec666c1cacfca"
+    ),
 }
 
 
@@ -926,6 +929,70 @@ def test_worker_health_retention_prunes_dead_instances(migrated_db) -> None:
     migrated_db.commit()
 
 
+def test_worker_health_constraint_admits_all_worker_types(migrated_db) -> None:
+    """Every production worker type heartbeats successfully.
+
+    Regression for BASELINE-DB-006: the M8 (``founder_action``) and M9
+    (``intelligence_triage``) workers were not admitted by the
+    ``chk_worker_health_type`` CHECK, so their upsert raised a CHECK violation
+    that escaped the worker loop and the processes died on their first sweep.
+    """
+    with migrated_db.cursor() as cur:
+        # The DB CHECK constraint must enumerate the full worker-type set.
+        cur.execute(
+            "SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+            "WHERE conname = 'chk_worker_health_type' "
+            "AND conrelid = 'public.worker_health'::regclass"
+        )
+        row = cur.fetchone()
+        assert row is not None, "chk_worker_health_type constraint not found"
+        for worker_type in (
+            "execution",
+            "credential",
+            "delivery",
+            "approval_gate",
+            "agent",
+            "memory",
+            "founder_action",
+            "intelligence_triage",
+        ):
+            assert f"'{worker_type}'" in row[0], (
+                f"worker_health CHECK does not admit '{worker_type}': {row[0]}"
+            )
+
+    # Every canonical worker type must be insertable (previously the two new
+    # M8/M9 types raised a CHECK violation).
+    for worker_type in (
+        "execution",
+        "credential",
+        "delivery",
+        "approval_gate",
+        "agent",
+        "memory",
+        "founder_action",
+        "intelligence_triage",
+    ):
+        with migrated_db.cursor() as cur:
+            cur.execute(
+                "INSERT INTO public.worker_health "
+                "(worker_type, instance_id, pid, hostname) "
+                "VALUES (%s, %s, 1, 'ok')",
+                (worker_type, str(uuid.uuid4())),
+            )
+    migrated_db.commit()
+
+    # A worker type outside the closed set is still rejected (safety preserved).
+    with migrated_db.cursor() as cur:
+        with pytest.raises(errors.CheckViolation):
+            cur.execute(
+                "INSERT INTO public.worker_health "
+                "(worker_type, instance_id, pid, hostname) "
+                "VALUES ('bogus', %s, 1, 'nope')",
+                (str(uuid.uuid4()),),
+            )
+    migrated_db.rollback()
+
+
 def test_migration_0019_agent_runtime_additive_idempotent(migrated_db) -> None:
     """0019 adds queue-hardening columns + partial indexes to agent_runs.
 
@@ -1453,6 +1520,78 @@ def test_rls_org_isolation_ai_memories_knowledge(migrated_db) -> None:
             (org_b,),
         )
         assert cur.fetchone()[0] == 1
+
+
+def test_users_rls_policy_blocks_self_role_escalation(migrated_db) -> None:
+    """A member cannot escalate their own role / move org via the RLS surface.
+
+    SEC regression for BASELINE-DB-007: the ``users_update_own`` policy allowed
+    a user to ``UPDATE users SET role='owner'`` (or ``organization_id``) on
+    their own row through PostgREST. ``users.sql`` now grants the
+    ``authenticated`` role UPDATE on *only* the self-editable profile column
+    (``full_name``) and revokes table-level UPDATE, so a member cannot elevate
+    privileges (PostgreSQL does not let a column REVOKE override a table-level
+    GRANT, hence the exclusive column grant); benign profile edits still succeed.
+    """
+    _insert_org(migrated_db, ORG_ID)
+    org_b = str(uuid.uuid4())
+    _insert_org(migrated_db, org_b)
+
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.users (organization_id, email, full_name, role) "
+            "VALUES (%s, %s, %s, %s) RETURNING id",
+            (ORG_ID, "member-a@example.com", "Member A", "member"),
+        )
+        member = cur.fetchone()[0]
+    migrated_db.commit()
+
+    with migrated_db.cursor() as cur:
+        cur.execute(
+            "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'authenticated')"
+            " THEN CREATE ROLE authenticated; END IF; END $$;"
+        )
+        cur.execute("CREATE SCHEMA IF NOT EXISTS auth")
+        cur.execute(
+            "CREATE OR REPLACE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE "
+            "SECURITY DEFINER AS $$ SELECT (NULLIF(current_setting('request.jwt.claims', true), '')"
+            "::jsonb ->> 'sub')::uuid $$"
+        )
+        cur.execute((POLICIES_DIR / "_helpers.sql").read_text(encoding="utf-8"))
+        cur.execute("ALTER FUNCTION public.tenant_org_id() SECURITY DEFINER")
+        cur.execute("GRANT SELECT ON public.users TO authenticated")
+        cur.execute((POLICIES_DIR / "users.sql").read_text(encoding="utf-8"))
+        cur.execute("GRANT USAGE ON SCHEMA auth TO authenticated")
+    migrated_db.commit()
+
+    # -- Attempted privilege escalation must fail (column privilege revoked).
+    # A rejected statement aborts the transaction, so roll back between checks.
+    with migrated_db.cursor() as cur:
+        cur.execute("SET ROLE authenticated")
+        cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{member}"}}',))
+        with pytest.raises(errors.InsufficientPrivilege):
+            cur.execute("UPDATE public.users SET role = 'owner' WHERE id = %s", (member,))
+    migrated_db.rollback()
+    with migrated_db.cursor() as cur:
+        cur.execute("SET ROLE authenticated")
+        cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{member}"}}',))
+        with pytest.raises(errors.InsufficientPrivilege):
+            cur.execute(
+                "UPDATE public.users SET organization_id = %s WHERE id = %s",
+                (org_b, member),
+            )
+    migrated_db.rollback()
+
+    # -- Benign self-service profile edit (full_name) still succeeds.
+    with migrated_db.cursor() as cur:
+        cur.execute("SET ROLE authenticated")
+        cur.execute("SET request.jwt.claims = %s", (f'{{"sub": "{member}"}}',))
+        cur.execute(
+            "UPDATE public.users SET full_name = 'Member A2' WHERE id = %s RETURNING role",
+            (member,),
+        )
+        assert cur.fetchone()[0] == "member"
+    migrated_db.commit()
 
 
 def test_rls_org_isolation_leads_conversations(migrated_db) -> None:

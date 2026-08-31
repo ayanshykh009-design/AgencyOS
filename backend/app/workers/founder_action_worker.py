@@ -33,16 +33,21 @@ class FounderActionWorker:
     async def heartbeat(
         self, *, loop_ok: bool, last_error: str | None, counters: dict | None = None
     ) -> None:
-        async with self._session_factory() as session:
-            svc = WorkerHealthService(session)
-            await svc.heartbeat(
-                worker_type=_WORKER_TYPE,
-                instance_id=INSTANCE_ID,
-                loop_ok=loop_ok,
-                last_error=last_error,
-                counters=counters or {},
-            )
-            await session.commit()
+        """Upsert this instance's heartbeat row. Best-effort: a heartbeat
+        failure must never take down the worker loop."""
+        try:
+            async with self._session_factory() as session:
+                svc = WorkerHealthService(session)
+                await svc.heartbeat(
+                    worker_type=_WORKER_TYPE,
+                    instance_id=INSTANCE_ID,
+                    loop_ok=loop_ok,
+                    last_error=last_error,
+                    counters=counters or {},
+                )
+                await session.commit()
+        except Exception:  # noqa: BLE001 - heartbeat must never kill the loop
+            logger.exception("founder action worker heartbeat failed")
 
     async def sweep_once(self) -> dict[str, int]:
         counters = {"expired": 0}
@@ -65,6 +70,7 @@ class FounderActionWorker:
             loop_start = asyncio.get_event_loop().time()
             loop_ok = True
             last_error: str | None = None
+            counters: dict = {}
             try:
                 await self.heartbeat(loop_ok=True, last_error=None, counters={})
                 with span("founder_action_worker.sweep"):
