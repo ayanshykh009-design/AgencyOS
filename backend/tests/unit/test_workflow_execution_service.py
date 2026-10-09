@@ -472,6 +472,34 @@ async def test_manual_retry_rejects_succeeded() -> None:
     assert exc_info.value.status_code == 409
 
 
+async def test_requeue_due_transitions_retrying_to_queued() -> None:
+    """B-1: worker auto-requeue uses mark_requeued_due (RETRYING + due only)."""
+    service = _service()
+    updated = _execution(status=ExecutionStatus.QUEUED, next_retry_at=None)
+    service._repo.mark_requeued_due = AsyncMock(return_value=updated)
+
+    result = await service.requeue_due(ORG_ID, EXECUTION_ID)
+
+    service._repo.mark_requeued_due.assert_awaited_once()
+    (org_arg, exec_arg), kwargs = service._repo.mark_requeued_due.await_args
+    assert (org_arg, exec_arg) == (ORG_ID, EXECUTION_ID)
+    assert isinstance(kwargs["due_before"], datetime)
+    assert result is updated
+    assert updated.status == ExecutionStatus.QUEUED
+
+
+async def test_requeue_due_returns_none_when_not_due() -> None:
+    """A concurrent transition (cancel/manual retry) is a silent no-op."""
+    service = _service()
+    service._repo.mark_requeued_due = AsyncMock(return_value=None)
+
+    result = await service.requeue_due(ORG_ID, EXECUTION_ID)
+
+    assert result is None
+    service._logs.add.assert_not_called()
+    service._events.record.assert_not_awaited()
+
+
 async def test_cancel_pending_states_cancel_immediately() -> None:
     for status in (ExecutionStatus.QUEUED, ExecutionStatus.RETRYING):
         service = _service()
@@ -575,6 +603,13 @@ async def test_worker_helpers_delegate() -> None:
     assert await service.get_queued(5) == queued
     assert await service.get_queued_for_retry() == due
     assert await service.get_stuck_running() == stuck
+
+    # Default filter is "now": only due retries are returned (B-1).
+    service._repo.get_queued_for_retry.reset_mock()
+    await service.get_queued_for_retry()
+    (passed_before,) = service._repo.get_queued_for_retry.await_args.args
+    assert isinstance(passed_before, datetime)
+    assert abs((datetime.now(UTC) - passed_before).total_seconds()) < 30
 
     before = datetime.now(UTC) - timedelta(seconds=300)
     await service.get_queued_for_retry(before)

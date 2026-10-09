@@ -38,13 +38,13 @@ paths:
     get:
       tags:
       - monitoring
-      summary: Get operational summary dashboard
-      description: 'Get comprehensive operational summary for production dashboards.
+      summary: Get operational summary dashboard (own organization)
+      description: 'Operational summary for the caller''s organization.
 
 
         Returns execution counts, worker health, automation status, schedule stats,
 
-        and system health metrics.'
+        and system health metrics. Execution/event aggregates are org-scoped.'
       operationId: get_operational_summary_api_v1_monitoring_operational_summary_get
       responses:
         '200':
@@ -59,13 +59,13 @@ paths:
     get:
       tags:
       - monitoring
-      summary: Get execution statistics
-      description: 'Get detailed execution statistics for the specified time window.
+      summary: Get execution statistics (own organization)
+      description: 'Execution statistics for the caller''s organization.
 
 
-        Returns counts by execution status, workflow distribution, and organization
+        Returns counts by execution status, workflow distribution, and the
 
-        distribution.'
+        caller''s own organization distribution.'
       operationId: get_execution_statistics_api_v1_monitoring_execution_statistics_get
       security:
       - HTTPBearer: []
@@ -94,17 +94,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/monitoring/delivery-statistics:
+    get:
+      tags:
+      - monitoring
+      summary: Delivery outbox statistics (own organization)
+      description: 'Delivery outbox statistics for the caller''s organization.
+
+
+        Returns counts by delivery status plus active/terminal totals. Org-scoped:
+
+        a tenant admin must never see another organization''s delivery volume.
+
+        Gated by ``automation_manage`` (admin-only).'
+      operationId: get_delivery_statistics_api_v1_monitoring_delivery_statistics_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryStatisticsResponse'
+      security:
+      - HTTPBearer: []
   /api/v1/monitoring/worker-statistics:
     get:
       tags:
       - monitoring
-      summary: Get worker statistics
-      description: 'Get worker health and activity statistics.
+      summary: Get worker statistics (infrastructure)
+      description: 'Worker health and activity statistics (infrastructure level).
 
 
-        Returns worker counts, health status, error distribution, and detailed worker
+        Returns worker counts, health status, error distribution, and detailed
 
-        information.'
+        worker information (hostnames/pids). Admin-only.'
       operationId: get_worker_statistics_api_v1_monitoring_worker_statistics_get
       security:
       - HTTPBearer: []
@@ -137,13 +160,8 @@ paths:
     get:
       tags:
       - monitoring
-      summary: Get schedule statistics
-      description: 'Get schedule dispatch statistics.
-
-
-        Returns schedule dispatcher metrics including queued, failed, skipped, and
-
-        conflict counts.'
+      summary: Get schedule statistics (infrastructure)
+      description: Schedule dispatch statistics (cumulative process counters). Admin-only.
       operationId: get_schedule_statistics_api_v1_monitoring_schedule_statistics_get
       security:
       - HTTPBearer: []
@@ -176,13 +194,8 @@ paths:
     get:
       tags:
       - monitoring
-      summary: Get retention statistics
-      description: 'Get retention worker statistics.
-
-
-        Returns retention sweep metrics including deleted execution events and
-
-        pruned worker health records.'
+      summary: Get retention statistics (infrastructure)
+      description: Retention worker statistics (cumulative process counters). Admin-only.
       operationId: get_retention_statistics_api_v1_monitoring_retention_statistics_get
       security:
       - HTTPBearer: []
@@ -215,13 +228,8 @@ paths:
     get:
       tags:
       - monitoring
-      summary: Get automation lifecycle statistics
-      description: 'Get automation lifecycle statistics including pause/resume events.
-
-
-        Returns counts of automation pause/resume events and current automation
-
-        status from the control service.'
+      summary: Get automation lifecycle statistics (own organization)
+      description: Automation pause/resume event counts for the caller's organization.
       operationId: get_automation_lifecycle_api_v1_monitoring_automation_lifecycle_get
       responses:
         '200':
@@ -236,13 +244,8 @@ paths:
     get:
       tags:
       - monitoring
-      summary: Get worker heartbeat visibility
-      description: 'Get worker heartbeat visibility for monitoring.
-
-
-        Returns list of worker instances with their heartbeat status, useful for
-
-        identifying stale or failed workers.'
+      summary: Get worker heartbeat visibility (infrastructure)
+      description: Worker heartbeat visibility (hostnames/pids). Admin-only.
       operationId: get_heartbeat_visibility_api_v1_monitoring_heartbeat_visibility_get
       security:
       - HTTPBearer: []
@@ -299,13 +302,8 @@ paths:
     get:
       tags:
       - monitoring
-      summary: Get execution timeline events
-      description: 'Get recent execution timeline events across all organizations.
-
-
-        Returns the latest execution events with workflow name and execution
-
-        status/duration attached, optionally filtered by status or workflow.'
+      summary: Get execution timeline events (own organization)
+      description: Recent execution timeline events for the caller's organization.
       operationId: get_execution_timeline_api_v1_monitoring_execution_timeline_get
       security:
       - HTTPBearer: []
@@ -369,8 +367,8 @@ paths:
     get:
       tags:
       - monitoring
-      summary: Get execution history
-      description: Get paginated execution history across all organizations.
+      summary: Get execution history (own organization)
+      description: Paginated execution history for the caller's organization.
       operationId: get_execution_history_api_v1_monitoring_execution_history_get
       security:
       - HTTPBearer: []
@@ -444,8 +442,8 @@ paths:
     get:
       tags:
       - monitoring
-      summary: Get queue status
-      description: Get per-organization queue status across all organizations.
+      summary: Get queue status (own organization)
+      description: Queue status for the caller's organization only.
       operationId: get_queue_status_api_v1_monitoring_queue_status_get
       responses:
         '200':
@@ -460,8 +458,8 @@ paths:
     get:
       tags:
       - monitoring
-      summary: Get comprehensive monitoring information
-      description: Get comprehensive system, database, worker, and queue information.
+      summary: Get monitoring information (org-scoped queue)
+      description: System, database, worker, and queue information (queue is org-scoped).
       operationId: get_monitoring_information_api_v1_monitoring_monitoring_information_get
       responses:
         '200':
@@ -5204,7 +5202,7 @@ paths:
       tags:
       - ai
       summary: Update the organization's AI defaults
-      description: Set per-org LLM provider/model; falls back to env when unset.
+      description: Set per-org LLM provider/model and AI kill switch; falls back to env.
       operationId: update_ai_settings_api_v1_ai_settings_patch
       requestBody:
         content:
@@ -5250,8 +5248,19 @@ paths:
     post:
       tags:
       - ai
-      summary: Run the AI brain for a goal on a lead
-      description: Execute the brain to draft outreach, research, or dispatch via n8n.
+      summary: Queue an AI brain run for a goal on a lead
+      description: 'Queue an AI run through the unified AgentRuntime lifecycle (M11-C).
+
+
+        The run is created QUEUED (trigger ``ai_run``) and executed by the worker,
+
+        so the response is an :class:`AgentRunRead` the client polls to completion.
+
+        Tool authorization, the goal-scoped allow-list, and the per-org token/cost
+
+        budget are enforced by the worker path; the HTTP layer only authorizes the
+
+        request (``ai_run``) and persists the run.'
       operationId: run_brain_api_v1_ai_run_post
       requestBody:
         content:
@@ -5260,12 +5269,12 @@ paths:
               $ref: '#/components/schemas/BrainRunRequest'
         required: true
       responses:
-        '200':
+        '201':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BrainRunResponse'
+                $ref: '#/components/schemas/AgentRunRead'
         '422':
           description: Validation Error
           content:
@@ -5489,7 +5498,7 @@ paths:
     patch:
       tags:
       - agents
-      summary: Update an agent run record
+      summary: Update agent run metadata (status is runtime-owned)
       operationId: update_agent_run_api_v1_agents_runs__run_id__patch
       security:
       - HTTPBearer: []
@@ -5507,6 +5516,35 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AgentRunUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentRunRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/agents/runs/{run_id}/cancel:
+    post:
+      tags:
+      - agents
+      summary: Cancel an agent run
+      operationId: cancel_agent_run_api_v1_agents_runs__run_id__cancel_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: run_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Run Id
       responses:
         '200':
           description: Successful Response
@@ -6280,6 +6318,241 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/deliveries:
+    get:
+      tags:
+      - deliveries
+      summary: List deliveries (optional status/channel/recipient filter)
+      operationId: list_deliveries_api_v1_deliveries_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/DeliveryStatus'
+          - type: 'null'
+          title: Status
+      - name: channel
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/DeliveryChannel'
+          - type: 'null'
+          title: Channel
+      - name: recipient_user_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Recipient User Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - deliveries
+      summary: Enqueue a new delivery
+      operationId: create_delivery_api_v1_deliveries_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/deliveries/{delivery_id}:
+    get:
+      tags:
+      - deliveries
+      summary: Get a delivery by ID
+      operationId: get_delivery_api_v1_deliveries__delivery_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: delivery_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Delivery Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/deliveries/{delivery_id}/events:
+    get:
+      tags:
+      - deliveries
+      summary: Get the append-only timeline for a delivery
+      operationId: get_delivery_events_api_v1_deliveries__delivery_id__events_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: delivery_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Delivery Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryEventListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/deliveries/{delivery_id}/retry:
+    post:
+      tags:
+      - deliveries
+      summary: Manually retry a failed or cancelled delivery
+      operationId: retry_delivery_api_v1_deliveries__delivery_id__retry_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: delivery_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Delivery Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryRetry'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/deliveries/{delivery_id}/cancel:
+    post:
+      tags:
+      - deliveries
+      summary: Cancel a queued or processing delivery
+      operationId: cancel_delivery_api_v1_deliveries__delivery_id__cancel_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: delivery_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Delivery Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeliveryCancel'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/founder/briefings:
     get:
       tags:
@@ -6593,6 +6866,216 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/founder/chat:
+    post:
+      tags:
+      - founder-assistant
+      summary: Send a message to the Founder AI Assistant
+      operationId: founder_chat_api_v1_founder_chat_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FounderChatRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FounderChatResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /api/v1/founder/conversations:
+    get:
+      tags:
+      - founder-assistant
+      summary: List founder conversations
+      operationId: list_conversations_api_v1_founder_conversations_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      - name: include_archived
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Include Archived
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FounderConversationList'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/founder/conversations/{conversation_id}:
+    get:
+      tags:
+      - founder-assistant
+      summary: Get a founder conversation with its messages
+      operationId: get_conversation_api_v1_founder_conversations__conversation_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Conversation Api V1 Founder Conversations  Conversation Id  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - founder-assistant
+      summary: Delete a founder conversation
+      operationId: delete_conversation_api_v1_founder_conversations__conversation_id__delete
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: conversation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Conversation Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/founder/proposals:
+    get:
+      tags:
+      - founder-assistant
+      summary: List founder action proposals
+      operationId: list_proposals_api_v1_founder_proposals_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: proposal_status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/FounderProposalStatus'
+          - type: 'null'
+          title: Proposal Status
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FounderProposalList'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/founder/proposals/{proposal_id}/decide:
+    post:
+      tags:
+      - founder-assistant
+      summary: Approve or deny a founder action proposal
+      operationId: decide_proposal_api_v1_founder_proposals__proposal_id__decide_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: proposal_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Proposal Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FounderProposalDecision'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FounderProposalRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/growth/metrics:
     get:
       tags:
@@ -6853,6 +7336,633 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/growth/analyses:
+    get:
+      tags:
+      - growth
+      summary: List growth analysis snapshots
+      operationId: list_analyses_api_v1_growth_analyses_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: analysis_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 50
+          - type: 'null'
+          title: Analysis Type
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 20
+          - type: 'null'
+          title: Status
+      - name: start
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Start
+      - name: end
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: End
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthAnalysisListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/growth/analyses/run:
+    post:
+      tags:
+      - growth
+      summary: Run one deterministic growth analysis
+      operationId: run_analysis_api_v1_growth_analyses_run_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrowthAnalysisRunRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthAnalysisRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /api/v1/growth/analyses/run-all:
+    post:
+      tags:
+      - growth
+      summary: Run every deterministic growth analysis (one snapshot per type)
+      operationId: run_all_analyses_api_v1_growth_analyses_run_all_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrowthAnalysisRunAllRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/GrowthAnalysisRead'
+                type: array
+                title: Response Run All Analyses Api V1 Growth Analyses Run All Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /api/v1/growth/analyses/{analysis_id}:
+    get:
+      tags:
+      - growth
+      summary: Get a growth analysis snapshot
+      operationId: get_analysis_api_v1_growth_analyses__analysis_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: analysis_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Analysis Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthAnalysisRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/growth/recommendations:
+    get:
+      tags:
+      - growth
+      summary: List growth recommendations
+      operationId: list_recommendations_api_v1_growth_recommendations_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 20
+          - type: 'null'
+          title: Status
+      - name: priority
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            maxLength: 10
+          - type: 'null'
+          title: Priority
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthRecommendationListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/growth/recommendations/counts:
+    get:
+      tags:
+      - growth
+      summary: Growth recommendation counts per triage status
+      operationId: recommendation_counts_api_v1_growth_recommendations_counts_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Recommendation Counts Api V1 Growth Recommendations Counts Get
+      security:
+      - HTTPBearer: []
+  /api/v1/growth/recommendations/{recommendation_id}:
+    patch:
+      tags:
+      - growth
+      summary: Triage a growth recommendation (status/priority)
+      operationId: update_recommendation_api_v1_growth_recommendations__recommendation_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: recommendation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Recommendation Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrowthRecommendationUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthRecommendationRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/growth/scenarios:
+    get:
+      tags:
+      - growth
+      summary: List saved growth scenarios
+      operationId: list_scenarios_api_v1_growth_scenarios_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: forecast_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Forecast Id
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthScenarioListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - growth
+      summary: Evaluate and save a what-if scenario
+      operationId: create_scenario_api_v1_growth_scenarios_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrowthScenarioCreate'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthScenarioRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/growth/scenarios/{scenario_id}:
+    get:
+      tags:
+      - growth
+      summary: Get a saved growth scenario
+      operationId: get_scenario_api_v1_growth_scenarios__scenario_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: scenario_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Scenario Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthScenarioRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - growth
+      summary: Delete a saved growth scenario
+      operationId: delete_scenario_api_v1_growth_scenarios__scenario_id__delete
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: scenario_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Scenario Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/growth/health-weights:
+    get:
+      tags:
+      - growth
+      summary: Active (or default) growth health weights
+      operationId: get_health_weights_api_v1_growth_health_weights_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthHealthWeightsResponse'
+      security:
+      - HTTPBearer: []
+    post:
+      tags:
+      - growth
+      summary: Save a new active health-weight version
+      operationId: upsert_health_weights_api_v1_growth_health_weights_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrowthHealthWeightCreate'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthHealthWeightRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /api/v1/growth/forecasts/run:
+    post:
+      tags:
+      - growth
+      summary: Generate and persist a deterministic forecast
+      operationId: run_forecast_api_v1_growth_forecasts_run_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrowthForecastRunRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrowthForecastRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /api/v1/intelligence/signals:
+    get:
+      tags:
+      - intelligence
+      summary: List triaged intelligence signals (priority-first, optional filters)
+      operationId: list_signals_api_v1_intelligence_signals_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: status
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/IntelligenceSignalStatus'
+          - type: 'null'
+          title: Status
+      - name: category
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/SignalCategory'
+          - type: 'null'
+          title: Category
+      - name: source_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - $ref: '#/components/schemas/SignalSourceType'
+          - type: 'null'
+          title: Source Type
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntelligenceSignalListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/intelligence/signals/{signal_id}:
+    get:
+      tags:
+      - intelligence
+      summary: Get one intelligence signal
+      operationId: get_signal_api_v1_intelligence_signals__signal_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: signal_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Signal Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntelligenceSignalRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    patch:
+      tags:
+      - intelligence
+      summary: Acknowledge or dismiss an intelligence signal
+      operationId: update_signal_api_v1_intelligence_signals__signal_id__patch
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: signal_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Signal Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntelligenceSignalUpdate'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntelligenceSignalRead'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/intelligence/summary:
+    get:
+      tags:
+      - intelligence
+      summary: Roll-up counts over this org's intelligence signals
+      operationId: signal_summary_api_v1_intelligence_summary_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntelligenceSignalSummary'
+      security:
+      - HTTPBearer: []
+  /api/v1/intelligence/triage/run:
+    post:
+      tags:
+      - intelligence
+      summary: Run a manual triage sweep for the caller's org
+      description: 'Deterministic sweep for the caller''s org; commits within this request.
+
+
+        Refuses to run when ``INTELLIGENCE_TRIAGE_ENABLED`` is off (fail closed).'
+      operationId: run_triage_api_v1_intelligence_triage_run_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Run Triage Api V1 Intelligence Triage Run Post
+      security:
+      - HTTPBearer: []
   /api/v1/communications/summary:
     get:
       tags:
@@ -7063,6 +8173,12 @@ components:
           type: string
           format: uuid
           title: Organization Id
+        idempotency_key:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Idempotency Key
       type: object
       required:
       - agent_name
@@ -7146,6 +8262,29 @@ components:
             format: date-time
           - type: 'null'
           title: Finished At
+        cancel_requested_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Cancel Requested At
+        cancelled_by_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Cancelled By User Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        trace_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Trace Id
         created_at:
           type: string
           format: date-time
@@ -7180,14 +8319,11 @@ components:
       - schedule
       - workflow
       - event
+      - ai_run
       title: AgentRunTrigger
       description: How an agent run was started.
     AgentRunUpdate:
       properties:
-        status:
-          anyOf:
-          - $ref: '#/components/schemas/AgentRunStatus'
-          - type: 'null'
         output:
           anyOf:
           - additionalProperties: true
@@ -7680,12 +8816,6 @@ components:
         approve:
           type: boolean
           title: Approve
-        decided_by_user_id:
-          anyOf:
-          - type: string
-            format: uuid
-          - type: 'null'
-          title: Decided By User Id
         decision_note:
           anyOf:
           - type: string
@@ -7696,7 +8826,12 @@ components:
       required:
       - approve
       title: ApprovalRequestDecision
-      description: Payload to approve/deny a pending request.
+      description: 'Payload to approve/deny a pending request.
+
+
+        The deciding user is ALWAYS the authenticated actor (server-derived);
+
+        clients cannot assert who made a decision.'
     ApprovalRequestListResponse:
       properties:
         items:
@@ -8044,46 +9179,18 @@ components:
             type: array
           - type: 'null'
           title: Recent Messages
+        idempotency_key:
+          anyOf:
+          - type: string
+            maxLength: 200
+          - type: 'null'
+          title: Idempotency Key
       type: object
       required:
       - goal
       - lead_id
       title: BrainRunRequest
-      description: Payload to execute the AI brain for a single goal on a lead.
-    BrainRunResponse:
-      properties:
-        success:
-          type: boolean
-          title: Success
-        response:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Response
-        error:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Error
-        steps_taken:
-          type: integer
-          title: Steps Taken
-          default: 0
-        tool_calls:
-          items:
-            $ref: '#/components/schemas/ToolCallRead'
-          type: array
-          title: Tool Calls
-        tool_results:
-          items:
-            $ref: '#/components/schemas/ToolResultRead'
-          type: array
-          title: Tool Results
-      type: object
-      required:
-      - success
-      title: BrainRunResponse
-      description: Outcome of a brain run (mirrors ``BrainResult``).
+      description: Payload to queue an AI brain run for a single goal on a lead.
     BriefingCreate:
       properties:
         briefing_type:
@@ -8975,6 +10082,399 @@ components:
       - avg_query_time
       title: DatabaseHealth
       description: Database connection and pool health.
+    DeliveryCancel:
+      properties: {}
+      type: object
+      title: DeliveryCancel
+      description: Cancel a queued/processing delivery.
+    DeliveryChannel:
+      type: string
+      enum:
+      - dashboard
+      - email
+      - whatsapp
+      - push
+      title: DeliveryChannel
+      description: 'Transport a delivery is sent over.
+
+
+        M6 ships the ``dashboard`` provider only; ``email``/``whatsapp``/``push``
+
+        are declared for the frozen M1 surface and fail closed until their
+
+        providers land in later milestones.'
+    DeliveryCreate:
+      properties:
+        channel:
+          $ref: '#/components/schemas/DeliveryChannel'
+        recipient_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Recipient User Id
+        notification_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Notification Id
+        approval_request_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Approval Request Id
+        subject:
+          type: string
+          maxLength: 500
+          minLength: 1
+          title: Subject
+        body:
+          type: string
+          minLength: 1
+          title: Body
+        action_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action Url
+        payload:
+          additionalProperties: true
+          type: object
+          title: Payload
+        max_attempts:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Max Attempts
+        scheduled_for:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Scheduled For
+        idempotency_key:
+          anyOf:
+          - type: string
+            maxLength: 255
+          - type: 'null'
+          title: Idempotency Key
+      type: object
+      required:
+      - channel
+      - subject
+      - body
+      title: DeliveryCreate
+      description: Payload to enqueue a new delivery.
+    DeliveryEventListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DeliveryEventRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: DeliveryEventListResponse
+    DeliveryEventRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        delivery_id:
+          type: string
+          format: uuid
+          title: Delivery Id
+        event_type:
+          $ref: '#/components/schemas/DeliveryEventType'
+        attempt:
+          type: integer
+          title: Attempt
+        metadata:
+          additionalProperties: true
+          type: object
+          title: Metadata
+        occurred_at:
+          type: string
+          format: date-time
+          title: Occurred At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - organization_id
+      - delivery_id
+      - event_type
+      - attempt
+      - occurred_at
+      - created_at
+      title: DeliveryEventRead
+    DeliveryEventType:
+      type: string
+      enum:
+      - queued
+      - claimed
+      - provider_dispatched
+      - provider_returned
+      - delivered
+      - retrying
+      - failed
+      - cancelled
+      - timed_out
+      - recovery_guard
+      - superseded
+      title: DeliveryEventType
+      description: 'Closed set of append-only delivery timeline labels.
+
+
+        Mirrors ``public.delivery_event_type`` (database/migrations/enums/13_delivery.sql).
+
+        ``queued``/``claimed``/``delivered``/``retrying``/``failed``/``cancelled``
+
+        are the state-machine transitions; ``provider_dispatched``/
+
+        ``provider_returned`` bracket a provider attempt; ``timed_out`` marks an
+
+        attempt that exceeded the active provider timeout; ``recovery_guard`` is
+
+        stamped before a stale row is recovered. ``superseded`` is reserved for a
+
+        later milestone (a newer delivery replacing an older one).'
+    DeliveryListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/DeliveryRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: DeliveryListResponse
+    DeliveryRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        channel:
+          $ref: '#/components/schemas/DeliveryChannel'
+        recipient_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Recipient User Id
+        notification_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Notification Id
+        approval_request_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Approval Request Id
+        subject:
+          type: string
+          title: Subject
+        body:
+          type: string
+          title: Body
+        action_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action Url
+        status:
+          $ref: '#/components/schemas/DeliveryStatus'
+        attempts:
+          type: integer
+          title: Attempts
+        max_attempts:
+          type: integer
+          title: Max Attempts
+        next_attempt_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Next Attempt At
+        attempt_started_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Attempt Started At
+        cancel_requested_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Cancel Requested At
+        cancelled_by_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Cancelled By User Id
+        last_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Last Error
+        provider_metadata:
+          additionalProperties: true
+          type: object
+          title: Provider Metadata
+        payload:
+          additionalProperties: true
+          type: object
+          title: Payload
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        scheduled_for:
+          type: string
+          format: date-time
+          title: Scheduled For
+        delivered_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Delivered At
+        failed_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Failed At
+        cancelled_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Cancelled At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - organization_id
+      - channel
+      - subject
+      - body
+      - status
+      - attempts
+      - max_attempts
+      - provider_metadata
+      - payload
+      - scheduled_for
+      - created_at
+      - updated_at
+      title: DeliveryRead
+    DeliveryRetry:
+      properties: {}
+      type: object
+      title: DeliveryRetry
+      description: Manual retry of a failed/cancelled delivery.
+    DeliveryStatisticsResponse:
+      properties:
+        queued:
+          type: integer
+          title: Queued
+        processing:
+          type: integer
+          title: Processing
+        retrying:
+          type: integer
+          title: Retrying
+        delivered:
+          type: integer
+          title: Delivered
+        failed:
+          type: integer
+          title: Failed
+        cancelled:
+          type: integer
+          title: Cancelled
+        active:
+          type: integer
+          title: Active
+        terminal:
+          type: integer
+          title: Terminal
+      type: object
+      required:
+      - queued
+      - processing
+      - retrying
+      - delivered
+      - failed
+      - cancelled
+      - active
+      - terminal
+      title: DeliveryStatisticsResponse
+      description: Platform-wide delivery outbox statistics (monitoring).
+    DeliveryStatus:
+      type: string
+      enum:
+      - queued
+      - processing
+      - delivered
+      - retrying
+      - failed
+      - cancelled
+      title: DeliveryStatus
+      description: 'Lifecycle of a single delivery (outbox state machine).
+
+
+        Mirrors ``public.delivery_status``. The state machine is
+
+        ``queued -> processing -> delivered/failed/cancelled`` with
+
+        ``processing -> retrying -> queued/cancelled`` for scheduled retries;
+
+        ``failed``/``cancelled`` re-enter ``queued`` only through an explicit
+
+        manual retry. Transitions are owned by the delivery worker and its
+
+        guarded transitions, not by callers.'
     DispatchRequest:
       properties:
         workflow:
@@ -9142,7 +10642,7 @@ components:
       - status
       - started_at
       title: ExecutionHistoryEntry
-      description: Single execution history row (cross-organization).
+      description: Single execution history row (org-scoped).
     ExecutionHistoryResponse:
       properties:
         entries:
@@ -9245,7 +10745,7 @@ components:
       - event_type
       - status
       title: ExecutionTimelineEvent
-      description: Single execution timeline event (cross-organization).
+      description: Single execution timeline event (org-scoped).
     ExecutionTimelineResponse:
       properties:
         events:
@@ -9425,6 +10925,411 @@ components:
       type: object
       title: FollowUpUpdate
       description: Partial update of a follow-up (all fields optional).
+    FounderActionType:
+      type: string
+      enum:
+      - create_task
+      - draft_email
+      - send_email
+      - run_workflow
+      - export
+      - general
+      title: FounderActionType
+      description: 'Type of founder action (mirrors ``public.founder_action_type``).
+
+
+        The founder agent only *proposes* these actions; each proposal routes
+
+        through the shared approval layer before anything is executed.'
+    FounderChatRequest:
+      properties:
+        message:
+          type: string
+          maxLength: 8000
+          minLength: 1
+          title: Message
+        conversation_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Conversation Id
+      type: object
+      required:
+      - message
+      title: FounderChatRequest
+      description: 'A founder turn: a message plus an optional existing conversation.'
+    FounderChatResponse:
+      properties:
+        conversation_id:
+          type: string
+          format: uuid
+          title: Conversation Id
+        message:
+          $ref: '#/components/schemas/FounderMessageRead'
+        proposals:
+          items:
+            $ref: '#/components/schemas/FounderProposalRead'
+          type: array
+          title: Proposals
+        intent:
+          additionalProperties: true
+          type: object
+          title: Intent
+        ok:
+          type: boolean
+          title: Ok
+          default: true
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+      type: object
+      required:
+      - conversation_id
+      - message
+      title: FounderChatResponse
+    FounderConversationList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/FounderConversationRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+          default: 0
+      type: object
+      title: FounderConversationList
+    FounderConversationRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        is_archived:
+          type: boolean
+          title: Is Archived
+          default: false
+        created_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Created At
+        last_message_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Message At
+      type: object
+      required:
+      - id
+      title: FounderConversationRead
+    FounderMessageRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        sender:
+          type: string
+          title: Sender
+        body:
+          type: string
+          title: Body
+        sent_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Sent At
+        metadata_:
+          additionalProperties: true
+          type: object
+          title: Metadata
+      type: object
+      required:
+      - id
+      - sender
+      - body
+      title: FounderMessageRead
+    FounderProposalDecision:
+      properties:
+        approve:
+          type: boolean
+          title: Approve
+        decision_note:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Decision Note
+      type: object
+      required:
+      - approve
+      title: FounderProposalDecision
+    FounderProposalList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/FounderProposalRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+          default: 0
+      type: object
+      title: FounderProposalList
+    FounderProposalRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        conversation_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Conversation Id
+        action_type:
+          $ref: '#/components/schemas/FounderActionType'
+        title:
+          type: string
+          title: Title
+        status:
+          $ref: '#/components/schemas/FounderProposalStatus'
+        justification:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Justification
+        payload:
+          additionalProperties: true
+          type: object
+          title: Payload
+        expires_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Expires At
+        decided_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Decided At
+        created_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Created At
+      type: object
+      required:
+      - id
+      - action_type
+      - title
+      - status
+      title: FounderProposalRead
+    FounderProposalStatus:
+      type: string
+      enum:
+      - proposed
+      - approved
+      - denied
+      - expired
+      - cancelled
+      - executing
+      - succeeded
+      - failed
+      title: FounderProposalStatus
+      description: Lifecycle of a founder action proposal.
+    GrowthAnalysisListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/GrowthAnalysisRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: GrowthAnalysisListResponse
+    GrowthAnalysisRead:
+      properties:
+        analysis_type:
+          $ref: '#/components/schemas/GrowthAnalysisType'
+        period_start:
+          type: string
+          format: date-time
+          title: Period Start
+        period_end:
+          type: string
+          format: date-time
+          title: Period End
+        health_score:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Health Score
+        summary:
+          type: string
+          maxLength: 4000
+          minLength: 1
+          title: Summary
+        details:
+          additionalProperties: true
+          type: object
+          title: Details
+        evidence:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Evidence
+        weights:
+          additionalProperties: true
+          type: object
+          title: Weights
+        metrics_used:
+          items:
+            type: string
+          type: array
+          title: Metrics Used
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        status:
+          $ref: '#/components/schemas/GrowthAnalysisStatus'
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+        generated_by:
+          type: string
+          title: Generated By
+        generated_at:
+          type: string
+          format: date-time
+          title: Generated At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - analysis_type
+      - period_start
+      - period_end
+      - summary
+      - id
+      - organization_id
+      - status
+      - generated_by
+      - generated_at
+      - created_at
+      - updated_at
+      title: GrowthAnalysisRead
+    GrowthAnalysisRunAllRequest:
+      properties:
+        period_start:
+          type: string
+          format: date-time
+          title: Period Start
+        period_end:
+          type: string
+          format: date-time
+          title: Period End
+        generated_by:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Generated By
+          default: user
+      type: object
+      required:
+      - period_start
+      - period_end
+      title: GrowthAnalysisRunAllRequest
+      description: Run every deterministic engine over a window (one snapshot per type).
+    GrowthAnalysisRunRequest:
+      properties:
+        analysis_type:
+          $ref: '#/components/schemas/GrowthAnalysisType'
+        period_start:
+          type: string
+          format: date-time
+          title: Period Start
+        period_end:
+          type: string
+          format: date-time
+          title: Period End
+        generated_by:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Generated By
+          default: user
+      type: object
+      required:
+      - analysis_type
+      - period_start
+      - period_end
+      title: GrowthAnalysisRunRequest
+      description: Trigger a deterministic analysis engine over a window.
+    GrowthAnalysisStatus:
+      type: string
+      enum:
+      - completed
+      - failed
+      title: GrowthAnalysisStatus
+      description: Lifecycle of a ``growth_analyses`` snapshot (M7).
+    GrowthAnalysisType:
+      type: string
+      enum:
+      - health
+      - kpis
+      - pipeline
+      - funnel
+      - conversion
+      - revenue
+      - activity
+      - bottlenecks
+      - opportunities
+      - trends
+      title: GrowthAnalysisType
+      description: 'What a ``growth_analyses`` snapshot measures (M7).
+
+
+        Mirrors ``public.growth_analysis_type``. Each value is produced by exactly
+
+        one deterministic analysis engine.'
     GrowthForecastCreate:
       properties:
         forecast_type:
@@ -9461,6 +11366,59 @@ components:
             pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Confidence High
+        method:
+          anyOf:
+          - type: string
+            maxLength: 100
+            minLength: 1
+          - type: 'null'
+          title: Method
+        base_period_start:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Base Period Start
+        base_period_end:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Base Period End
+        point_estimate:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Point Estimate
+        lower_bound:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Lower Bound
+        upper_bound:
+          anyOf:
+          - type: number
+            minimum: 0.0
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Upper Bound
+        series:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Series
+        errors:
+          additionalProperties: true
+          type: object
+          title: Errors
         model_config:
           additionalProperties: true
           type: object
@@ -9518,6 +11476,53 @@ components:
             pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Confidence High
+        method:
+          anyOf:
+          - type: string
+            maxLength: 100
+            minLength: 1
+          - type: 'null'
+          title: Method
+        base_period_start:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Base Period Start
+        base_period_end:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Base Period End
+        point_estimate:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Point Estimate
+        lower_bound:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Lower Bound
+        upper_bound:
+          anyOf:
+          - type: string
+            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+          - type: 'null'
+          title: Upper Bound
+        series:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Series
+        errors:
+          additionalProperties: true
+          type: object
+          title: Errors
         model_config:
           additionalProperties: true
           type: object
@@ -9554,6 +11559,115 @@ components:
       - created_at
       - updated_at
       title: GrowthForecastRead
+    GrowthForecastRunRequest:
+      properties:
+        method:
+          type: string
+          maxLength: 100
+          minLength: 1
+          pattern: ^(linear_trend|moving_average|pipeline_weighted|seasonal_naive)$
+          title: Method
+          default: linear_trend
+        period_start:
+          type: string
+          format: date-time
+          title: Period Start
+        period_end:
+          type: string
+          format: date-time
+          title: Period End
+        horizon_start:
+          type: string
+          format: date-time
+          title: Horizon Start
+        horizon_end:
+          type: string
+          format: date-time
+          title: Horizon End
+        forecast_type:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Forecast Type
+          default: revenue
+      type: object
+      required:
+      - period_start
+      - period_end
+      - horizon_start
+      - horizon_end
+      title: GrowthForecastRunRequest
+      description: Generate a deterministic forecast via the M7 forecast engine.
+    GrowthHealthWeightCreate:
+      properties:
+        weights:
+          additionalProperties:
+            anyOf:
+            - type: number
+            - type: string
+              pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
+            - type: integer
+          type: object
+          title: Weights
+      type: object
+      title: GrowthHealthWeightCreate
+    GrowthHealthWeightRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        version:
+          type: integer
+          title: Version
+        weights:
+          additionalProperties: true
+          type: object
+          title: Weights
+        is_active:
+          type: boolean
+          title: Is Active
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - organization_id
+      - version
+      - weights
+      - is_active
+      - created_at
+      - updated_at
+      title: GrowthHealthWeightRead
+    GrowthHealthWeightsResponse:
+      properties:
+        version:
+          type: integer
+          title: Version
+        weights:
+          additionalProperties: true
+          type: object
+          title: Weights
+        is_default:
+          type: boolean
+          title: Is Default
+      type: object
+      required:
+      - version
+      - weights
+      - is_default
+      title: GrowthHealthWeightsResponse
+      description: Active (or default) weight set + the resolved version.
     GrowthMetricCreate:
       properties:
         metric_type:
@@ -9684,6 +11798,219 @@ components:
       - types
       title: GrowthMetricTypesResponse
       description: Distinct growth metric types recorded for an organization.
+    GrowthRecommendationListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/GrowthRecommendationRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: GrowthRecommendationListResponse
+    GrowthRecommendationRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        recommendation_type:
+          type: string
+          title: Recommendation Type
+        priority:
+          $ref: '#/components/schemas/RecommendationPriority'
+        confidence:
+          $ref: '#/components/schemas/RecommendationPriority'
+        status:
+          $ref: '#/components/schemas/RecommendationStatus'
+        title:
+          type: string
+          title: Title
+        summary:
+          type: string
+          title: Summary
+        rationale:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rationale
+        action_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action Type
+        action_payload:
+          additionalProperties: true
+          type: object
+          title: Action Payload
+        source_analysis_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Analysis Id
+        evidence:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Evidence
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - organization_id
+      - recommendation_type
+      - priority
+      - confidence
+      - status
+      - title
+      - summary
+      - action_payload
+      - evidence
+      - created_at
+      - updated_at
+      title: GrowthRecommendationRead
+    GrowthRecommendationUpdate:
+      properties:
+        status:
+          anyOf:
+          - $ref: '#/components/schemas/RecommendationStatus'
+          - type: 'null'
+        priority:
+          anyOf:
+          - $ref: '#/components/schemas/RecommendationPriority'
+          - type: 'null'
+      type: object
+      title: GrowthRecommendationUpdate
+    GrowthScenarioCreate:
+      properties:
+        forecast_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Forecast Id
+        name:
+          type: string
+          maxLength: 200
+          minLength: 1
+          title: Name
+        description:
+          anyOf:
+          - type: string
+            maxLength: 2000
+          - type: 'null'
+          title: Description
+        assumption_deltas:
+          additionalProperties: true
+          type: object
+          title: Assumption Deltas
+        period_start:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Period Start
+          description: Analysis window start (defaults to 30 days ago).
+        period_end:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Period End
+          description: Analysis window end (defaults to now).
+      type: object
+      required:
+      - name
+      title: GrowthScenarioCreate
+    GrowthScenarioListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/GrowthScenarioRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: GrowthScenarioListResponse
+    GrowthScenarioRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        forecast_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Forecast Id
+        name:
+          type: string
+          title: Name
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+        assumption_deltas:
+          additionalProperties: true
+          type: object
+          title: Assumption Deltas
+        result:
+          additionalProperties: true
+          type: object
+          title: Result
+        created_by_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Created By User Id
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - organization_id
+      - name
+      - assumption_deltas
+      - result
+      - created_at
+      - updated_at
+      title: GrowthScenarioRead
     HTTPValidationError:
       properties:
         detail:
@@ -9919,6 +12246,229 @@ components:
       - recommendation
       title: InsightType
       description: Category of a generated business insight.
+    IntelligenceConfidence:
+      type: string
+      enum:
+      - low
+      - medium
+      - high
+      title: IntelligenceConfidence
+      description: 'Qualitative confidence in a signal (M9).
+
+
+        Mirrors ``public.intelligence_confidence``.'
+    IntelligenceSignalListResponse:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/IntelligenceSignalRead'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: IntelligenceSignalListResponse
+    IntelligenceSignalRead:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        organization_id:
+          type: string
+          format: uuid
+          title: Organization Id
+        signal_category:
+          $ref: '#/components/schemas/SignalCategory'
+        source_type:
+          $ref: '#/components/schemas/SignalSourceType'
+        source_row_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Source Row Id
+        title:
+          type: string
+          title: Title
+        summary:
+          type: string
+          title: Summary
+        severity:
+          $ref: '#/components/schemas/IntelligenceSignalSeverity'
+        business_impact:
+          additionalProperties: true
+          type: object
+          title: Business Impact
+        priority_score:
+          type: number
+          title: Priority Score
+        priority_components:
+          additionalProperties: true
+          type: object
+          title: Priority Components
+        evidence:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Evidence
+        recommended_next_step:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recommended Next Step
+        confidence:
+          $ref: '#/components/schemas/IntelligenceConfidence'
+        status:
+          $ref: '#/components/schemas/IntelligenceSignalStatus'
+        first_seen_at:
+          type: string
+          format: date-time
+          title: First Seen At
+        last_triaged_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Triaged At
+        acknowledged_by_user_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Acknowledged By User Id
+        acknowledged_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Acknowledged At
+        last_notified_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Last Notified At
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - id
+      - organization_id
+      - signal_category
+      - source_type
+      - title
+      - summary
+      - severity
+      - business_impact
+      - priority_score
+      - priority_components
+      - evidence
+      - confidence
+      - status
+      - first_seen_at
+      - created_at
+      - updated_at
+      title: IntelligenceSignalRead
+      description: 'Public shape of one triaged signal (the M9->frontend contract).
+
+
+        ``priority_components`` carries the versioned component scores that
+
+        produced ``priority_score``; ``business_impact`` is ``None``-safe (amount
+
+        is omitted when the source carries no monetary figure, never invented).'
+    IntelligenceSignalSeverity:
+      type: string
+      enum:
+      - info
+      - low
+      - medium
+      - high
+      - critical
+      title: IntelligenceSignalSeverity
+      description: 'Urgency of an intelligence signal (M9).
+
+
+        Mirrors ``public.intelligence_signal_severity``.'
+    IntelligenceSignalStatus:
+      type: string
+      enum:
+      - active
+      - acknowledged
+      - dismissed
+      - superseded
+      title: IntelligenceSignalStatus
+      description: 'Triage lifecycle of an intelligence signal (M9).
+
+
+        Mirrors ``public.intelligence_signal_status``:
+
+        ``active`` -> ``acknowledged`` | ``dismissed`` (or ``superseded``).'
+    IntelligenceSignalSummary:
+      properties:
+        active:
+          type: integer
+          title: Active
+        acknowledged:
+          type: integer
+          title: Acknowledged
+        dismissed:
+          type: integer
+          title: Dismissed
+        superseded:
+          type: integer
+          title: Superseded
+        high_priority:
+          type: integer
+          title: High Priority
+        medium_priority:
+          type: integer
+          title: Medium Priority
+        low_priority:
+          type: integer
+          title: Low Priority
+        highest_priority_score:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Highest Priority Score
+      type: object
+      required:
+      - active
+      - acknowledged
+      - dismissed
+      - superseded
+      - high_priority
+      - medium_priority
+      - low_priority
+      title: IntelligenceSignalSummary
+      description: Roll-up counts for the founder intelligence surface.
+    IntelligenceSignalUpdate:
+      properties:
+        status:
+          $ref: '#/components/schemas/IntelligenceSignalStatus'
+      type: object
+      required:
+      - status
+      title: IntelligenceSignalUpdate
+      description: 'Acknowledge or dismiss a signal.
+
+
+        The triage worker is the only writer of everything else; the API must
+
+        never mutate M7/M8 source rows through a signal patch.'
     InviteStatus:
       type: string
       enum:
@@ -11281,11 +13831,15 @@ components:
         overridden:
           type: boolean
           title: Overridden
+        kill_switch:
+          type: boolean
+          title: Kill Switch
       type: object
       required:
       - provider
       - model
       - overridden
+      - kill_switch
       title: OrganizationAISettingsRead
       description: 'Resolved AI settings: what''s actually in effect for the org.'
     OrganizationAISettingsUpdate:
@@ -11304,6 +13858,11 @@ components:
             minLength: 1
           - type: 'null'
           title: Model
+        kill_switch:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Kill Switch
       type: object
       title: OrganizationAISettingsUpdate
       description: Patch payload for per-org AI defaults.
@@ -12064,7 +14623,7 @@ components:
       - max_pending_per_org
       - organization_queues
       title: QueueStatusResponse
-      description: Aggregate queue status across all organizations.
+      description: Queue status aggregated for the authenticated organization.
     ReadinessResponse:
       properties:
         status:
@@ -12083,6 +14642,31 @@ components:
       - db
       title: ReadinessResponse
       description: Payload returned by readiness probes.
+    RecommendationPriority:
+      type: string
+      enum:
+      - high
+      - medium
+      - low
+      title: RecommendationPriority
+      description: 'Urgency / qualitative confidence of a growth recommendation (M7).
+
+
+        ``high``/``medium``/``low`` is used both for actionable priority and for
+
+        the qualitative confidence score (mirrors ``recommendation_priority``).'
+    RecommendationStatus:
+      type: string
+      enum:
+      - active
+      - acknowledged
+      - applied
+      - dismissed
+      title: RecommendationStatus
+      description: 'Triage lifecycle of a growth recommendation (M7).
+
+
+        ``active`` -> ``acknowledged`` | ``applied`` (or ``dismissed``).'
     RecurrenceFrequency:
       type: string
       enum:
@@ -12231,6 +14815,33 @@ components:
       - query
       title: SearchResponse
       description: Combined search results for one organization.
+    SignalCategory:
+      type: string
+      enum:
+      - growth_recommendation
+      - business_insight
+      - pipeline_risk
+      - pipeline_opportunity
+      - growth_anomaly
+      - founder_briefing
+      title: SignalCategory
+      description: 'What kind of business signal an ``intelligence_signals`` row is (M9).
+
+
+        Mirrors ``public.signal_category``.'
+    SignalSourceType:
+      type: string
+      enum:
+      - growth_recommendation
+      - business_insight
+      - growth_analysis
+      - pipeline_fact
+      - briefing
+      title: SignalSourceType
+      description: 'Which M7/M8/pipeline source produced the signal (M9).
+
+
+        Mirrors ``public.signal_source_type``.'
     StageLifecycle:
       type: string
       enum:
@@ -12791,20 +15402,6 @@ components:
       - updated_at
       title: TeamInviteRead
       description: A team invitation returned by the API.
-    ToolCallRead:
-      properties:
-        name:
-          type: string
-          title: Name
-        arguments:
-          additionalProperties: true
-          type: object
-          title: Arguments
-      type: object
-      required:
-      - name
-      title: ToolCallRead
-      description: A tool call the brain executed.
     ToolManifestEntry:
       properties:
         name:
@@ -12824,25 +15421,6 @@ components:
       - parameters
       title: ToolManifestEntry
       description: Static description of a callable AI tool (name/description/parameters).
-    ToolResultRead:
-      properties:
-        ok:
-          type: boolean
-          title: Ok
-        error:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Error
-        text:
-          type: string
-          title: Text
-          default: ''
-      type: object
-      required:
-      - ok
-      title: ToolResultRead
-      description: Outcome of a single tool execution.
     UserCreate:
       properties:
         email:

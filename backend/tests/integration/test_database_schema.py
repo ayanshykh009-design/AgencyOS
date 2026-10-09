@@ -135,6 +135,9 @@ EXPECTED_MIGRATION_SHAS = {
     "0032_m6_worker_health_all_worker_types.sql": (
         "82659154a892713b45ad752c39a9f95fd6b3dadca9723e3dfa7ec666c1cacfca"
     ),
+    "0033_tenant_isolation_rls.sql": (
+        "6c12a07d7be58e74d8c8fbd2317802cd768061ede254f967685e536f1ffa3644"
+    ),
 }
 
 

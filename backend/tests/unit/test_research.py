@@ -313,4 +313,4 @@ async def test_llm_for_org_uses_resolved_provider(monkeypatch: pytest.MonkeyPatc
     assert captured["provider"] == "gemini"
     assert captured["kwargs"]["model"] == "gemini-2.0-flash"
     assert captured["kwargs"]["organization_id"] == ORG_ID
-    assert captured["kwargs"]["feature"] == "research"
+    assert captured["kwargs"]["feature"] == "ai.research"

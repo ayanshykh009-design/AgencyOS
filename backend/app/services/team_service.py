@@ -19,6 +19,7 @@ from app.core.config import settings
 from app.core.errors import AppError
 from app.core.permissions import role_can_invite
 from app.core.security import hash_password
+from app.core.tenant_context import activate_org
 from app.models.activity_log import ActivityLog
 from app.models.enums import ActivityEventType, InviteStatus, UserRole
 from app.models.team_invite import TeamInvite
@@ -170,6 +171,10 @@ class TeamService:
                 message="Invite not found",
                 status_code=404,
             )
+        # The definer lookup above ran without tenant context; now that the
+        # invite tells us the organization, bind it so the expiry UPDATE and
+        # everything downstream (accept, org name lookup) passes RLS.
+        await activate_org(self._session, invite.organization_id)
         if invite.status is not InviteStatus.PENDING:
             raise AppError(
                 code="team.invite_invalid",

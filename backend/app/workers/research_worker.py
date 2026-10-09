@@ -10,6 +10,7 @@ import logging
 import uuid
 
 from app.core.database import async_session_factory
+from app.core.tenant_context import activate_org
 from app.repositories.lead_research import LeadResearchRepository
 
 logger = logging.getLogger("agencyos")
@@ -44,6 +45,9 @@ class ResearchWorker:
         async with async_session_factory() as session:
             from app.services.research_service import ResearchService
 
+            # In-process worker on the web engine (RLS-scoped): bind the org
+            # GUC before any tenant-scoped read/write.
+            await activate_org(session, organization_id)
             await ResearchService(session).run(
                 lead_id=lead_id,
                 organization_id=organization_id,
@@ -56,6 +60,7 @@ class ResearchWorker:
         """Best-effort: flag the research failed after an unexpected error."""
         try:
             async with async_session_factory() as session:
+                await activate_org(session, organization_id)
                 repo = LeadResearchRepository(session)
                 await repo.upsert(
                     organization_id,

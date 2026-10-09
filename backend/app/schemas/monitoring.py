@@ -112,7 +112,7 @@ class HeartbeatVisibilityResponse(BaseModel):
 
 
 class ExecutionTimelineEvent(BaseModel):
-    """Single execution timeline event (cross-organization)."""
+    """Single execution timeline event (org-scoped)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -135,7 +135,7 @@ class ExecutionTimelineResponse(BaseModel):
 
 
 class ExecutionHistoryEntry(BaseModel):
-    """Single execution history row (cross-organization)."""
+    """Single execution history row (org-scoped)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -173,7 +173,7 @@ class OrganizationQueue(BaseModel):
 
 
 class QueueStatusResponse(BaseModel):
-    """Aggregate queue status across all organizations."""
+    """Queue status aggregated for the authenticated organization."""
 
     model_config = ConfigDict(from_attributes=True)
 

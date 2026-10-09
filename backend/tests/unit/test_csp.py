@@ -85,6 +85,7 @@ def test_production_validation_requires_csp() -> None:
         APP_DEBUG=False,
         SECRET_KEY="overridden-production-secret-key-with-sufficient-length-12345",
         DATABASE_URL="postgresql+asyncpg://user:pass@db:5432/agencyos",
+        WORKER_DATABASE_URL="postgresql+asyncpg://user:pass@db:5432/agencyos",
         ENABLE_CSP=False,
     )
     with pytest.raises(RuntimeError, match="ENABLE_CSP must be enabled in production"):

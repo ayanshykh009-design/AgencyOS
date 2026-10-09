@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import InviteStatus
@@ -35,7 +35,16 @@ class TeamInviteRepository:
         return result.scalar_one_or_none()
 
     async def get_by_token_hash(self, token_hash: str) -> TeamInvite | None:
-        stmt = select(TeamInvite).where(TeamInvite.token_hash == token_hash)
+        """Resolve an invite by digest (unauthenticated acceptance flow).
+
+        SECURITY DEFINER-backed: the invitee has no session, so no tenant
+        context exists yet and a scoped SELECT would be hidden by RLS.
+        """
+        stmt = select(TeamInvite).from_statement(
+            text(
+                "SELECT * FROM public.app_get_team_invite_by_token_hash(:token_hash)"
+            ).bindparams(token_hash=token_hash)
+        )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 

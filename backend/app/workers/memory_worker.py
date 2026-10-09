@@ -31,7 +31,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import async_session_factory
+from app.core.database import worker_session_factory
 from app.core.metrics import get_counter, get_histogram, read_counter
 from app.core.observability import span
 from app.models.ai_memory import AiMemory
@@ -78,7 +78,7 @@ class MemoryWorker:
         Best-effort: a heartbeat failure must never take down the worker loop.
         """
         try:
-            async with async_session_factory() as session:
+            async with worker_session_factory() as session:
                 service = WorkerHealthService(session)
                 await service.heartbeat(
                     worker_type=_WORKER_TYPE,
@@ -121,7 +121,7 @@ class MemoryWorker:
         expired_deleted = 0
 
         with span("memory.cleanup"):
-            async with async_session_factory() as session:
+            async with worker_session_factory() as session:
                 await cls._set_statement_timeout(session)
                 repo = AiMemoryRepository(session)
 

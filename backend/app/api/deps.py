@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.errors import AppError
 from app.core.security import require_valid_token
+from app.core.tenant_context import activate_org
 from app.models.enums import UserRole
 from app.models.user import User
 from app.repositories.user import UserRepository
@@ -51,13 +52,20 @@ async def get_current_user(
             message="Invalid or expired token",
             status_code=401,
         ) from None
-    user = await UserRepository(db).get(user_id)
+    # Resolve the user via the SECURITY DEFINER lookup: the request has no
+    # tenant context yet, so the row must be readable before the org is
+    # activated (a plain scoped SELECT would be filtered out by RLS).
+    user = await UserRepository(db).get_active_by_id_unscoped(user_id)
     if user is None or not user.is_active:
         raise AppError(
             code="auth.user_unavailable",
             message="Account not found or disabled",
             status_code=401,
         )
+    # Bind this request's transaction context to the user's organization so
+    # subsequent repository calls (and any mid-request COMMIT/ROLLBACK) are
+    # scoped by the tenant RLS policies / GUC.
+    await activate_org(db, user.organization_id)
     return user
 
 

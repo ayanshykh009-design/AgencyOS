@@ -259,6 +259,27 @@ async def test_update_status_rejects_active_target() -> None:
 
 
 @pytest.mark.asyncio
+async def test_llm_service_uses_ai_namespaced_feature() -> None:
+    """B-6 regression: founder-intelligence LLM spend must be recorded under an
+    ``ai.*`` feature key so attribution metrics and operators' spend views stay
+    consistent (budget enforcement itself sums all features org-wide)."""
+    from app.llm.service import LLMService
+
+    service, _ = _service_with_repo()
+    captured: dict = {}
+
+    def _fake_for_provider(provider: str, **kwargs):
+        captured.update(kwargs)
+        return MagicMock()
+
+    with patch.object(LLMService, "for_provider", side_effect=_fake_for_provider):
+        result = await service._llm_service(ORG_ID)
+
+    assert isinstance(result, MagicMock)
+    assert captured["feature"] == "ai.intelligence.narrative"
+
+
+@pytest.mark.asyncio
 async def test_update_status_404_when_missing() -> None:
     service, repo = _service_with_repo()
     repo.get = AsyncMock(return_value=None)

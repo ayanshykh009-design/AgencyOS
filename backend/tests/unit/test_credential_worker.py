@@ -45,7 +45,7 @@ def _defaults(monkeypatch):
 
 def _patch_service(monkeypatch, service: AsyncMock, session: _FakeSession) -> AsyncMock:
     monkeypatch.setattr(
-        "app.workers.credential_worker.async_session_factory",
+        "app.workers.credential_worker.worker_session_factory",
         MagicMock(return_value=session),
     )
     monkeypatch.setattr(

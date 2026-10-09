@@ -81,6 +81,7 @@ def test_production_validation_accepts_strong_secret() -> None:
         APP_DEBUG=False,
         SECRET_KEY=STRONG_SECRET,
         DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
+        WORKER_DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
         CREDENTIALS_ENC_KEY="Zk9x7mW3pQ2vRtY8uB1cN4dL6eF0gH5jAbCdEfGhIjKl",
     )
     settings.validate_for_production()  # must not raise
@@ -133,6 +134,7 @@ def test_production_validation_rejects_bad_redis() -> None:
         APP_DEBUG=False,
         SECRET_KEY=STRONG_SECRET,
         DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
+        WORKER_DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
         REDIS_URL="sqlite:///rate.db",
         CREDENTIALS_ENC_KEY="Zk9x7mW3pQ2vRtY8uB1cN4dL6eF0gH5jAbCdEfGhIjKl",
     )

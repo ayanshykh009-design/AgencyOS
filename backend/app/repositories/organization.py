@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,7 +27,17 @@ class OrganizationRepository:
         return list(result.scalars().all())
 
     async def get_by_slug(self, slug: str) -> Organization | None:
-        stmt = select(Organization).where(Organization.slug == slug)
+        """Look up an organization by slug.
+
+        Routes through the SECURITY DEFINER lookup: slug is global-by-design
+        and this runs before any tenant context exists (webhooks, register
+        conflict resolution), where RLS would otherwise hide every row.
+        """
+        stmt = select(Organization).from_statement(
+            text("SELECT * FROM public.app_get_organization_by_slug(:slug)").bindparams(
+                slug=slug
+            )
+        )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 

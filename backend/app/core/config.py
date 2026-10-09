@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     DATABASE_POOL_SIZE: int = 10
     DATABASE_MAX_OVERFLOW: int = 20
     DATABASE_POOL_TIMEOUT: int = 30
+    # Optional dedicated DSN for the standalone workers (BYPASSRLS role). When
+    # empty the workers share DATABASE_URL, which is fine for development and
+    # CI but NOT for RLS-protected production (see 0033 tenant isolation).
+    WORKER_DATABASE_URL: str = ""
 
     # --- Frontend (used to build invite/share links) ---
     FRONTEND_URL: str = "http://localhost:3000"
@@ -206,8 +210,9 @@ class Settings(BaseSettings):
     AI_MEMORY_ENABLED: bool = False
     # --- M11-B: cumulative per-org AI usage budgets (enforced in LLMService) ---
     # A 0 value disables the corresponding budget (unlimited). Budgets are
-    # evaluated against the provider_usage rollup filtered to the "ai." feature
-    # prefix (all AI-run execution) over a rolling 24h window.
+    # evaluated against the organization's FULL provider_usage rollup (no
+    # feature filter) over a rolling 24h window — the ceiling is per-org, not
+    # per-feature.
     AI_ORG_DAILY_TOKEN_BUDGET: int = 0
     AI_ORG_DAILY_COST_BUDGET_USD: float = 0.0
     COMMUNICATION_LAYER_ENABLED: bool = False
@@ -487,6 +492,11 @@ class Settings(BaseSettings):
             )
         if not self.DATABASE_URL.startswith(("postgresql", "postgres")):
             raise RuntimeError("DATABASE_URL must be set in production")
+        if not self.WORKER_DATABASE_URL.startswith(("postgresql", "postgres")):
+            raise RuntimeError(
+                "WORKER_DATABASE_URL must be set in production (BYPASSRLS worker "
+                "role); see database/migrations/0033_tenant_isolation_rls.sql"
+            )
         if not self.ENABLE_CSP:
             raise RuntimeError("ENABLE_CSP must be enabled in production")
         self._validate_redis_url()

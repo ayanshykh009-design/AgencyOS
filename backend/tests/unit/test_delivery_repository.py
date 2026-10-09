@@ -140,12 +140,12 @@ def test_get_by_idempotency_filters_org_and_key() -> None:
     assert "idempotency_key" in stmt and "organization_id" in stmt
 
 
-def test_count_by_status_groups_globally() -> None:
+def test_count_by_status_groups_per_org() -> None:
     session = RecordingSession(results=[[(DeliveryStatus.QUEUED, 2), (DeliveryStatus.FAILED, 1)]])
     repo = _repo(session)
 
     async def run() -> None:
-        counts = await repo.count_by_status()
+        counts = await repo.count_by_status(ORG_ID)
         assert counts == {"queued": 2, "failed": 1}
 
     import asyncio
@@ -153,6 +153,7 @@ def test_count_by_status_groups_globally() -> None:
     asyncio.run(run())
     stmt = session.executed[0]
     assert "GROUP BY" in stmt and "deliveries" in stmt
+    assert "organization_id" in stmt
 
 
 def test_claim_guards_queued_and_returns_row() -> None:
@@ -356,7 +357,7 @@ def test_requeue_stale_guards_processing_and_clears_stamp() -> None:
     repo = _repo(session)
 
     async def run() -> None:
-        row = await repo.requeue_stale(ORG_ID, DELIVERY_ID)
+        row = await repo.requeue_stale(ORG_ID, DELIVERY_ID, datetime.now(UTC))
         assert row is not None
 
     import asyncio
@@ -366,6 +367,10 @@ def test_requeue_stale_guards_processing_and_clears_stamp() -> None:
     assert "UPDATE" in stmt and "deliveries" in stmt
     assert "status =" in stmt
     assert "attempt_started_at" in stmt and "attempts" in stmt
+    # Staleness is re-checked inside the UPDATE itself (TOCTOU guard): a row
+    # that recovered since the stale listing must not be requeued.
+    assert "attempt_started_at IS NULL" in stmt
+    assert "deliveries.updated_at" in stmt
 
 
 def test_release_stale_processing_uses_paired_path() -> None:

@@ -20,7 +20,7 @@ import asyncio
 import logging
 
 from app.core.config import settings
-from app.core.database import async_session_factory
+from app.core.database import worker_session_factory
 from app.core.kms import get_kms_provider
 from app.core.metrics import get_counter
 from app.services.base import utcnow
@@ -40,7 +40,7 @@ class CredentialWorker:
         provider = get_kms_provider()
         current = provider.current_key_version()
 
-        async with async_session_factory() as session:
+        async with worker_session_factory() as session:
             service = CredentialService(session)
             await service.upsert_key_version(current, provider.key_fingerprint(current))
             previous = provider.previous_key_version()

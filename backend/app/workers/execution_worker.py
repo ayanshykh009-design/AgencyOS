@@ -28,13 +28,14 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import async_session_factory
+from app.core.database import worker_session_factory
 from app.core.errors import AppError
 from app.core.metrics import get_counter, get_histogram, read_counter
 from app.core.observability import span
 from app.models.enums import ExecutionEventType, WorkflowStatus
 from app.repositories.workflow import WorkflowRepository
 from app.services.automation_control_service import AutomationControlService
+from app.services.base import utcnow
 from app.services.execution_adapter import adapter_error_payload, get_adapter
 from app.services.monitoring_service import WorkerHealthService
 from app.services.schedule_dispatcher import ScheduleDispatcher
@@ -83,7 +84,7 @@ class ExecutionWorker:
         a heartbeat failure must never take down the worker loop.
         """
         try:
-            async with async_session_factory() as session:
+            async with worker_session_factory() as session:
                 service = WorkerHealthService(session)
                 await service.heartbeat(
                     worker_type=_WORKER_TYPE,
@@ -98,18 +99,33 @@ class ExecutionWorker:
 
     @classmethod
     async def process_retries(cls) -> int:
-        """Requeue executions whose retry window has elapsed."""
+        """Requeue executions whose retry window has elapsed.
+
+        RETRYING -> QUEUED via the guarded ``requeue_due`` transition (NOT
+        ``retry()``, which only accepts terminal FAILED/CANCELLED/TIMED_OUT
+        rows and would raise 409 on every due retry). A row that changed
+        concurrently (cancel, manual retry, already requeued) is skipped
+        without raising, so one stale row can never abort the sweep.
+        """
         start = time.perf_counter()
         with span("automation.worker.retries"):
-            async with async_session_factory() as session:
+            async with worker_session_factory() as session:
                 service = WorkflowExecutionService(session)
                 await cls._set_statement_timeout(session)
-                executions = await service.get_queued_for_retry()
+                executions = await service.get_queued_for_retry(before=utcnow())
+                requeued = 0
                 for execution in executions:
-                    await service.retry(execution.organization_id, execution.id)
+                    updated = await service.requeue_due(execution.organization_id, execution.id)
+                    if updated is not None:
+                        requeued += 1
+                    else:
+                        logger.debug(
+                            "skipping retry requeue for %s (state changed concurrently)",
+                            execution.id,
+                        )
                 await session.commit()
         cls._observe_phase("retries", start)
-        return len(executions)
+        return requeued
 
     @classmethod
     async def process_queued(cls, batch_size: int = 10) -> int:
@@ -123,7 +139,7 @@ class ExecutionWorker:
         """
         start = time.perf_counter()
         with span("automation.worker.queued"):
-            async with async_session_factory() as session:
+            async with worker_session_factory() as session:
                 service = WorkflowExecutionService(session)
                 workflow_repo = WorkflowRepository(session)
                 await cls._set_statement_timeout(session)
@@ -255,7 +271,7 @@ class ExecutionWorker:
         """Mark RUNNING executions that exceeded the timeout as timed out."""
         start = time.perf_counter()
         with span("automation.worker.timeouts"):
-            async with async_session_factory() as session:
+            async with worker_session_factory() as session:
                 service = WorkflowExecutionService(session)
                 await cls._set_statement_timeout(session)
                 executions = await service.get_stuck_running()
@@ -286,7 +302,7 @@ class ExecutionWorker:
             return 0
         start = time.perf_counter()
         with span("automation.worker.schedule"):
-            async with async_session_factory() as session:
+            async with worker_session_factory() as session:
                 stats = await ScheduleDispatcher(session).dispatch_due()
         cls._observe_phase("schedule", start)
         return stats["queued"]
@@ -301,7 +317,7 @@ class ExecutionWorker:
         """
         try:
             with span("automation.worker.gate"):
-                async with async_session_factory() as session:
+                async with worker_session_factory() as session:
                     return await AutomationControlService(session).is_enabled()
         except Exception:
             logger.exception("automation kill-switch check failed; assuming paused")
@@ -314,14 +330,37 @@ class ExecutionWorker:
         While the global kill switch is paused only the timeout/housekeeping
         phase runs (it re-converges stale RUNNING rows without dispatching new
         work); retries and queue draining are skipped until automation resumes.
+
+        Each phase is isolated: a failure in one phase is logged and recorded,
+        but never prevents the remaining phases from running (a broken retry
+        path can no longer stall queue draining or the stale-runner reaper).
+        If any phase failed, the aggregated error is re-raised *after* all
+        phases have completed so the run-loop heartbeat still reports the
+        failure.
         """
         if not await cls._automation_enabled():
-            timed_out = await cls.timeout_stuck()
+            timed_out = await cls._safe_phase("timeouts", cls.timeout_stuck, [])
             return {"retried": 0, "processed": 0, "timed_out": timed_out}
-        retried = await cls.process_retries()
-        processed = await cls.process_queued()
-        timed_out = await cls.timeout_stuck()
-        return {"retried": retried, "processed": processed, "timed_out": timed_out}
+        errors: list[str] = []
+        retried = await cls._safe_phase("retries", cls.process_retries, errors)
+        processed = await cls._safe_phase("queued", cls.process_queued, errors)
+        timed_out = await cls._safe_phase("timeouts", cls.timeout_stuck, errors)
+        stats = {"retried": retried, "processed": processed, "timed_out": timed_out}
+        if errors:
+            raise RuntimeError(
+                f"execution worker sweep phase failure(s): {', '.join(errors)}"
+            )
+        return stats
+
+    @classmethod
+    async def _safe_phase(cls, name: str, fn, errors: list[str]) -> int:
+        """Run one sweep phase; record failures without aborting the sweep."""
+        try:
+            return await fn()
+        except Exception:
+            errors.append(name)
+            logger.exception("execution worker phase %s failed; continuing", name)
+            return 0
 
     @classmethod
     async def run_loop(cls) -> None:

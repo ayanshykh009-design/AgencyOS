@@ -27,7 +27,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import async_session_factory
+from app.core.database import worker_session_factory
 from app.core.metrics import get_counter
 from app.core.observability import span
 from app.repositories.delivery_event import DeliveryEventRepository
@@ -91,7 +91,7 @@ class RetentionWorker:
         workers_pruned = 0
 
         with span("automation.retention"):
-            async with async_session_factory() as session:
+            async with worker_session_factory() as session:
                 await cls._set_statement_timeout(session)
                 health_service = WorkerHealthService(session)
                 worker_cutoff = datetime.now(UTC) - timedelta(

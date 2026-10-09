@@ -6,8 +6,9 @@ attempts. All endpoints are JWT-authenticated and org-scoped. Reads require
 `delivery_read`; enqueueing requires `delivery_write`; `retry`/`cancel`
 require `delivery_manage` (admin/owner only).
 
-Platform-wide delivery counts (across all organizations) are exposed under
-[monitoring](monitoring.md) as `delivery-statistics`.
+Delivery outbox statistics are exposed under [monitoring](monitoring.md) as
+`delivery-statistics` — org-scoped to the caller and admin-only
+(`automation_manage`).
 
 ## GET /api/v1/deliveries
 

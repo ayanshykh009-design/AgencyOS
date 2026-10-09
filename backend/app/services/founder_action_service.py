@@ -167,7 +167,6 @@ class FounderActionService:
             actor=actor,
             request_id=proposal.approval_request_id,
             approve=approve,
-            decided_by_user_id=actor.id,
             decision_note=decision_note,
         )
 

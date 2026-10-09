@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 from app.core.database import async_session_factory
+from app.core.tenant_context import activate_org
 from app.models.activity_log import ActivityLog
 from app.models.enums import ActivityEventType, ImportStatus, LeadStatus
 from app.models.import_job import ImportJob
@@ -94,6 +95,9 @@ class ImportWorker:
         rows = _parse_csv(content)
 
         async with async_session_factory() as session:
+            # Runs in-process on the web engine (RLS-scoped): bind the org GUC
+            # before touching tenant tables.
+            await activate_org(session, organization_id)
             jobs = ImportJobRepository(session)
             leads = LeadRepository(session)
 
@@ -192,6 +196,7 @@ class ImportWorker:
         """Best-effort: flag the job failed after an unexpected error."""
         try:
             async with async_session_factory() as session:
+                await activate_org(session, organization_id)
                 job = await ImportJobRepository(session).get_or_404(organization_id, job_id)
                 job.status = ImportStatus.FAILED
                 job.finished_at = utcnow()

@@ -174,3 +174,44 @@ async def test_budget_infra_failure_fails_closed() -> None:
             await svc._enforce_budget()
         assert exc.value.code == "ai.budget_check_failed"
         assert exc.value.status_code == 503
+
+
+async def test_budget_totals_count_all_org_features_no_feature_filter() -> None:
+    """B-6 regression: the budget ceiling is per-org and must sum ALL
+    provider_usage rows. Reintroducing ``feature_prefix="ai."`` lets usage
+    recorded under any other feature key (e.g. "research",
+    "intelligence.narrative") escape the ceiling."""
+    svc = _service()
+    with (
+        patch.object(settings, "AI_ORG_DAILY_TOKEN_BUDGET", 100),
+        patch.object(settings, "AI_ORG_DAILY_COST_BUDGET_USD", 0.0),
+        patch("app.llm.service.ProviderUsageService") as pus,
+    ):
+        pus.return_value.totals_since = AsyncMock(
+            return_value={"requests": 1, "input_tokens": 1, "output_tokens": 0, "cost_usd": 0}
+        )
+        await svc._enforce_budget()
+        assert pus.return_value.totals_since.await_count == 1
+        kwargs = pus.return_value.totals_since.await_args.kwargs
+        assert kwargs.get("feature_prefix") in (None, "") or "feature_prefix" not in kwargs
+
+
+async def test_budget_blocks_when_non_namespaced_feature_spend_exceeds_ceiling() -> None:
+    """B-6 behavioral: spend recorded under a non-`ai.`-prefixed feature key
+    (as returned by an unfiltered totals_since) still blocks execution at the
+    per-org ceiling."""
+    svc = _service()
+    with (
+        patch.object(settings, "AI_ORG_DAILY_TOKEN_BUDGET", 50),
+        patch.object(settings, "AI_ORG_DAILY_COST_BUDGET_USD", 0.0),
+        patch("app.llm.service.ProviderUsageService") as pus,
+    ):
+        # Totals as ProviderUsageRepository returns them with feature_prefix
+        # unset: they include rows tagged "research" / "intelligence.narrative".
+        pus.return_value.totals_since = AsyncMock(
+            return_value={"requests": 3, "input_tokens": 40, "output_tokens": 30, "cost_usd": 0.04}
+        )
+        with pytest.raises(AppError) as exc:
+            await svc._enforce_budget()
+        assert exc.value.code == "ai.budget_exceeded"
+        assert exc.value.status_code == 429

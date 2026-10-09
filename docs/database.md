@@ -160,15 +160,70 @@ keys and rejects duplicates.
 
 ## Row Level Security (RLS)
 
-Every tenant-scoped table:
+Tenant isolation is enforced on two surfaces.
 
-1. Enables RLS in its migration (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`).
-2. Has policy files in `database/supabase/policies/` applied in the
-   Supabase-managed environment.
-3. Policy helper `public.tenant_org_id()` resolves the caller's organization
-   from `auth.uid()`.
+**Supabase (PostgREST) surface**
 
-`anon` and `authenticated` are Supabase roles; policy files require them.
+1. Every tenant-scoped table enables RLS in its migration
+   (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`).
+2. Policy files in `database/supabase/policies/` are applied in the
+   Supabase-managed environment; they require the `anon` and `authenticated`
+   roles to exist.
+3. The policy helper `public.tenant_org_id()` resolves the caller's
+   organization — from `auth.uid()` on Supabase, or from the
+   `app.current_organization_id` GUC on the backend.
+
+**Backend data plane (migration `0033_tenant_isolation_rls.sql`)**
+
+- **Connection roles.** `agencyos_app` (NOLOGIN, subject to RLS) anchors the
+  web/API policies; `agencyos_worker` (NOLOGIN, BYPASSRLS) anchors worker
+  access. Neither can be used to log in directly — production connects with
+  a dedicated LOGIN role that is a **member** of them (or starts the session
+  with `SET ROLE`/the `role` startup parameter). One-time operator bootstrap
+  against the owner DSN:
+
+  ```sql
+  CREATE ROLE agencyos_api     LOGIN PASSWORD '<strong-password>';
+  GRANT agencyos_app     TO agencyos_api;
+  CREATE ROLE agencyos_workers LOGIN PASSWORD '<strong-password>';
+  GRANT agencyos_worker  TO agencyos_workers;
+  ```
+
+  `DATABASE_URL` then authenticates as `agencyos_api` and
+  `WORKER_DATABASE_URL` as `agencyos_workers`; membership makes the
+  `TO agencyos_app` policies apply while `INHERIT` carries the table
+  grants. Until this bootstrap runs, an owner/superuser DSN (as shipped in
+  `docker-compose.prod.yml`) bypasses RLS — acceptable only for dev.
+  `WORKER_DATABASE_URL` is required when `APP_ENV=production` (config
+  validation refuses to boot without it). Migrations run through
+  `scripts/db/migrate.sh` with `PSQL_TARGET` — a separate owner DSN, never
+  a runtime DSN.
+- **Tenant GUC.** `public.tenant_org_id()` is SECURITY DEFINER with a pinned
+  `SET search_path = pg_catalog, public`; it reads
+  `app.current_organization_id` first and falls back to `auth.uid()` only
+  where the managed `auth` schema exists.
+- **Policies.** Every table carrying an `organization_id` column (plus
+  `organizations` by primary key) gets a full SELECT/INSERT/UPDATE/DELETE
+  policy set scoped `TO agencyos_app` with
+  `organization_id = public.tenant_org_id()`. The instance-global tables
+  (`system_settings`, `credential_key_versions`, `worker_health`) are
+  whitelisted instead (`USING (true)`; `worker_health` is SELECT-only).
+  Cross-tenant writes fail with SQLSTATE 42501.
+- **Auth lookups.** SECURITY DEFINER functions (`app_get_user_by_email`,
+  `app_find_active_user_by_email`, `app_get_valid_refresh_token`, …) let
+  login/refresh resolve rows before any identity exists. They are
+  `REVOKE`d from `PUBLIC` and granted only to the two runtime roles.
+- **GUC propagation.** The backend sets the GUC from the authenticated
+  organization (`backend/app/core/tenant_context.py`) and re-applies it on
+  every transaction begin (`backend/app/core/database.py`), so a pooled
+  connection can never inherit a previous request's tenant.
+- **No FORCE ROW LEVEL SECURITY** (deliberate): table-owner connections
+  (developer/CI) keep working unchanged; isolation for production traffic
+  comes from connecting as `agencyos_app`.
+
+Static contract tests: `backend/tests/integration/test_rls_policy_coverage.py`.
+Behavioral enforcement tests (PostgreSQL-gated):
+`backend/tests/integration/test_tenant_isolation_rls.py`.
 
 ## Migrations
 

@@ -102,10 +102,13 @@ class ApprovalService:
         request_id: uuid.UUID,
         *,
         approve: bool,
-        decided_by_user_id: uuid.UUID | None,
         decision_note: str | None = None,
     ) -> ApprovalRequest:
-        """Transition a pending request to approved/denied and log the decision."""
+        """Transition a pending request to approved/denied and log the decision.
+
+        ``decided_by`` is ALWAYS the authenticated ``actor`` — there is no
+        client-controlled path to attribute a decision to another user.
+        """
         request = await self._requests.get_or_404(organization_id, request_id)
         if request.status is not ApprovalRequestStatus.PENDING:
             raise AppError(
@@ -126,7 +129,7 @@ class ApprovalService:
             )
         action = ApprovalLogAction.APPROVED if approve else ApprovalLogAction.DENIED
         request.status = ApprovalRequestStatus.APPROVED if approve else ApprovalRequestStatus.DENIED
-        request.decided_by_user_id = decided_by_user_id or actor.id
+        request.decided_by_user_id = actor.id
         request.decided_at = utcnow()
         request.decision_note = decision_note
         self._logs.add(

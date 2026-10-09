@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -18,6 +19,7 @@ pytest.importorskip("psycopg2")
 import psycopg2  # noqa: E402
 from psycopg2 import sql  # noqa: E402
 from sqlalchemy import select as sa_select  # noqa: E402
+from sqlalchemy import update as sa_update  # noqa: E402
 from sqlalchemy.ext.asyncio import (  # noqa: E402
     AsyncSession,
     async_sessionmaker,
@@ -42,6 +44,7 @@ from app.models.enums import (  # noqa: E402
 )
 from app.models.import_job import ImportJob  # noqa: E402
 from app.models.user import User  # noqa: E402
+from app.models.workflow_execution import WorkflowExecution  # noqa: E402
 from app.schemas.auth import LoginRequest, RegisterRequest  # noqa: E402
 from app.schemas.credential import CredentialCreate  # noqa: E402
 from app.schemas.workflow import WorkflowCreate  # noqa: E402
@@ -480,7 +483,7 @@ async def test_builtin_workflow_executes_in_process(db, monkeypatch) -> None:
         execution_id = execution.id
 
     # Run the worker's queue phase against the real DB.
-    monkeypatch.setattr("app.workers.execution_worker.async_session_factory", db)
+    monkeypatch.setattr("app.workers.execution_worker.worker_session_factory", db)
     processed = await ExecutionWorker.process_queued(batch_size=10)
     assert processed == 1
 
@@ -520,7 +523,7 @@ async def test_builtin_workflow_failure_retries_like_other_adapters(db, monkeypa
         )
         execution_id = execution.id
 
-    monkeypatch.setattr("app.workers.execution_worker.async_session_factory", db)
+    monkeypatch.setattr("app.workers.execution_worker.worker_session_factory", db)
     await ExecutionWorker.process_queued(batch_size=10)
 
     async with db() as session:
@@ -538,3 +541,296 @@ async def _org_id_for_user(db, user_id: str) -> uuid.UUID:
             sa_select(User.organization_id).where(User.id == uuid.UUID(user_id))
         )
         return result.scalar_one()
+
+
+async def _queue_retryable_execution(
+    db, user_id: str, *, max_attempts: int = 3, retry_delay_seconds: int = 0
+) -> tuple[uuid.UUID, uuid.UUID]:
+    """Create org+workflow+execution and drive it to RUNNING. Returns (org, exec)."""
+    org_id = await _org_id_for_user(db, user_id)
+    async with db() as session:
+        workflow = await WorkflowService(session).create(
+            WorkflowCreate(
+                organization_id=org_id,
+                name="Retry path",
+                execution_mode="builtin",
+                definition={"steps": [{"type": "set", "key": "a", "value": "1"}]},
+            ),
+            created_by_user_id=uuid.UUID(user_id),
+        )
+        await WorkflowService(session).activate(org_id, workflow.id)
+        execution = await WorkflowExecutionService(session).queue(
+            WorkflowExecutionCreate(
+                organization_id=org_id,
+                workflow_id=workflow.id,
+                input={"lead_id": "x"},
+                max_attempts=max_attempts,
+                retry_delay_seconds=retry_delay_seconds,
+            )
+        )
+        execution_id = execution.id
+        await WorkflowExecutionService(session).start(org_id, execution_id)
+    return org_id, execution_id
+
+
+async def test_process_retries_requeues_due_retrying_rows(db, monkeypatch) -> None:
+    """B-1 regression: a due RETRYING row is requeued to QUEUED by the worker.
+
+    Real state machine + real Postgres: queue -> start -> fail(schedule_retry)
+    lands on RETRYING with a due next_retry_at; the worker must transition it
+    to QUEUED (the pre-fix code called retry(), which raised 409 on RETRYING
+    rows and permanently stalled the queue).
+    """
+    user_id, _, _ = await _register_org(db)
+    org_id, execution_id = await _queue_retryable_execution(db, user_id)
+
+    async with db() as session:
+        service = WorkflowExecutionService(session)
+        failed = await service.fail(
+            org_id,
+            execution_id,
+            error={"error": "boom", "message": "boom"},
+            schedule_retry=True,
+        )
+        assert failed.status is ExecutionStatus.RETRYING
+
+    # Backdate next_retry_at so the row is unambiguously due.
+    async with db() as session:
+        await session.execute(
+            sa_update(WorkflowExecution)
+            .where(WorkflowExecution.id == execution_id)
+            .values(next_retry_at=utcnow() - timedelta(seconds=5))
+        )
+        await session.commit()
+
+    monkeypatch.setattr("app.workers.execution_worker.worker_session_factory", db)
+    requeued = await ExecutionWorker.process_retries()
+    assert requeued == 1
+
+    async with db() as session:
+        stored = await WorkflowExecutionService(session).get_execution(org_id, execution_id)
+        assert stored.status is ExecutionStatus.QUEUED
+        assert stored.next_retry_at is None
+
+    # A second sweep finds nothing due: the transition is not repeatable.
+    requeued_again = await ExecutionWorker.process_retries()
+    assert requeued_again == 0
+
+
+async def test_process_retries_respects_max_attempts_bound(db, monkeypatch) -> None:
+    """Retries are bounded: exhaustion lands on FAILED and is never requeued."""
+    user_id, _, _ = await _register_org(db)
+    org_id, execution_id = await _queue_retryable_execution(db, user_id, max_attempts=1)
+
+    async with db() as session:
+        service = WorkflowExecutionService(session)
+        failed = await service.fail(
+            org_id,
+            execution_id,
+            error={"error": "boom", "message": "boom"},
+            schedule_retry=True,
+        )
+        # attempts=1 already equals max_attempts=1 -> terminal FAILED, not RETRYING.
+        assert failed.status is ExecutionStatus.FAILED
+        assert failed.next_retry_at is None
+
+    monkeypatch.setattr("app.workers.execution_worker.worker_session_factory", db)
+    requeued = await ExecutionWorker.process_retries()
+    assert requeued == 0
+
+    async with db() as session:
+        stored = await WorkflowExecutionService(session).get_execution(org_id, execution_id)
+        assert stored.status is ExecutionStatus.FAILED
+
+
+async def test_process_retries_ignores_future_retry_windows(db, monkeypatch) -> None:
+    """RETRYING rows whose next_retry_at is still in the future are not requeued early."""
+    user_id, _, _ = await _register_org(db)
+    org_id, execution_id = await _queue_retryable_execution(
+        db, user_id, max_attempts=3, retry_delay_seconds=3600
+    )
+
+    async with db() as session:
+        service = WorkflowExecutionService(session)
+        failed = await service.fail(
+            org_id,
+            execution_id,
+            error={"error": "boom", "message": "boom"},
+            schedule_retry=True,
+        )
+        assert failed.status is ExecutionStatus.RETRYING
+        assert failed.next_retry_at is not None
+        assert failed.next_retry_at > utcnow()
+
+    monkeypatch.setattr("app.workers.execution_worker.worker_session_factory", db)
+    requeued = await ExecutionWorker.process_retries()
+    assert requeued == 0
+
+    async with db() as session:
+        stored = await WorkflowExecutionService(session).get_execution(org_id, execution_id)
+        assert stored.status is ExecutionStatus.RETRYING
+
+
+async def test_provider_budget_counts_all_org_features(db) -> None:
+    """B-6: the per-org AI budget ceiling sums ALL provider_usage rows.
+
+    Real Postgres + real ProviderUsageRepository: spend recorded under a
+    non-`ai.`-prefixed feature key (legacy "research" rows) must count toward
+    the ceiling, and another organization's spend must not leak in. The
+    LLMService._enforce_budget path then blocks at that ceiling.
+    """
+    from unittest.mock import patch
+
+    from app.llm.service import LLMService
+    from app.models.organization import Organization
+    from app.models.provider_usage import ProviderUsage
+    from app.services.provider_usage_service import ProviderUsageService
+
+    async with db() as session:
+        org_a = Organization(name="Org A", slug=f"org-a-{uuid.uuid4().hex[:8]}")
+        org_b = Organization(name="Org B", slug=f"org-b-{uuid.uuid4().hex[:8]}")
+        session.add_all([org_a, org_b])
+        await session.commit()
+        await session.refresh(org_a)
+        await session.refresh(org_b)
+
+    today = utcnow().date()
+    async with db() as session:
+        session.add_all(
+            [
+                ProviderUsage(
+                    organization_id=org_a.id,
+                    provider="openai",
+                    feature="research",
+                    usage_date=today,
+                    request_count=2,
+                    input_tokens=100,
+                    output_tokens=50,
+                    cost_usd=0.02,
+                    metadata_={},
+                ),
+                ProviderUsage(
+                    organization_id=org_a.id,
+                    provider="openai",
+                    feature="ai.agent.run",
+                    usage_date=today,
+                    request_count=1,
+                    input_tokens=30,
+                    output_tokens=10,
+                    cost_usd=0.01,
+                    metadata_={},
+                ),
+                ProviderUsage(
+                    organization_id=org_b.id,
+                    provider="openai",
+                    feature="research",
+                    usage_date=today,
+                    request_count=1,
+                    input_tokens=1000,
+                    output_tokens=1000,
+                    cost_usd=1.0,
+                    metadata_={},
+                ),
+            ]
+        )
+        await session.commit()
+
+    async with db() as session:
+        totals = await ProviderUsageService(session).totals_since(
+            org_a.id, since=utcnow() - timedelta(hours=24)
+        )
+        # Both org_a features counted (research + ai.agent.run); org_b excluded.
+        assert totals["requests"] == 3
+        assert totals["input_tokens"] == 130
+        assert totals["output_tokens"] == 60
+        assert float(totals["cost_usd"]) == pytest.approx(0.03)
+
+    # Budget path: non-namespaced spend blocks at the per-org ceiling.
+    async with db() as session:
+        svc = LLMService(
+            client=None, organization_id=org_a.id, session=session, feature="research"
+        )
+        with (
+            patch.object(settings, "AI_ORG_DAILY_TOKEN_BUDGET", 120),
+            patch.object(settings, "AI_ORG_DAILY_COST_BUDGET_USD", 0.0),
+        ):
+            with pytest.raises(AppError) as exc:
+                await svc._enforce_budget()
+        assert exc.value.code == "ai.budget_exceeded"
+        assert exc.value.status_code == 429
+
+
+async def test_monitoring_aggregates_are_org_scoped(db) -> None:
+    """B-2: monitoring aggregates never include another organization's rows.
+
+    Real Postgres, two tenants with executions and deliveries in each. Every
+    monitoring aggregate for org A must exclude org B's rows (and vice versa).
+    """
+    from app.models.delivery import Delivery as DeliveryModel
+    from app.models.enums import DeliveryChannel, DeliveryStatus
+    from app.services.delivery_service import DeliveryService
+    from app.services.operational_monitoring_service import OperationalMonitoringService
+
+    user_a, _, _ = await _register_org(db, email="mon-a@example.com")
+    user_b, _, _ = await _register_org(db, email="mon-b@example.com")
+    org_a, exec_a = await _queue_retryable_execution(db, user_a)
+    org_b, exec_b = await _queue_retryable_execution(db, user_b)
+
+    async with db() as session:
+        session.add_all(
+            [
+                DeliveryModel(
+                    organization_id=org_a,
+                    channel=DeliveryChannel.DASHBOARD,
+                    subject="a",
+                    body="b",
+                    status=DeliveryStatus.QUEUED,
+                    attempts=0,
+                    max_attempts=4,
+                    payload={},
+                    provider_metadata={},
+                ),
+                DeliveryModel(
+                    organization_id=org_b,
+                    channel=DeliveryChannel.DASHBOARD,
+                    subject="a",
+                    body="b",
+                    status=DeliveryStatus.DELIVERED,
+                    attempts=1,
+                    max_attempts=4,
+                    payload={},
+                    provider_metadata={},
+                ),
+            ]
+        )
+        await session.commit()
+
+    async with db() as session:
+        service = OperationalMonitoringService(session)
+
+        stats_a = await service.get_execution_statistics(org_a, hours=24)
+        # Org distribution contains only the caller's own organization.
+        assert len(stats_a["counts_by_organization"]) == 1
+
+        history_a = await service.get_execution_history(org_a, page=1, page_size=50, hours=24)
+        assert history_a["total"] >= 1
+        assert str(exec_b) not in {e["execution_id"] for e in history_a["entries"]}
+
+        history_b = await service.get_execution_history(org_b, page=1, page_size=50, hours=24)
+        assert str(exec_a) not in {e["execution_id"] for e in history_b["entries"]}
+
+        queue_a = await service.get_queue_status(org_a)
+        assert queue_a["organization_queues"], "org A should have its own queue row"
+        assert all(q["organization_id"] == str(org_a) for q in queue_a["organization_queues"])
+
+        timeline_a = await service.get_execution_timeline(org_a, hours=24)
+        for event in timeline_a["events"]:
+            assert event["execution_id"] != str(exec_b)
+
+        delivery_a = await DeliveryService(session).platform_statistics(org_a)
+        assert delivery_a["queued"] >= 1
+        assert delivery_a["delivered"] == 0  # org B's delivered row excluded
+
+        delivery_b = await DeliveryService(session).platform_statistics(org_b)
+        assert delivery_b["delivered"] >= 1
+        assert delivery_b["queued"] == 0

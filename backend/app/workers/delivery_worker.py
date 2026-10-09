@@ -40,7 +40,7 @@ from app.communication.contract import (
 )
 from app.communication.providers import get_provider, sanitize_error
 from app.core.config import settings
-from app.core.database import async_session_factory
+from app.core.database import worker_session_factory
 from app.core.metrics import get_counter, get_histogram
 from app.core.observability import span
 from app.models.delivery import Delivery
@@ -74,8 +74,9 @@ class DeliveryWorker:
 
     _WORKER_TYPE = "delivery"
 
-    def __init__(self, session_factory=async_session_factory) -> None:
-        self._session_factory = session_factory
+    def __init__(self, session_factory=None) -> None:
+        # Resolved at call time so tests can monkeypatch ``worker_session_factory``.
+        self._session_factory = session_factory or worker_session_factory
 
     @staticmethod
     async def _set_statement_timeout(session: AsyncSession) -> None:
@@ -469,6 +470,13 @@ class DeliveryWorker:
         )
         recovered = 0
         for dlv in stale:
+            requeued = await deliveries_repo.requeue_stale(
+                dlv.organization_id, dlv.id, stale_threshold
+            )
+            if not requeued:
+                # The row recovered (or was claimed) between the stale listing
+                # and this requeue — stamping events would pollute its history.
+                continue
             events_repo.add(
                 self._event(
                     dlv.organization_id,
@@ -487,9 +495,7 @@ class DeliveryWorker:
                     metadata={"recovery_seconds": settings.DELIVERY_RECOVERY_SECONDS},
                 )
             )
-            requeued = await deliveries_repo.requeue_stale(dlv.organization_id, dlv.id)
-            if requeued:
-                recovered += 1
+            recovered += 1
         if recovered:
             logger.info("recovered %d stale deliveries", recovered)
             get_counter(

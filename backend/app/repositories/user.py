@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,17 +22,49 @@ class UserRepository:
     async def get(self, user_id: uuid.UUID) -> User | None:
         return await self._session.get(User, user_id)
 
+    async def get_active_by_id_unscoped(self, user_id: uuid.UUID) -> User | None:
+        """Load a user by id through the SECURITY DEFINER lookup.
+
+        Used by the auth guard before any organization context exists: a plain
+        ``session.get`` would be hidden by RLS (no ``app.current_organization_id``
+        GUC set yet). The definer function bypasses RLS by design.
+        """
+        stmt = select(User).from_statement(
+            text("SELECT * FROM public.app_get_user_by_id(:user_id)").bindparams(
+                user_id=user_id
+            )
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_by_email(self, email: str) -> User | None:
-        """Return a user by email (global lookup; email is unique app-wide)."""
-        stmt = select(User).where(User.email == email.lower()).limit(1)
+        """Return a user by email (global lookup; email is unique app-wide).
+
+        Routes through the SECURITY DEFINER lookup: email uniqueness is
+        global-by-design, so the check must see across organizations even when
+        no tenant context is active (register conflict resolution).
+        """
+        stmt = select(User).from_statement(
+            text("SELECT * FROM public.app_get_user_by_email(:email)").bindparams(
+                email=email.lower()
+            )
+        )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def get_active_by_email(self, email: str) -> User | None:
-        """Return an active user by email (global lookup)."""
-        stmt = select(User).where(User.email == email.lower(), User.is_active.is_(True)).limit(1)
+        """Return an active user by email (global lookup).
+
+        SECURITY DEFINER-backed so login works before any tenant context is
+        established (RLS would otherwise hide every row with no GUC set).
+        """
+        stmt = select(User).from_statement(
+            text(
+                "SELECT * FROM public.app_find_active_user_by_email(:email)"
+            ).bindparams(email=email.lower())
+        )
         result = await self._session.execute(stmt)
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def list_by_org(
         self, organization_id: uuid.UUID, *, limit: int = 100, offset: int = 0

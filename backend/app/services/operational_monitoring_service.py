@@ -2,12 +2,19 @@
 
 Aggregates statistics across execution, worker health, automation status,
 and retention operations into operational dashboards and summaries.
+
+**Tenant isolation (B-2).** Every method that touches tenant-owned rows
+(executions, execution events, workflow events, activity logs) takes an
+``organization_id`` and filters at the repository layer. Worker health and
+process counters are infrastructure-level (not tenant data) and stay global;
+they are gated behind ``AUTOMATION_MANAGE`` at the API layer.
 """
 
 from __future__ import annotations
 
 import os
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -47,9 +54,10 @@ _EXECUTION_STATUSES = (
 class OperationalMonitoringService:
     """Production operational visibility for automation infrastructure.
 
-    Provides aggregated statistics and operational summaries across all major
-    automation components (executions, workers, schedules, retention, automation
-    control). Used for production dashboards and troubleshooting.
+    Provides aggregated statistics and operational summaries for ONE
+    organization's automation components (executions, events, schedules,
+    retention) plus infrastructure-level worker health. Used for production
+    dashboards and troubleshooting.
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -61,25 +69,40 @@ class OperationalMonitoringService:
         self._worker_service = WorkerHealthService(session)
         self._automation_control_service = AutomationControlService(session)
 
-    async def get_operational_summary(self) -> dict[str, Any]:
-        """Return comprehensive operational summary for production dashboards."""
+    async def get_operational_summary(self, organization_id: uuid.UUID) -> dict[str, Any]:
+        """Return operational summary for one organization's dashboards."""
         now = datetime.now(UTC)
         cutoff_24h = now - timedelta(hours=24)
 
-        # Execution statistics (current state across all organizations).
-        queued_count = await self._execution_repo.count_pending_all_orgs()
-        running_count = await self._execution_repo.count_status(ExecutionStatus.RUNNING)
-        completed_count = await self._execution_repo.count_status(ExecutionStatus.SUCCEEDED)
-        failed_count = await self._execution_repo.count_status(ExecutionStatus.FAILED)
-        timed_out_count = await self._execution_repo.count_status(ExecutionStatus.TIMED_OUT)
-        cancelled_count = await self._execution_repo.count_status(ExecutionStatus.CANCELLED)
-        retrying_count = await self._execution_repo.count_status(ExecutionStatus.RETRYING)
+        # Execution statistics (current state for this organization).
+        queued_count = await self._execution_repo.count_pending(organization_id)
+        running_count = await self._execution_repo.count_status(
+            ExecutionStatus.RUNNING, organization_id=organization_id
+        )
+        completed_count = await self._execution_repo.count_status(
+            ExecutionStatus.SUCCEEDED, organization_id=organization_id
+        )
+        failed_count = await self._execution_repo.count_status(
+            ExecutionStatus.FAILED, organization_id=organization_id
+        )
+        timed_out_count = await self._execution_repo.count_status(
+            ExecutionStatus.TIMED_OUT, organization_id=organization_id
+        )
+        cancelled_count = await self._execution_repo.count_status(
+            ExecutionStatus.CANCELLED, organization_id=organization_id
+        )
+        retrying_count = await self._execution_repo.count_status(
+            ExecutionStatus.RETRYING, organization_id=organization_id
+        )
 
-        # Event statistics (last 24 hours).
-        events_last_24h = await self._event_repo.count_by_date_range(cutoff_24h)
+        # Event statistics (last 24 hours, this organization).
+        events_last_24h = await self._event_repo.count_by_date_range(
+            cutoff_24h, organization_id=organization_id
+        )
 
         # Worker health statistics: active = heartbeated within 60s; stale =
-        # heartbeats older than 3600s; total = both buckets.
+        # heartbeats older than 3600s; total = both buckets. Infrastructure
+        # level (not tenant data).
         active_workers = await self._worker_service.list_alive(
             worker_type="execution",
             stale_within_seconds=60,
@@ -95,9 +118,9 @@ class OperationalMonitoringService:
         # Automation control status.
         automation_status = await self._automation_control_service.get_status()
 
-        # Workflow event statistics.
-        events_queued = await self._workflow_event_repo.count_events_queued()
-        events_consumed = await self._workflow_event_repo.count_events_consumed()
+        # Workflow event statistics (this organization).
+        events_queued = await self._workflow_event_repo.count_events_queued(organization_id)
+        events_consumed = await self._workflow_event_repo.count_events_consumed(organization_id)
         fanout_truncated = read_counter("event_fanout_truncated")
 
         schedule_stats = {
@@ -144,21 +167,29 @@ class OperationalMonitoringService:
             },
         }
 
-    async def get_execution_statistics(self, hours: int = 24) -> dict[str, Any]:
-        """Get detailed execution statistics for the given time window."""
+    async def get_execution_statistics(
+        self, organization_id: uuid.UUID, hours: int = 24
+    ) -> dict[str, Any]:
+        """Get detailed execution statistics for one organization."""
         cutoff = datetime.now(UTC) - timedelta(hours=hours)
 
-        # Count executions by status in time window.
+        # Count executions by status in time window (this organization).
         stats: dict[str, int] = {}
         for status in _EXECUTION_STATUSES:
-            count = await self._execution_repo.count_by_status_and_date(status, cutoff)
+            count = await self._execution_repo.count_by_status_and_date(
+                status, cutoff, organization_id=organization_id
+            )
             stats[status.value] = count
 
-        # Get workflow distribution (by name).
-        workflow_counts = await self._execution_repo.count_by_workflow(cutoff)
+        # Workflow distribution (by name, this organization).
+        workflow_counts = await self._execution_repo.count_by_workflow(
+            cutoff, organization_id
+        )
 
-        # Get organization distribution (by name).
-        org_counts = await self._execution_repo.count_by_organization(cutoff)
+        # Organization distribution (own organization only).
+        org_counts = await self._execution_repo.count_by_organization(
+            cutoff, organization_id
+        )
 
         return {
             "window_hours": hours,
@@ -169,7 +200,7 @@ class OperationalMonitoringService:
         }
 
     async def get_worker_statistics(self, hours: int = 24) -> dict[str, Any]:
-        """Get worker health and activity statistics."""
+        """Get worker health and activity statistics (infrastructure level)."""
         workers = await self._worker_service.list_alive(
             worker_type="execution",
             stale_within_seconds=hours * 3600,
@@ -223,14 +254,14 @@ class OperationalMonitoringService:
             "workers_pruned": read_counter("retention_workers_pruned_total"),
         }
 
-    async def get_automation_lifecycle(self) -> dict[str, Any]:
-        """Get automation lifecycle statistics (pause/resume events)."""
+    async def get_automation_lifecycle(self, organization_id: uuid.UUID) -> dict[str, Any]:
+        """Get automation lifecycle statistics for one organization."""
         since = datetime.now(UTC) - timedelta(hours=24)
         paused_events = await self._logs_repo.count_by_event_type(
-            ActivityEventType.AUTOMATION_PAUSED, since
+            ActivityEventType.AUTOMATION_PAUSED, since, organization_id=organization_id
         )
         resumed_events = await self._logs_repo.count_by_event_type(
-            ActivityEventType.AUTOMATION_RESUMED, since
+            ActivityEventType.AUTOMATION_RESUMED, since, organization_id=organization_id
         )
         current_status = (await self._automation_control_service.get_status()).model_dump()
 
@@ -242,15 +273,17 @@ class OperationalMonitoringService:
 
     async def get_execution_timeline(
         self,
+        organization_id: uuid.UUID,
         hours: int = 24,
         status: ExecutionStatus | None = None,
         workflow_name: str | None = None,
         limit: int = 100,
     ) -> dict[str, list[dict[str, Any]]]:
-        """List recent execution timeline events across all organizations."""
+        """List recent execution timeline events for one organization."""
         cutoff = datetime.now(UTC) - timedelta(hours=hours)
         events = await self._execution_repo.list_timeline(
             cutoff=cutoff,
+            organization_id=organization_id,
             status=status,
             workflow_name=workflow_name,
             limit=limit,
@@ -274,17 +307,19 @@ class OperationalMonitoringService:
 
     async def get_execution_history(
         self,
+        organization_id: uuid.UUID,
         page: int = 1,
         page_size: int = 50,
         hours: int = 24,
         status: ExecutionStatus | None = None,
         workflow_name: str | None = None,
     ) -> dict[str, Any]:
-        """List recent executions across all organizations with pagination."""
+        """List recent executions for one organization with pagination."""
         cutoff = datetime.now(UTC) - timedelta(hours=hours)
         offset = max((page - 1) * page_size, 0)
         executions = await self._execution_repo.list_history(
             cutoff=cutoff,
+            organization_id=organization_id,
             status=status,
             workflow_name=workflow_name,
             limit=page_size,
@@ -292,6 +327,7 @@ class OperationalMonitoringService:
         )
         total = await self._execution_repo.count_history(
             cutoff=cutoff,
+            organization_id=organization_id,
             status=status,
             workflow_name=workflow_name,
         )
@@ -326,9 +362,9 @@ class OperationalMonitoringService:
 
         return {"entries": entries, "total": total}
 
-    async def get_queue_status(self) -> dict[str, Any]:
-        """Get per-organization queue metrics across all organizations."""
-        rows = await self._execution_repo.queue_status(limit=100)
+    async def get_queue_status(self, organization_id: uuid.UUID) -> dict[str, Any]:
+        """Get queue metrics for one organization."""
+        rows = await self._execution_repo.queue_status(organization_id, limit=100)
         return {
             "total_queued": sum(row[2] for row in rows),
             "total_running": sum(row[3] for row in rows),
@@ -346,8 +382,8 @@ class OperationalMonitoringService:
             ],
         }
 
-    async def get_monitoring_information(self) -> dict[str, Any]:
-        """Get comprehensive system health, worker, and queue information."""
+    async def get_monitoring_information(self, organization_id: uuid.UUID) -> dict[str, Any]:
+        """Get system health, worker, and queue information (org-scoped queue)."""
         workers = await self._worker_service.list_alive(
             worker_type="execution",
             stale_within_seconds=3600,
@@ -358,13 +394,15 @@ class OperationalMonitoringService:
 
         cutoff_24h = datetime.now(UTC) - timedelta(hours=24)
         completed_24h = await self._execution_repo.count_by_status_and_date(
-            ExecutionStatus.SUCCEEDED, cutoff_24h
+            ExecutionStatus.SUCCEEDED, cutoff_24h, organization_id=organization_id
         )
         failed_24h = await self._execution_repo.count_by_status_and_date(
-            ExecutionStatus.FAILED, cutoff_24h
+            ExecutionStatus.FAILED, cutoff_24h, organization_id=organization_id
         )
-        queued = await self._execution_repo.count_pending_all_orgs()
-        running = await self._execution_repo.count_status(ExecutionStatus.RUNNING)
+        queued = await self._execution_repo.count_pending(organization_id)
+        running = await self._execution_repo.count_status(
+            ExecutionStatus.RUNNING, organization_id=organization_id
+        )
 
         return {
             "system": {

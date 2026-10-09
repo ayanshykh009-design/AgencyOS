@@ -96,14 +96,12 @@ async def decide_approval(
     current_user: CurrentUser,
 ) -> ApprovalRequestRead:
     service = ApprovalService(db)
-    data = body.model_dump(exclude_unset=True)
     request = await service.decide(
         current_user.organization_id,
         current_user,
         request_id,
-        approve=data.pop("approve"),
-        decided_by_user_id=data.pop("decided_by_user_id", None),
-        decision_note=data.pop("decision_note", None),
+        approve=body.approve,
+        decision_note=body.decision_note,
     )
     return ApprovalRequestRead.model_validate(request)
 

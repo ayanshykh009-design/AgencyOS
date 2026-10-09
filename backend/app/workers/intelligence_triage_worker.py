@@ -16,7 +16,7 @@ import logging
 import uuid
 
 from app.core.config import settings
-from app.core.database import async_session_factory
+from app.core.database import worker_session_factory
 from app.core.metrics import get_counter, get_histogram
 from app.core.observability import span
 from app.services.intelligence.intelligence_triage_service import IntelligenceTriageService
@@ -31,8 +31,9 @@ _WORKER_TYPE = "intelligence_triage"
 class IntelligenceTriageWorker:
     """Materializes the M9 founder intelligence signal feed."""
 
-    def __init__(self, session_factory=async_session_factory) -> None:
-        self._session_factory = session_factory
+    def __init__(self, session_factory=None) -> None:
+        # Resolved at call time so tests can monkeypatch ``worker_session_factory``.
+        self._session_factory = session_factory or worker_session_factory
 
     async def heartbeat(
         self, *, loop_ok: bool, last_error: str | None, counters: dict | None = None

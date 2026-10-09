@@ -8,6 +8,7 @@ External identity-provider users (password_hash is NULL) cannot log in here.
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import timedelta
 
 from sqlalchemy.exc import IntegrityError
@@ -22,6 +23,7 @@ from app.core.security import (
     hash_refresh_token,
     verify_password,
 )
+from app.core.tenant_context import activate_org
 from app.models.enums import UserRole
 from app.models.organization import Organization
 from app.models.refresh_token import RefreshToken
@@ -52,7 +54,15 @@ class AuthService:
         email = str(payload.email).strip().lower()
         await self._orgs.ensure_slug_available(payload.organization_slug)
 
-        organization = Organization(name=payload.organization_name, slug=payload.organization_slug)
+        # Assign the id explicitly: the ORM ``default=uuid.uuid4`` only fires at
+        # flush time, but the tenant GUC must be bound BEFORE the first INSERT
+        # so the RLS ``WITH CHECK (id = tenant_org_id())`` can hold.
+        organization = Organization(
+            id=uuid.uuid4(),
+            name=payload.organization_name,
+            slug=payload.organization_slug,
+        )
+        await activate_org(self._session, organization.id)
         self._orgs.add(organization)
         await self._session.flush()
 
@@ -84,6 +94,10 @@ class AuthService:
         if not verify_password(payload.password, user.password_hash):
             raise self._invalid_credentials()
 
+        # Bind the tenant context before any write: RLS would otherwise reject
+        # the ``last_login_at`` UPDATE and the refresh_tokens INSERT (both carry
+        # an org-scoped WITH CHECK) because no org GUC is set yet.
+        await activate_org(self._session, user.organization_id)
         user.last_login_at = utcnow()
         access, refresh, _record = await self._issue_tokens(user)
         await commit_with_retry(self._session)
@@ -99,6 +113,9 @@ class AuthService:
                 message="Invalid or expired refresh token",
                 status_code=401,
             )
+        # The definer lookup returns the token's org, which lets us bind the
+        # tenant context before the (RLS-scoped) users SELECT below.
+        await activate_org(self._session, record.organization_id)
         user = await self._users.get(record.user_id)
         if user is None or not user.is_active:
             raise AppError(

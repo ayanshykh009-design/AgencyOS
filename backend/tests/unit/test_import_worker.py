@@ -106,6 +106,10 @@ class _FakeSession:
     def add(self, obj: Any) -> None:
         self.added.append(obj)
 
+    async def execute(self, *args: Any, **kwargs: Any) -> Any:
+        # ``activate_org`` issues ``set_config`` through the session.
+        return None
+
     async def flush(self) -> None:
         self.flushed = True
 

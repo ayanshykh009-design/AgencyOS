@@ -19,7 +19,7 @@ import uuid
 from datetime import datetime
 
 from app.core.config import settings
-from app.core.database import async_session_factory
+from app.core.database import worker_session_factory
 from app.core.metrics import get_counter
 from app.core.observability import span
 from app.services.approval_gate_service import ApprovalGateService
@@ -38,8 +38,9 @@ class ApprovalGateWorker:
 
     _WORKER_TYPE = "approval_gate"
 
-    def __init__(self, session_factory=async_session_factory) -> None:
-        self._session_factory = session_factory
+    def __init__(self, session_factory=None) -> None:
+        # Resolved at call time so tests can monkeypatch ``worker_session_factory``.
+        self._session_factory = session_factory or worker_session_factory
 
     # -- heartbeat -------------------------------------------------------
 
@@ -50,17 +51,21 @@ class ApprovalGateWorker:
         last_error: str | None,
         counters: dict | None = None,
     ) -> None:
-        """Upsert this instance's heartbeat row."""
-        async with self._session_factory() as session:
-            svc = WorkerHealthService(session)
-            await svc.heartbeat(
-                worker_type=self._WORKER_TYPE,
-                instance_id=INSTANCE_ID,
-                loop_ok=loop_ok,
-                last_error=last_error,
-                counters=counters or {},
-            )
-            await session.commit()
+        """Upsert this instance's heartbeat row. Best-effort: a heartbeat
+        failure must never take down the worker loop."""
+        try:
+            async with self._session_factory() as session:
+                svc = WorkerHealthService(session)
+                await svc.heartbeat(
+                    worker_type=self._WORKER_TYPE,
+                    instance_id=INSTANCE_ID,
+                    loop_ok=loop_ok,
+                    last_error=last_error,
+                    counters=counters or {},
+                )
+                await session.commit()
+        except Exception:  # noqa: BLE001 - heartbeat must never kill the loop
+            logger.exception("approval gate worker heartbeat failed")
 
     # -- sweep loop ------------------------------------------------------
 
@@ -92,6 +97,9 @@ class ApprovalGateWorker:
             loop_start = datetime.now().astimezone()
             loop_ok = True
             last_error: str | None = None
+            # Bound before the try: a failure in the first heartbeat must not
+            # leave ``counters`` unbound when ``finally`` reports the outcome.
+            counters: dict = {}
             try:
                 await self.heartbeat(loop_ok=True, last_error=None, counters={})
                 with span("approval_gate_worker.sweep"):

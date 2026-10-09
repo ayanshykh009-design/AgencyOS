@@ -305,6 +305,5 @@ async def test_expired_approval_request_rejected_at_synchronous_gate(db) -> None
                 actor=user,
                 request_id=request.id,
                 approve=True,
-                decided_by_user_id=user_id,
             )
         assert exc.value.status_code == 409

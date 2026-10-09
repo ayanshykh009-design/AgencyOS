@@ -115,9 +115,13 @@ class DeliveryService:
             "pending_cap_utilization_pct": round(utilization, 2),
         }
 
-    async def platform_statistics(self) -> dict[str, Any]:
-        """Global delivery statistics across all organizations (monitoring)."""
-        counts = await self._deliveries.count_by_status()
+    async def platform_statistics(self, organization_id: uuid.UUID) -> dict[str, Any]:
+        """Delivery outbox statistics for one organization (monitoring).
+
+        Org-scoped on purpose: monitoring dashboards are served to tenant
+        admins, so delivery counts must never aggregate across organizations.
+        """
+        counts = await self._deliveries.count_by_status(organization_id)
         queued = counts.get("queued", 0)
         processing = counts.get("processing", 0)
         retrying = counts.get("retrying", 0)

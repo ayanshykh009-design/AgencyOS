@@ -4,15 +4,23 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.errors import AppError
+from app.core.permissions import Permission, require_permission
 from app.schemas.lead_research import LeadResearchRead, LeadResearchUpdate
 from app.services.research_service import ResearchService
 from app.workers.research_worker import ResearchWorker
 
 router = APIRouter()
+
+# Research is lead-attached enrichment data: reads follow LEAD_READ, manual
+# overrides follow LEAD_WRITE, and triggering an AI run requires AI_RUN
+# (spend-bearing capability, not merely "authenticated").
+_read = Depends(require_permission(Permission.LEAD_READ))
+_write = Depends(require_permission(Permission.LEAD_WRITE))
+_ai_run = Depends(require_permission(Permission.AI_RUN))
 
 
 @router.post(
@@ -20,6 +28,7 @@ router = APIRouter()
     response_model=LeadResearchRead,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Trigger AI research for a lead",
+    dependencies=[_ai_run],
 )
 async def trigger_research(
     lead_id: uuid.UUID,
@@ -51,6 +60,7 @@ async def trigger_research(
     "/{lead_id}",
     response_model=LeadResearchRead,
     summary="Get research for a lead",
+    dependencies=[_read],
 )
 async def get_research(
     lead_id: uuid.UUID,
@@ -69,6 +79,7 @@ async def get_research(
     "/{lead_id}",
     response_model=LeadResearchRead,
     summary="Update research fields (manual override)",
+    dependencies=[_write],
 )
 async def update_research(
     lead_id: uuid.UUID,
@@ -99,6 +110,7 @@ async def update_research(
     "/{lead_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete research for a lead (reverts to pending)",
+    dependencies=[_write],
 )
 async def delete_research(
     lead_id: uuid.UUID,

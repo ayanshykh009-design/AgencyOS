@@ -12,10 +12,20 @@ cd /app
 
 WORKERS="agent approval_gate credential delivery execution founder_action intelligence_triage memory retention"
 
-# Forward SIGTERM to every child so `docker stop` shuts workers down cleanly.
-trap 'kill -TERM "$@" 2>/dev/null' TERM INT
-
 PIDS=""
+
+# Forward SIGTERM to every child so `docker stop` shuts workers down cleanly.
+# NOTE: inside a trap, "$@" is the script's own arguments (docker invokes the
+# script with none) — NOT the background children — so the child PIDs are
+# tracked explicitly and signalled by handle. `wait` inside the handler blocks
+# until the children have drained (or the grace period expires).
+shutdown() {
+  trap - TERM INT
+  kill -TERM ${PIDS:-} 2>/dev/null
+  wait
+}
+trap shutdown TERM INT
+
 for w in $WORKERS; do
   echo "start_workers: launching app.workers.${w}_worker"
   python -m "app.workers.${w}_worker" &

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import cast
 
-from sqlalchemy import CursorResult, delete, select, update
+from sqlalchemy import CursorResult, delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.refresh_token import RefreshToken
@@ -22,11 +22,15 @@ class RefreshTokenRepository:
         self._session.add(token)
 
     async def get_valid(self, token_hash: str, *, now: datetime) -> RefreshToken | None:
-        """Fetch a non-revoked, non-expired token by its digest."""
-        stmt = select(RefreshToken).where(
-            RefreshToken.token_hash == token_hash,
-            RefreshToken.revoked_at.is_(None),
-            RefreshToken.expires_at > now,
+        """Fetch a non-revoked, non-expired token by its digest.
+
+        Routes through the SECURITY DEFINER lookup: refresh runs before any
+        tenant context exists, so a plain scoped SELECT would be hidden by RLS.
+        """
+        stmt = select(RefreshToken).from_statement(
+            text(
+                "SELECT * FROM public.app_get_valid_refresh_token(:token_hash, :now)"
+            ).bindparams(token_hash=token_hash, now=now)
         )
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()

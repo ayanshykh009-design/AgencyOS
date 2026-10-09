@@ -15,6 +15,7 @@ from fastapi import APIRouter, Header
 from app.api.deps import DbSession
 from app.core.config import settings
 from app.core.errors import AppError
+from app.core.tenant_context import activate_org
 from app.repositories.organization import OrganizationRepository
 from app.schemas.lead import LeadBase
 from app.services.lead_service import LeadService
@@ -73,6 +74,9 @@ async def ingest_lead(
             message="Unknown organization_slug",
             status_code=404,
         )
+    # No authenticated user on this route, so bind the tenant context here:
+    # every LeadService write below is org-scoped by the RLS policies.
+    await activate_org(db, organization.id)
 
     service = LeadService(db)
     data = body.model_dump(exclude={"organization_slug", "organization_id"})

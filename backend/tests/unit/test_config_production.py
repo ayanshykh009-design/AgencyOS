@@ -19,6 +19,7 @@ def _prod_settings(**overrides) -> Settings:
         APP_NAME="AgencyOS API",
         SECRET_KEY="z" * 32,
         DATABASE_URL="postgresql://agencyos:secret@db:5432/agencyos",
+        WORKER_DATABASE_URL="postgresql://agencyos:secret@db:5432/agencyos",
         ENABLE_CSP=True,
         CREDENTIALS_ENC_KEY="c2VjcmV0LW1hc3Rlci1rZXktZm9yLXRlc3Rpbmctb25seQ==",
     )
@@ -39,6 +40,9 @@ def test_prod_accepts_safe_config():
         {"SECRET_KEY": "change-me"},
         {"SECRET_KEY": "fhUxAL6v2kWmZpQ9e5jR4tYb7cD1n8mF3oP6q7sT4vW"},
         {"DATABASE_URL": "sqlite:///x.db"},
+        # B-3: production must point workers at the BYPASSRLS role explicitly.
+        {"WORKER_DATABASE_URL": ""},
+        {"WORKER_DATABASE_URL": "sqlite:///x.db"},
         {"ENABLE_CSP": False},
         {"CREDENTIALS_ENC_KEY": ""},
         {"CREDENTIALS_ENC_KEY_PREVIOUS": "rotate-me", "CREDENTIAL_KEY_VERSION": "1"},

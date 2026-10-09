@@ -12,7 +12,7 @@ import logging
 import uuid
 
 from app.core.config import settings
-from app.core.database import async_session_factory
+from app.core.database import worker_session_factory
 from app.core.metrics import get_counter
 from app.core.observability import span
 from app.services.founder_action_service import FounderActionService
@@ -27,8 +27,10 @@ _WORKER_TYPE = "founder_action"
 class FounderActionWorker:
     """Expires stale founder action proposals."""
 
-    def __init__(self, session_factory=async_session_factory) -> None:
-        self._session_factory = session_factory
+    def __init__(self, session_factory=None) -> None:
+        # Resolved at call time (not a default arg) so tests can monkeypatch
+        # ``worker_session_factory``; the worker engine is BYPASSRLS in prod.
+        self._session_factory = session_factory or worker_session_factory
 
     async def heartbeat(
         self, *, loop_ok: bool, last_error: str | None, counters: dict | None = None

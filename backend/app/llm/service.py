@@ -213,8 +213,10 @@ class LLMService:
     async def _enforce_budget(self) -> None:
         """M11-B: block AI execution when the rolling per-org budget is exceeded.
 
-        Evaluated against the ``provider_usage`` rollup filtered to the ``ai.``
-        feature prefix (all AI-run execution) over the last 24h.
+        Evaluated against the full ``provider_usage`` rollup for the
+        organization over the last 24h (no feature filter). The budget is a
+        per-organization ceiling on AI spend; ``provider_usage`` rows are
+        exclusively LLM-usage recorded by this service, so every row counts.
 
         Semantics are **fail closed**:
 
@@ -247,7 +249,6 @@ class LLMService:
             totals = await ProviderUsageService(self._session).totals_since(
                 self.organization_id,
                 since=datetime.now(UTC) - timedelta(hours=24),
-                feature_prefix="ai.",
             )
         except Exception as exc:  # infra failure -> fail closed (deny)
             logger.warning("AI budget check failed; denying: %s", exc)

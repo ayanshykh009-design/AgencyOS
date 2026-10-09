@@ -113,15 +113,15 @@ All under `monitoring/` (see [endpoints](../api/endpoints/monitoring.md)):
 | Endpoint | What it answers |
 | -------- | --------------- |
 | `operational/summary` | One-shot ops dashboard snapshot (admin) |
-| `execution-statistics` | Status/workflow/org breakdown in a window |
-| `worker-statistics` | Worker health + error distribution |
-| `schedule-statistics` | Dispatch queued/failed/skipped/conflicts |
-| `retention-statistics` | Retention sweep outcomes |
-| `automation-lifecycle` | Pause/resume history + current status |
-| `heartbeat-visibility` | Per-instance liveness (staleness window) |
-| `execution-timeline` | Latest execution events, cross-org |
-| `execution-history` | Paginated cross-org execution history |
-| `queue-status` | Per-org queue depth |
+| `execution-statistics` | Status/workflow breakdown in a window (own org) |
+| `worker-statistics` | Worker health + error distribution (admin) |
+| `schedule-statistics` | Dispatch queued/failed/skipped/conflicts (admin) |
+| `retention-statistics` | Retention sweep outcomes (admin) |
+| `automation-lifecycle` | Pause/resume history + current status (own org) |
+| `heartbeat-visibility` | Per-instance liveness, staleness window (admin) |
+| `execution-timeline` | Latest execution events (own org) |
+| `execution-history` | Paginated execution history (own org) |
+| `queue-status` | Queue depth (own org) |
 | `monitoring-information` | System/DB/worker/queue roll-up |
 
 ## Runbook: pausing for a deployment

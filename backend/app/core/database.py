@@ -14,8 +14,9 @@ import logging
 from collections.abc import AsyncGenerator
 from functools import lru_cache
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
@@ -23,22 +24,67 @@ from sqlalchemy.ext.asyncio import (
 from supabase import Client, create_client
 
 from app.core.config import settings
+from app.core.tenant_context import ORG_GUC_NAME, get_current_organization_id
 
 logger = logging.getLogger("agencyos")
 
+
+def _build_engine(url: str) -> AsyncEngine:
+    """Build an async engine with pool settings tuned for concurrent loads."""
+    return create_async_engine(
+        url,
+        echo=settings.APP_DEBUG,
+        pool_size=settings.DATABASE_POOL_SIZE,
+        max_overflow=settings.DATABASE_MAX_OVERFLOW,
+        pool_timeout=settings.DATABASE_POOL_TIMEOUT,
+        pool_pre_ping=True,
+    )
+
+
+def _restore_tenant_guc(conn) -> None:
+    """Re-apply the current organizations's GUC for a newly begun transaction.
+
+    Runs at the start of every transaction on the web engine. Without this a
+    pooled connection reused for a different request would carry the previous
+    request's ``app.current_organization_id`` (session-level GUCs survive
+    COMMIT). Re-setting from the ContextVar on each transaction begin makes the
+    value deterministic and defeats any mid-request COMMIT/ROLLBACK.
+    """
+    org_id = get_current_organization_id()
+    value = str(org_id) if org_id is not None else ""
+    # exec_driver_sql does not bind parameters — build the literal safely.
+    # org ids are uuid4 strings; they can never include a single quote.
+    escaped = value.replace("'", "''")
+    conn.exec_driver_sql(
+        f"SELECT set_config('{ORG_GUC_NAME}', '{escaped}', false)"
+    )
+
+
 # Local async engine (mirrors the Supabase schema in development).
 # Pool settings are tuned for concurrent web workloads; adjust per capacity plan.
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.APP_DEBUG,
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
-    pool_timeout=settings.DATABASE_POOL_TIMEOUT,
-    pool_pre_ping=True,
-)
+engine = _build_engine(settings.DATABASE_URL)
+event.listen(engine.sync_engine, "begin", _restore_tenant_guc)
 
 # Session factory used by repositories / FastAPI dependencies.
 async_session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+# Worker engine: connects with the BYPASSRLS worker role so the cross-tenant
+# workers (execution, delivery, retention, health sweep, ...) keep operating
+# while the web engine is RLS-scoped. Falls back to the web engine when no
+# dedicated worker URL is configured (dev / default CI).
+if settings.WORKER_DATABASE_URL:
+    worker_engine = _build_engine(settings.WORKER_DATABASE_URL)
+else:
+    worker_engine = _build_engine(settings.DATABASE_URL)
+
+# Session factory used by standalone workers. Bound at import time like
+# ``async_session_factory`` so module-level call sites read the same global
+# (tests monkeypatch ``app.workers.<worker>.worker_session_factory``).
+worker_session_factory = async_sessionmaker(
+    bind=worker_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

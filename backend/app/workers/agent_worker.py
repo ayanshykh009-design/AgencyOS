@@ -33,7 +33,7 @@ import uuid
 
 from app.agents.runtime import AgentRuntime
 from app.core.config import settings
-from app.core.database import async_session_factory
+from app.core.database import worker_session_factory
 from app.core.errors import AppError
 from app.core.metrics import get_counter, get_histogram, read_counter
 from app.core.observability import span
@@ -77,7 +77,7 @@ class AgentWorker:
         a heartbeat failure must never take down the worker loop.
         """
         try:
-            async with async_session_factory() as session:
+            async with worker_session_factory() as session:
                 service = WorkerHealthService(session)
                 await service.heartbeat(
                     worker_type=_WORKER_TYPE,
@@ -103,7 +103,7 @@ class AgentWorker:
         """
         start = time.perf_counter()
         with span("agent.worker.queued"):
-            async with async_session_factory() as session:
+            async with worker_session_factory() as session:
                 runtime = AgentRuntime()
                 service = AgentService(session)
                 orgs = await service.get_queued_orgs(settings.AGENT_RUN_ORGS_PER_SWEEP)
@@ -137,7 +137,7 @@ class AgentWorker:
         """Apply in-flight cancellations (RUNNING runs flagged by the API)."""
         start = time.perf_counter()
         with span("agent.worker.cancels"):
-            async with async_session_factory() as session:
+            async with worker_session_factory() as session:
                 service = AgentService(session)
                 runs = await service.get_cancel_requested(limit or settings.AGENT_RUN_BATCH_SIZE)
                 cancelled = 0
@@ -165,7 +165,7 @@ class AgentWorker:
         """
         start = time.perf_counter()
         with span("agent.worker.stuck"):
-            async with async_session_factory() as session:
+            async with worker_session_factory() as session:
                 service = AgentService(session)
                 runs = await service.get_stuck_running()
                 transitioned = 0

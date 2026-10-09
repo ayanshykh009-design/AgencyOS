@@ -44,7 +44,7 @@ def _patch_retention(monkeypatch, *, enabled: bool = True, deletes) -> MagicMock
     _FakeHealthService.prune_dead = prune_dead
 
     monkeypatch.setattr(
-        "app.workers.retention_worker.async_session_factory",
+        "app.workers.retention_worker.worker_session_factory",
         lambda: _FakeSessionCM(session),
     )
     monkeypatch.setattr(

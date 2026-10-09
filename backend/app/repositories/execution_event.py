@@ -62,11 +62,14 @@ class ExecutionEventRepository:
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
 
-    async def count_by_date_range(self, cutoff: datetime) -> int:
-        """Count events occurred at/after ``cutoff`` across all organizations."""
+    async def count_by_date_range(self, cutoff: datetime, *, organization_id: uuid.UUID) -> int:
+        """Count events occurred at/after ``cutoff`` for one organization."""
         stmt = (
             select(func.count(ExecutionEvent.id))
-            .where(ExecutionEvent.occurred_at >= cutoff)
+            .where(
+                ExecutionEvent.organization_id == organization_id,
+                ExecutionEvent.occurred_at >= cutoff,
+            )
             .select_from(ExecutionEvent)
         )
         result = await self._session.execute(stmt)

@@ -100,9 +100,10 @@ class ProviderUsageRepository:
     ) -> dict[str, float | int]:
         """Aggregate request/token/cost totals since a cutoff.
 
-        ``feature_prefix`` narrows the rollup to features whose name starts with
-        the prefix (e.g. ``"ai."`` for all AI-run execution), enabling the M11-B
-        per-org budget to cover every provider under one cumulative ceiling.
+        ``feature_prefix`` optionally narrows the rollup to features whose name
+        starts with the prefix (e.g. ``"ai."``). The M11-B per-org budget
+        intentionally does NOT use this filter — the ceiling covers every
+        provider_usage row for the organization.
         """
         conditions = [
             ProviderUsage.organization_id == organization_id,

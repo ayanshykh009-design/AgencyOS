@@ -37,8 +37,10 @@ Fetch a single approval request.
 ## POST /api/v1/approvals/{request_id}/decision
 
 Approve or deny a pending request. Transitions to `approved`/`denied`, stamps
-`decided_by_user_id` (defaults to the actor), and appends an `approved`/
-`denied` audit log entry. Fails with 409 if the request is no longer pending.
+`decided_by_user_id` with the **authenticated actor** (clients cannot assert
+who made a decision — the field is not accepted in the request body), and
+appends an `approved`/`denied` audit log entry. Fails with 409 if the request
+is no longer pending.
 
 ```json
 {"approve": true, "decision_note": "Looks good"}

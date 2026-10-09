@@ -77,7 +77,7 @@ def _patch_worker(
     def _factory() -> FakeSessionCM:
         return FakeSessionCM(session)
 
-    monkeypatch.setattr("app.workers.execution_worker.async_session_factory", _factory)
+    monkeypatch.setattr("app.workers.execution_worker.worker_session_factory", _factory)
     monkeypatch.setattr(
         "app.workers.execution_worker.WorkflowRepository",
         type(
@@ -100,6 +100,7 @@ def _patch_worker(
     service_get_queued_for_retry = AsyncMock(return_value=due or [])
     service_get_stuck_running = AsyncMock(return_value=stuck or [])
     service_retry = AsyncMock()
+    service_requeue_due = AsyncMock(return_value=_execution(status=ExecutionStatus.QUEUED))
     service_start = AsyncMock(return_value=_execution(status=ExecutionStatus.RUNNING))
     service_complete = AsyncMock()
     service_fail = AsyncMock()
@@ -117,6 +118,7 @@ def _patch_worker(
         get_queued_for_retry = service_get_queued_for_retry
         get_stuck_running = service_get_stuck_running
         retry = service_retry
+        requeue_due = service_requeue_due
         start = service_start
         complete = service_complete
         fail = service_fail
@@ -143,6 +145,8 @@ def _patch_worker(
     session.automation_enabled = automation_enabled
     session.service_get_queued_orgs = service_get_queued_orgs
     session.service_get_queued_for_org = service_get_queued_for_org
+    session.service_retry = service_retry
+    session.service_requeue_due = service_requeue_due
     session.service_start = service_start
     session.service_complete = service_complete
     session.service_fail = service_fail
@@ -177,6 +181,223 @@ async def test_process_retries_requeues_due(monkeypatch) -> None:
 
     assert count == 1
     assert session.committed is True
+    # Regression (B-1): the worker must use the RETRYING->QUEUED requeue
+    # transition, not service.retry() which only accepts terminal statuses
+    # and raises 409 on every due retry (permanent queue stall).
+    session.service_requeue_due.assert_awaited_once()
+    assert session.service_retry.await_count == 0
+
+
+# --- B-1 behavioral regression (REAL service + stateful repo, no service mocks) ---
+#
+# These tests exercise the real WorkflowExecutionService state machine against
+# a stateful repository double that mirrors the production transition guards.
+# The old implementation (process_retries -> service.retry) raises AppError on
+# every due RETRYING row, so test_process_retries_uses_requeue_due_not_retry
+# fails on the pre-fix code and passes after the fix.
+
+
+class _StatefulRepo:
+    """In-memory repo mirroring production transition guards (no DB)."""
+
+    def __init__(self, rows: list) -> None:
+        self.rows: dict = {r.id: r for r in rows}
+        self.mark_requeued_calls: list = []
+        self.mark_requeued_due_calls: list = []
+
+    async def get_queued_for_retry(self, before=None):
+        from app.services.base import utcnow
+
+        cutoff = before if before is not None else utcnow()
+        return [
+            r
+            for r in self.rows.values()
+            if r.status == ExecutionStatus.RETRYING
+            and r.next_retry_at is not None
+            and r.next_retry_at <= cutoff
+        ]
+
+    async def get_or_404(self, org_id, execution_id):
+        from app.core.errors import AppError
+
+        row = self.rows.get(execution_id)
+        if row is None:
+            raise AppError(
+                code="execution.not_found",
+                message="Workflow execution not found",
+                status_code=404,
+            )
+        return row
+
+    async def mark_requeued(self, org_id, execution_id):
+        """Mirrors WorkflowExecutionRepository.mark_requeued: terminal only."""
+        self.mark_requeued_calls.append(execution_id)
+        row = self.rows.get(execution_id)
+        if row is None or row.status not in (
+            ExecutionStatus.FAILED,
+            ExecutionStatus.CANCELLED,
+            ExecutionStatus.TIMED_OUT,
+        ):
+            return None
+        row.status = ExecutionStatus.QUEUED
+        row.next_retry_at = None
+        return row
+
+    async def mark_requeued_due(self, org_id, execution_id, *, due_before):
+        """Mirrors WorkflowExecutionRepository.mark_requeued_due: RETRYING+due."""
+        self.mark_requeued_due_calls.append((execution_id, due_before))
+        row = self.rows.get(execution_id)
+        if (
+            row is None
+            or row.status != ExecutionStatus.RETRYING
+            or row.next_retry_at is None
+            or row.next_retry_at > due_before
+        ):
+            return None
+        row.status = ExecutionStatus.QUEUED
+        row.next_retry_at = None
+        return row
+
+    async def flush(self) -> None:
+        pass
+
+    async def refresh(self, obj: object) -> None:
+        pass
+
+    def add(self, obj: object) -> None:
+        pass
+
+
+def _real_service_with_rows(rows: list) -> tuple:
+    """Build a REAL WorkflowExecutionService backed by _StatefulRepo."""
+    from app.services.workflow_execution_service import WorkflowExecutionService
+
+    session = FakeSession()
+    service = WorkflowExecutionService.__new__(WorkflowExecutionService)
+    service._session = session
+    service._repo = _StatefulRepo(rows)
+    service._workflow_repo = MagicMock()
+    service._events = MagicMock()
+    service._events.record = AsyncMock()
+    service._events.record_many = AsyncMock()
+    service._logs = MagicMock()
+    service._logs.add = MagicMock()
+    service._automation_control = MagicMock()
+    service._automation_control.block_execution_if_paused = AsyncMock()
+    service._automation_control.block_queue_if_paused = AsyncMock()
+    return service, session
+
+
+def _patch_real_service(monkeypatch, rows: list):
+    """Point the worker at the REAL service class instance backed by rows."""
+    service, session = _real_service_with_rows(rows)
+    session.committed = False
+
+    def _factory():
+        return FakeSessionCM(session)
+
+    class _Ctor:
+        def __new__(cls, s):
+            return service
+
+    monkeypatch.setattr("app.workers.execution_worker.worker_session_factory", _factory)
+    monkeypatch.setattr("app.workers.execution_worker.WorkflowExecutionService", _Ctor)
+    return service, session
+
+
+async def test_process_retries_uses_requeue_due_not_retry(monkeypatch) -> None:
+    """B-1: a due RETRYING row is requeued to QUEUED via requeue_due."""
+    from datetime import timedelta
+
+    from app.services.base import utcnow
+
+    row = _execution(
+        status=ExecutionStatus.RETRYING,
+        next_retry_at=utcnow() - timedelta(seconds=1),
+        attempts=1,
+        max_attempts=3,
+    )
+    service, session = _patch_real_service(monkeypatch, [row])
+
+    count = await ExecutionWorker.process_retries()
+
+    assert count == 1
+    assert session.committed is True
+    assert service._repo.mark_requeued_due_calls, "requeue_due transition not attempted"
+    assert service._repo.mark_requeued_calls == [], "terminal-status retry() must not be used"
+    assert row.status is ExecutionStatus.QUEUED
+    assert row.next_retry_at is None
+
+
+async def test_process_retries_skips_future_retry_window(monkeypatch) -> None:
+    """RETRYING rows whose next_retry_at is still in the future are not requeued."""
+    from datetime import timedelta
+
+    from app.services.base import utcnow
+
+    row = _execution(
+        status=ExecutionStatus.RETRYING,
+        next_retry_at=utcnow() + timedelta(seconds=3600),
+        attempts=1,
+    )
+    service, session = _patch_real_service(monkeypatch, [row])
+
+    count = await ExecutionWorker.process_retries()
+
+    assert count == 0
+    assert session.committed is True
+    assert row.status is ExecutionStatus.RETRYING
+    assert service._repo.mark_requeued_due_calls == []
+
+
+async def test_process_retries_skips_concurrently_cancelled_row(monkeypatch) -> None:
+    """A row cancelled between fetch and requeue is skipped without raising."""
+    from datetime import timedelta
+
+    from app.services.base import utcnow
+
+    row = _execution(
+        status=ExecutionStatus.RETRYING,
+        next_retry_at=utcnow() - timedelta(seconds=1),
+    )
+    service, session = _patch_real_service(monkeypatch, [row])
+
+    original_due = service._repo.mark_requeued_due
+
+    async def _cancel_first(org_id, execution_id, *, due_before):
+        row.status = ExecutionStatus.CANCELLED
+        row.next_retry_at = None
+        return await original_due(org_id, execution_id, due_before=due_before)
+
+    service._repo.mark_requeued_due = _cancel_first  # type: ignore[method-assign]
+
+    count = await ExecutionWorker.process_retries()
+
+    assert count == 0
+    assert session.committed is True
+    assert row.status is ExecutionStatus.CANCELLED
+
+
+async def test_sweep_isolates_phase_failures(monkeypatch) -> None:
+    """A failing retry phase no longer blocks queue drain or timeout reaping."""
+    session = _patch_worker(
+        monkeypatch,
+        queued=[_execution()],
+        stuck=[_execution(status=ExecutionStatus.RUNNING)],
+        workflow=MagicMock(status=WorkflowStatus.ACTIVE, execution_mode="builtin", config={}),
+    )
+
+    async def _boom() -> int:
+        raise RuntimeError("retry phase down")
+
+    monkeypatch.setattr(ExecutionWorker, "process_retries", _boom)
+
+    with pytest.raises(RuntimeError, match="phase failure"):
+        await ExecutionWorker.sweep()
+
+    # Queue drain and timeout reaper still ran despite the retry failure.
+    session.service_get_queued_for_org.assert_awaited_once()
+    session.service_timeout.assert_awaited_once()
 
 
 async def test_process_queued_runs_successful_execution(monkeypatch) -> None:
@@ -440,7 +661,7 @@ def _patch_schedule(
             return False
 
     monkeypatch.setattr(
-        "app.workers.execution_worker.async_session_factory", lambda: _FakeSessionCM()
+        "app.workers.execution_worker.worker_session_factory", lambda: _FakeSessionCM()
     )
     fake = dispatcher or _FakeDispatcher()
     constructed: list[object] = []
@@ -574,7 +795,7 @@ def _patch_heartbeat(monkeypatch) -> MagicMock:
             return False
 
     monkeypatch.setattr(
-        "app.workers.execution_worker.async_session_factory", lambda: _FakeSessionCM()
+        "app.workers.execution_worker.worker_session_factory", lambda: _FakeSessionCM()
     )
 
     class _FakeHealthService:

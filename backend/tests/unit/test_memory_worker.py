@@ -46,7 +46,7 @@ def _patch_worker(
             instances.append(self)
 
     monkeypatch.setattr(
-        "app.workers.memory_worker.async_session_factory",
+        "app.workers.memory_worker.worker_session_factory",
         lambda: _FakeSessionCM(session),
     )
     monkeypatch.setattr("app.workers.memory_worker.AiMemoryRepository", _FakeRepo)

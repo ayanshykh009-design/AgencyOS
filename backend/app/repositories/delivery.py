@@ -107,9 +107,13 @@ class DeliveryRepository(TenantRepository[Delivery]):
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def count_by_status(self) -> dict[str, int]:
-        """Global counts by status (platform monitoring, not tenant-scoped)."""
-        stmt = select(Delivery.status, func.count(Delivery.id)).group_by(Delivery.status)
+    async def count_by_status(self, organization_id: uuid.UUID) -> dict[str, int]:
+        """Counts by status for one organization (tenant-scoped monitoring)."""
+        stmt = (
+            select(Delivery.status, func.count(Delivery.id))
+            .where(Delivery.organization_id == organization_id)
+            .group_by(Delivery.status)
+        )
         result = await self._session.execute(stmt)
         return {status.value: count for status, count in result.all()}
 
@@ -430,15 +434,26 @@ class DeliveryRepository(TenantRepository[Delivery]):
         return list(result.scalars().all())
 
     async def requeue_stale(
-        self, organization_id: uuid.UUID, delivery_id: uuid.UUID
+        self, organization_id: uuid.UUID, delivery_id: uuid.UUID, stale_before: datetime
     ) -> Delivery | None:
-        """PROCESSING -> QUEUED (recovery; attempt budget preserved)."""
+        """PROCESSING -> QUEUED (recovery; attempt budget preserved).
+
+        The staleness predicate is re-checked inside the UPDATE itself: a row
+        that recovered between the stale listing and this call must not be
+        yanked back to QUEUED while a live worker still holds it (TOCTOU /
+        double-send guard). Returns ``None`` when the row no longer qualifies.
+        """
         stmt = (
             update(Delivery)
             .where(
                 Delivery.organization_id == organization_id,
                 Delivery.id == delivery_id,
                 Delivery.status == DeliveryStatus.PROCESSING,
+                or_(
+                    Delivery.attempt_started_at.is_(None),
+                    Delivery.attempt_started_at < stale_before,
+                    Delivery.updated_at < stale_before,
+                ),
             )
             .values(
                 status=DeliveryStatus.QUEUED,
@@ -459,6 +474,6 @@ class DeliveryRepository(TenantRepository[Delivery]):
         rows = await self.list_stale_processing(before, limit=500)
         requeued = 0
         for row in rows:
-            if await self.requeue_stale(row.organization_id, row.id):
+            if await self.requeue_stale(row.organization_id, row.id, before):
                 requeued += 1
         return requeued

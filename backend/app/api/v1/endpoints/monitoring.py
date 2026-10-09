@@ -1,12 +1,18 @@
 """Operational monitoring endpoints for production visibility.
 
-Provides comprehensive monitoring APIs for automation infrastructure including
-worker health, execution statistics, operational summaries, and runtime metrics.
+Provides monitoring APIs for automation infrastructure including worker
+health, execution statistics, operational summaries, and runtime metrics.
+
+**Tenant isolation (B-2).** Tenant-data endpoints (executions, queue,
+delivery statistics, lifecycle events) are org-scoped: the handler passes
+``current_user.organization_id`` into the service and the repository layer
+filters every aggregate by it. Infrastructure-level endpoints (worker
+heartbeats, process counters, scheduler/retention counters) expose no tenant
+rows but are gated behind ``AUTOMATION_MANAGE`` (admin-only) because they
+disclose hostnames, pids, and process internals.
 """
 
 from __future__ import annotations
-
-from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, Query
 
@@ -30,40 +36,39 @@ from app.schemas.monitoring import (
 )
 from app.services.operational_monitoring_service import OperationalMonitoringService
 
-if TYPE_CHECKING:
-    pass
-
 router = APIRouter()
 
-# Admin-only dependencies for monitoring endpoints
-_admin = Depends(require_permission(Permission.AUTOMATION_MANAGE))
+# Tenant-data monitoring: readable by any authenticated role; data is
+# org-scoped by the handler (AUTOMATION_READ == all roles in the matrix).
 _monitoring = Depends(require_permission(Permission.AUTOMATION_READ))
+# Infrastructure-level / platform-sensitive views: admin-only.
+_admin = Depends(require_permission(Permission.AUTOMATION_MANAGE))
 
 
 @router.get(
     "/operational/summary",
     response_model=OperationalSummaryResponse,
-    summary="Get operational summary dashboard",
+    summary="Get operational summary dashboard (own organization)",
     dependencies=[_admin],
 )
 async def get_operational_summary(
     db: DbSession,
     current_user: CurrentUser,
 ) -> OperationalSummaryResponse:
-    """Get comprehensive operational summary for production dashboards.
+    """Operational summary for the caller's organization.
 
     Returns execution counts, worker health, automation status, schedule stats,
-    and system health metrics.
+    and system health metrics. Execution/event aggregates are org-scoped.
     """
     service = OperationalMonitoringService(db)
-    summary = await service.get_operational_summary()
+    summary = await service.get_operational_summary(current_user.organization_id)
     return OperationalSummaryResponse(**summary)
 
 
 @router.get(
     "/execution-statistics",
     response_model=ExecutionStatisticsResponse,
-    summary="Get execution statistics",
+    summary="Get execution statistics (own organization)",
     dependencies=[_monitoring],
 )
 async def get_execution_statistics(
@@ -71,53 +76,54 @@ async def get_execution_statistics(
     current_user: CurrentUser,
     hours: int = Query(default=24, ge=1, le=168, description="Time window in hours"),
 ) -> ExecutionStatisticsResponse:
-    """Get detailed execution statistics for the specified time window.
+    """Execution statistics for the caller's organization.
 
-    Returns counts by execution status, workflow distribution, and organization
-    distribution.
+    Returns counts by execution status, workflow distribution, and the
+    caller's own organization distribution.
     """
     service = OperationalMonitoringService(db)
-    stats = await service.get_execution_statistics(hours)
+    stats = await service.get_execution_statistics(current_user.organization_id, hours)
     return ExecutionStatisticsResponse(**stats)
 
 
 @router.get(
     "/delivery-statistics",
     response_model=DeliveryStatisticsResponse,
-    summary="Platform-wide delivery outbox statistics",
+    summary="Delivery outbox statistics (own organization)",
     dependencies=[_admin],
 )
 async def get_delivery_statistics(
     db: DbSession,
     current_user: CurrentUser,
 ) -> DeliveryStatisticsResponse:
-    """Get platform-wide delivery outbox statistics (all organizations).
+    """Delivery outbox statistics for the caller's organization.
 
-    Returns counts by delivery status plus active/terminal totals. Gated by
-    ``automation_manage`` (admin-only, consistent with operational summaries).
+    Returns counts by delivery status plus active/terminal totals. Org-scoped:
+    a tenant admin must never see another organization's delivery volume.
+    Gated by ``automation_manage`` (admin-only).
     """
     from app.services.delivery_service import DeliveryService
 
     service = DeliveryService(db)
-    stats = await service.platform_statistics()
+    stats = await service.platform_statistics(current_user.organization_id)
     return DeliveryStatisticsResponse(**stats)
 
 
 @router.get(
     "/worker-statistics",
     response_model=WorkerStatisticsResponse,
-    summary="Get worker statistics",
-    dependencies=[_monitoring],
+    summary="Get worker statistics (infrastructure)",
+    dependencies=[_admin],
 )
 async def get_worker_statistics(
     db: DbSession,
     current_user: CurrentUser,
     hours: int = Query(default=24, ge=1, le=168, description="Time window in hours"),
 ) -> WorkerStatisticsResponse:
-    """Get worker health and activity statistics.
+    """Worker health and activity statistics (infrastructure level).
 
-    Returns worker counts, health status, error distribution, and detailed worker
-    information.
+    Returns worker counts, health status, error distribution, and detailed
+    worker information (hostnames/pids). Admin-only.
     """
     service = OperationalMonitoringService(db)
     stats = await service.get_worker_statistics(hours)
@@ -127,19 +133,15 @@ async def get_worker_statistics(
 @router.get(
     "/schedule-statistics",
     response_model=ScheduleStatisticsResponse,
-    summary="Get schedule statistics",
-    dependencies=[_monitoring],
+    summary="Get schedule statistics (infrastructure)",
+    dependencies=[_admin],
 )
 async def get_schedule_statistics(
     db: DbSession,
     current_user: CurrentUser,
     hours: int = Query(default=24, ge=1, le=168, description="Time window in hours"),
 ) -> ScheduleStatisticsResponse:
-    """Get schedule dispatch statistics.
-
-    Returns schedule dispatcher metrics including queued, failed, skipped, and
-    conflict counts.
-    """
+    """Schedule dispatch statistics (cumulative process counters). Admin-only."""
     service = OperationalMonitoringService(db)
     stats = await service.get_schedule_statistics(hours)
     return ScheduleStatisticsResponse(**stats)
@@ -148,19 +150,15 @@ async def get_schedule_statistics(
 @router.get(
     "/retention-statistics",
     response_model=RetentionStatisticsResponse,
-    summary="Get retention statistics",
-    dependencies=[_monitoring],
+    summary="Get retention statistics (infrastructure)",
+    dependencies=[_admin],
 )
 async def get_retention_statistics(
     db: DbSession,
     current_user: CurrentUser,
     hours: int = Query(default=24, ge=1, le=168, description="Time window in hours"),
 ) -> RetentionStatisticsResponse:
-    """Get retention worker statistics.
-
-    Returns retention sweep metrics including deleted execution events and
-    pruned worker health records.
-    """
+    """Retention worker statistics (cumulative process counters). Admin-only."""
     service = OperationalMonitoringService(db)
     stats = await service.get_retention_statistics(hours)
     return RetentionStatisticsResponse(**stats)
@@ -169,28 +167,24 @@ async def get_retention_statistics(
 @router.get(
     "/automation-lifecycle",
     response_model=AutomationLifecycleResponse,
-    summary="Get automation lifecycle statistics",
+    summary="Get automation lifecycle statistics (own organization)",
     dependencies=[_monitoring],
 )
 async def get_automation_lifecycle(
     db: DbSession,
     current_user: CurrentUser,
 ) -> AutomationLifecycleResponse:
-    """Get automation lifecycle statistics including pause/resume events.
-
-    Returns counts of automation pause/resume events and current automation
-    status from the control service.
-    """
+    """Automation pause/resume event counts for the caller's organization."""
     service = OperationalMonitoringService(db)
-    lifecycle = await service.get_automation_lifecycle()
+    lifecycle = await service.get_automation_lifecycle(current_user.organization_id)
     return AutomationLifecycleResponse(**lifecycle)
 
 
 @router.get(
     "/heartbeat-visibility",
     response_model=list[HeartbeatVisibilityResponse],
-    summary="Get worker heartbeat visibility",
-    dependencies=[_monitoring],
+    summary="Get worker heartbeat visibility (infrastructure)",
+    dependencies=[_admin],
 )
 async def get_heartbeat_visibility(
     db: DbSession,
@@ -204,11 +198,7 @@ async def get_heartbeat_visibility(
     ),
     limit: int = Query(default=100, ge=1, le=1000, description="Maximum results"),
 ) -> list[HeartbeatVisibilityResponse]:
-    """Get worker heartbeat visibility for monitoring.
-
-    Returns list of worker instances with their heartbeat status, useful for
-    identifying stale or failed workers.
-    """
+    """Worker heartbeat visibility (hostnames/pids). Admin-only."""
     from app.services.monitoring_service import WorkerHealthService
 
     service = WorkerHealthService(db)
@@ -236,7 +226,7 @@ async def get_heartbeat_visibility(
 @router.get(
     "/execution-timeline",
     response_model=ExecutionTimelineResponse,
-    summary="Get execution timeline events",
+    summary="Get execution timeline events (own organization)",
     dependencies=[_monitoring],
 )
 async def get_execution_timeline(
@@ -249,13 +239,11 @@ async def get_execution_timeline(
     ),
     limit: int = Query(default=100, ge=1, le=500, description="Maximum results"),
 ) -> ExecutionTimelineResponse:
-    """Get recent execution timeline events across all organizations.
-
-    Returns the latest execution events with workflow name and execution
-    status/duration attached, optionally filtered by status or workflow.
-    """
+    """Recent execution timeline events for the caller's organization."""
     service = OperationalMonitoringService(db)
-    data = await service.get_execution_timeline(hours, status, workflow, limit)
+    data = await service.get_execution_timeline(
+        current_user.organization_id, hours, status, workflow, limit
+    )
     return ExecutionTimelineResponse(
         events=[ExecutionTimelineEvent(**event) for event in data["events"]]
     )
@@ -264,7 +252,7 @@ async def get_execution_timeline(
 @router.get(
     "/execution-history",
     response_model=ExecutionHistoryResponse,
-    summary="Get execution history",
+    summary="Get execution history (own organization)",
     dependencies=[_monitoring],
 )
 async def get_execution_history(
@@ -278,39 +266,41 @@ async def get_execution_history(
         default=None, description="Filter by workflow name (partial match)"
     ),
 ) -> ExecutionHistoryResponse:
-    """Get paginated execution history across all organizations."""
+    """Paginated execution history for the caller's organization."""
     service = OperationalMonitoringService(db)
-    data = await service.get_execution_history(page, page_size, hours, status, workflow)
+    data = await service.get_execution_history(
+        current_user.organization_id, page, page_size, hours, status, workflow
+    )
     return ExecutionHistoryResponse(**data)
 
 
 @router.get(
     "/queue-status",
     response_model=QueueStatusResponse,
-    summary="Get queue status",
+    summary="Get queue status (own organization)",
     dependencies=[_monitoring],
 )
 async def get_queue_status(
     db: DbSession,
     current_user: CurrentUser,
 ) -> QueueStatusResponse:
-    """Get per-organization queue status across all organizations."""
+    """Queue status for the caller's organization only."""
     service = OperationalMonitoringService(db)
-    data = await service.get_queue_status()
+    data = await service.get_queue_status(current_user.organization_id)
     return QueueStatusResponse(**data)
 
 
 @router.get(
     "/monitoring-information",
     response_model=MonitoringInformationResponse,
-    summary="Get comprehensive monitoring information",
+    summary="Get monitoring information (org-scoped queue)",
     dependencies=[_monitoring],
 )
 async def get_monitoring_information(
     db: DbSession,
     current_user: CurrentUser,
 ) -> MonitoringInformationResponse:
-    """Get comprehensive system, database, worker, and queue information."""
+    """System, database, worker, and queue information (queue is org-scoped)."""
     service = OperationalMonitoringService(db)
-    data = await service.get_monitoring_information()
+    data = await service.get_monitoring_information(current_user.organization_id)
     return MonitoringInformationResponse(**data)

@@ -346,7 +346,21 @@ def test_platform_statistics_has_active_and_terminal(monkeypatch) -> None:
     session = _patch_delivery_service(monkeypatch)
 
     async def run() -> None:
-        stats = await _svc(session).platform_statistics()
+        svc = _svc(session)
+        svc._deliveries = MagicMock()
+        svc._deliveries.count_by_status = AsyncMock(
+            return_value={
+                "queued": 1,
+                "processing": 2,
+                "retrying": 3,
+                "delivered": 4,
+                "failed": 0,
+                "cancelled": 0,
+            }
+        )
+        stats = await svc.platform_statistics(ORG_ID)
+        # B-2: statistics are org-scoped — the repo is queried for one org only.
+        svc._deliveries.count_by_status.assert_awaited_once_with(ORG_ID)
         assert stats == {
             "queued": 1,
             "processing": 2,

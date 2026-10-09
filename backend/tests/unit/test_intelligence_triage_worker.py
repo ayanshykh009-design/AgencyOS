@@ -30,7 +30,7 @@ def _patch_heartbeat(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
             return False
 
     monkeypatch.setattr(
-        "app.workers.intelligence_triage_worker.async_session_factory",
+        "app.workers.intelligence_triage_worker.worker_session_factory",
         lambda: _FakeSessionCM(),
     )
 

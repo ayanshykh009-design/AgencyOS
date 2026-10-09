@@ -141,31 +141,27 @@ class WorkflowExecutionRepository:
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
 
-    async def count_pending_all_orgs(self) -> int:
-        """Count QUEUED + RETRYING executions across all organizations."""
-        stmt = (
-            select(func.count(WorkflowExecution.id))
-            .where(WorkflowExecution.status.in_((ExecutionStatus.QUEUED, ExecutionStatus.RETRYING)))
-            .select_from(WorkflowExecution)
-        )
-        result = await self._session.execute(stmt)
-        return int(result.scalar_one())
-
-    async def count_status(self, status: ExecutionStatus) -> int:
-        """Count executions in a given status across all organizations."""
-        stmt = (
-            select(func.count(WorkflowExecution.id))
-            .where(WorkflowExecution.status == status)
-            .select_from(WorkflowExecution)
-        )
-        result = await self._session.execute(stmt)
-        return int(result.scalar_one())
-
-    async def count_by_status_and_date(self, status: ExecutionStatus, cutoff: datetime) -> int:
-        """Count executions created after ``cutoff`` in a given status."""
+    async def count_status(self, status: ExecutionStatus, *, organization_id: uuid.UUID) -> int:
+        """Count executions in a given status for one organization."""
         stmt = (
             select(func.count(WorkflowExecution.id))
             .where(
+                WorkflowExecution.organization_id == organization_id,
+                WorkflowExecution.status == status,
+            )
+            .select_from(WorkflowExecution)
+        )
+        result = await self._session.execute(stmt)
+        return int(result.scalar_one())
+
+    async def count_by_status_and_date(
+        self, status: ExecutionStatus, cutoff: datetime, *, organization_id: uuid.UUID
+    ) -> int:
+        """Count executions created after ``cutoff`` in a status, one org."""
+        stmt = (
+            select(func.count(WorkflowExecution.id))
+            .where(
+                WorkflowExecution.organization_id == organization_id,
                 WorkflowExecution.status == status,
                 WorkflowExecution.created_at >= cutoff,
             )
@@ -174,12 +170,17 @@ class WorkflowExecutionRepository:
         result = await self._session.execute(stmt)
         return int(result.scalar_one())
 
-    async def count_by_workflow(self, cutoff: datetime, limit: int = 50) -> dict[str, int]:
-        """Count executions created after ``cutoff`` grouped by workflow name."""
+    async def count_by_workflow(
+        self, cutoff: datetime, organization_id: uuid.UUID, *, limit: int = 50
+    ) -> dict[str, int]:
+        """Count executions after ``cutoff`` grouped by workflow name (one org)."""
         stmt = (
             select(Workflow.name, func.count(WorkflowExecution.id))
             .join(Workflow, Workflow.id == WorkflowExecution.workflow_id)
-            .where(WorkflowExecution.created_at >= cutoff)
+            .where(
+                WorkflowExecution.organization_id == organization_id,
+                WorkflowExecution.created_at >= cutoff,
+            )
             .group_by(Workflow.name)
             .order_by(func.count(WorkflowExecution.id).desc())
             .limit(limit)
@@ -187,12 +188,21 @@ class WorkflowExecutionRepository:
         result = await self._session.execute(stmt)
         return {name: int(count) for name, count in result.all()}
 
-    async def count_by_organization(self, cutoff: datetime, limit: int = 50) -> dict[str, int]:
-        """Count executions created after ``cutoff`` grouped by organization name."""
+    async def count_by_organization(
+        self, cutoff: datetime, organization_id: uuid.UUID, *, limit: int = 50
+    ) -> dict[str, int]:
+        """Count executions after ``cutoff`` grouped by organization name.
+
+        Org-filtered: with tenant monitoring the caller only ever sees its own
+        organization's name (the field shape stays for API compatibility).
+        """
         stmt = (
             select(Organization.name, func.count(WorkflowExecution.id))
             .join(Organization, Organization.id == WorkflowExecution.organization_id)
-            .where(WorkflowExecution.created_at >= cutoff)
+            .where(
+                WorkflowExecution.organization_id == organization_id,
+                WorkflowExecution.created_at >= cutoff,
+            )
             .group_by(Organization.name)
             .order_by(func.count(WorkflowExecution.id).desc())
             .limit(limit)
@@ -204,12 +214,13 @@ class WorkflowExecutionRepository:
         self,
         *,
         cutoff: datetime,
+        organization_id: uuid.UUID,
         status: ExecutionStatus | None = None,
         workflow_name: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> WorkflowExecutionList:
-        """List executions created after ``cutoff`` across all organizations.
+        """List executions created after ``cutoff`` for one organization.
 
         Joins workflow names and requested-by users eagerly so the calling
         service can serialize rows without extra async IO.
@@ -222,7 +233,10 @@ class WorkflowExecutionRepository:
                 selectinload(WorkflowExecution.trigger),
                 selectinload(WorkflowExecution.requested_by),
             )
-            .where(WorkflowExecution.created_at >= cutoff)
+            .where(
+                WorkflowExecution.organization_id == organization_id,
+                WorkflowExecution.created_at >= cutoff,
+            )
             .order_by(WorkflowExecution.created_at.desc())
             .limit(min(limit, _MAX_PAGE_SIZE))
             .offset(offset)
@@ -238,14 +252,18 @@ class WorkflowExecutionRepository:
         self,
         *,
         cutoff: datetime,
+        organization_id: uuid.UUID,
         status: ExecutionStatus | None = None,
         workflow_name: str | None = None,
     ) -> int:
-        """Count executions created after ``cutoff`` across all organizations."""
+        """Count executions created after ``cutoff`` for one organization."""
         stmt = (
             select(func.count(WorkflowExecution.id))
             .join(Workflow, Workflow.id == WorkflowExecution.workflow_id)
-            .where(WorkflowExecution.created_at >= cutoff)
+            .where(
+                WorkflowExecution.organization_id == organization_id,
+                WorkflowExecution.created_at >= cutoff,
+            )
             .select_from(WorkflowExecution)
         )
         if status is not None:
@@ -259,11 +277,12 @@ class WorkflowExecutionRepository:
         self,
         *,
         cutoff: datetime,
+        organization_id: uuid.UUID,
         status: ExecutionStatus | None = None,
         workflow_name: str | None = None,
         limit: int = 100,
     ) -> ExecutionEventList:
-        """List execution timeline events across all organizations.
+        """List execution timeline events for one organization.
 
         Joins the owning execution and workflow so each event can be
         serialized with workflow name and execution status/duration.
@@ -276,7 +295,10 @@ class WorkflowExecutionRepository:
                 selectinload(ExecutionEvent.execution),
                 selectinload(ExecutionEvent.workflow),
             )
-            .where(ExecutionEvent.occurred_at >= cutoff)
+            .where(
+                WorkflowExecution.organization_id == organization_id,
+                ExecutionEvent.occurred_at >= cutoff,
+            )
             .order_by(ExecutionEvent.occurred_at.desc())
             .limit(min(limit, 500))
         )
@@ -287,12 +309,10 @@ class WorkflowExecutionRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def queue_status(self, limit: int = 100) -> WorkflowQueueStatusList:
-        """Per-organization queue metrics: (org_id, name, queued, running, pending).
-
-        Only organizations with at least one QUEUED/RUNNING/RETRYING execution
-        are returned, ordered by queued volume descending.
-        """
+    async def queue_status(
+        self, organization_id: uuid.UUID, *, limit: int = 100
+    ) -> WorkflowQueueStatusList:
+        """Queue metrics for one organization: (org_id, name, queued, running, pending)."""
         queued = (
             select(func.count(WorkflowExecution.id))
             .where(
@@ -322,7 +342,10 @@ class WorkflowExecutionRepository:
         )
         stmt = (
             select(Organization.id, Organization.name, queued, running, pending)
-            .where((queued > 0) | (running > 0) | (pending > 0))
+            .where(
+                Organization.id == organization_id,
+                (queued > 0) | (running > 0) | (pending > 0),
+            )
             .order_by(queued.desc())
             .limit(limit)
         )
@@ -658,6 +681,32 @@ class WorkflowExecutionRepository:
                 next_retry_at=None,
                 cancel_requested_at=None,
                 cancelled_by_user_id=None,
+            )
+            .returning(WorkflowExecution)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def mark_requeued_due(
+        self,
+        organization_id: uuid.UUID,
+        execution_id: uuid.UUID,
+        *,
+        due_before: datetime,
+    ) -> WorkflowExecution | None:
+        """RETRYING + next_retry_at due -> QUEUED (worker auto-requeue)."""
+        stmt = (
+            update(WorkflowExecution)
+            .where(
+                WorkflowExecution.organization_id == organization_id,
+                WorkflowExecution.id == execution_id,
+                WorkflowExecution.status == ExecutionStatus.RETRYING,
+                WorkflowExecution.next_retry_at.is_not(None),
+                WorkflowExecution.next_retry_at <= due_before,
+            )
+            .values(
+                status=ExecutionStatus.QUEUED,
+                next_retry_at=None,
             )
             .returning(WorkflowExecution)
         )

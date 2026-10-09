@@ -234,15 +234,57 @@ async def test_approval_decide_transitions_and_logs() -> None:
     logs_repo.add = MagicMock(side_effect=session.add)
 
     result = await service.decide(
-        ORG_ID, ACTOR, uuid.uuid4(), approve=True, decided_by_user_id=None,
-        decision_note="looks good",
+        ORG_ID, ACTOR, uuid.uuid4(), approve=True, decision_note="looks good",
     )
 
     assert result.status is ApprovalRequestStatus.APPROVED
+    assert result.decided_by_user_id == USER_ID
     assert session.committed is True
     appended = next(o for o in session.added if isinstance(o, ApprovalLog))
     assert appended.action is ApprovalLogAction.APPROVED
     assert appended.actor_user_id == USER_ID
+
+
+@pytest.mark.asyncio
+async def test_approval_decide_always_attributes_to_actor() -> None:
+    """B-7 regression: decisions are attributed to the authenticated actor.
+
+    The API schema no longer accepts ``decided_by_user_id``; even if a client
+    injects the key (extra fields are ignored by the schema), the service has
+    no parameter to forward a spoofed decider and stamps ``actor.id``.
+    """
+    session, service, mocks = _service(ApprovalService, "_requests", "_logs")
+    requests_repo, logs_repo = mocks
+    requests_repo.get_or_404 = AsyncMock(return_value=ApprovalRequest(
+        organization_id=ORG_ID,
+        requested_by_user_id=uuid.uuid4(),
+        approver_user_id=uuid.uuid4(),
+        title="t",
+        status=ApprovalRequestStatus.PENDING,
+    ))
+    logs_repo.add = MagicMock(side_effect=session.add)
+
+    spoofed = uuid.uuid4()
+    result = await service.decide(
+        ORG_ID, ACTOR, uuid.uuid4(), approve=False, decision_note=None,
+    )
+
+    assert result.decided_by_user_id == USER_ID
+    assert result.decided_by_user_id != spoofed
+    # The service signature must not offer a client-controlled decider slot.
+    import inspect
+
+    params = inspect.signature(service.decide).parameters
+    assert "decided_by_user_id" not in params
+
+    # Schema level: a client-supplied decided_by_user_id is not carried.
+    from app.schemas.approval import ApprovalRequestDecision
+
+    payload = ApprovalRequestDecision.model_validate(
+        {"approve": True, "decided_by_user_id": str(spoofed), "decision_note": None}
+    )
+    dumped = payload.model_dump()
+    assert "decided_by_user_id" not in dumped
 
 
 @pytest.mark.asyncio
@@ -254,7 +296,7 @@ async def test_approval_decide_rejects_non_pending() -> None:
     ))
     with pytest.raises(AppError) as exc:
         await service.decide(ORG_ID, ACTOR, uuid.uuid4(), approve=True,
-                             decided_by_user_id=uuid.uuid4(), decision_note=None)
+                             decision_note=None)
     assert exc.value.status_code == 409
 
 

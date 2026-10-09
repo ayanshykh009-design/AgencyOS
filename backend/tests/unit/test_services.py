@@ -67,6 +67,10 @@ class FakeSession:
         # No-op: the fake has no database to reload attributes from.
         return None
 
+    async def execute(self, *args: object, **kwargs: object) -> None:
+        # Accepts statements such as tenant GUC set_config() without a DB.
+        return None
+
 
 def _make_user(**overrides: object) -> User:
     user = User(

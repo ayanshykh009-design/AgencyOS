@@ -80,7 +80,7 @@ def _patch_settings(
 def _patch_session(monkeypatch: pytest.MonkeyPatch) -> FakeSession:
     session = FakeSession()
     monkeypatch.setattr(
-        "app.workers.agent_worker.async_session_factory",
+        "app.workers.agent_worker.worker_session_factory",
         lambda: FakeSessionCM(session),
     )
     return session

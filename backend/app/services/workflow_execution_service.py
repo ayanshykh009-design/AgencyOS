@@ -542,6 +542,37 @@ class WorkflowExecutionService:
         await commit_with_retry(self._session)
         return updated
 
+    async def requeue_due(
+        self,
+        organization_id: uuid.UUID,
+        execution_id: uuid.UUID,
+    ) -> WorkflowExecution | None:
+        """Worker auto-requeue: RETRYING + due next_retry_at -> QUEUED.
+
+        Unlike ``retry()`` (manual requeue from FAILED/CANCELLED/TIMED_OUT),
+        this is the scheduled-transition path used by ``ExecutionWorker``.
+        Returns None when the row is no longer RETRYING/due (concurrent
+        cancel, manual retry, or already requeued) — callers treat that as a
+        no-op, never as an error.
+        """
+        updated = await self._repo.mark_requeued_due(
+            organization_id, execution_id, due_before=utcnow()
+        )
+        if updated is None:
+            return None
+        self._audit(
+            updated,
+            event_type=ActivityEventType.EXECUTION_RETRIED,
+            description="Execution automatically requeued for retry",
+        )
+        await self._timeline(updated, ExecutionEventType.QUEUED)
+        get_counter(
+            "execution_retried_total",
+            description="Workflow executions requeued for retry",
+        ).add()
+        await commit_with_retry(self._session)
+        return updated
+
     async def cancel(
         self,
         organization_id: uuid.UUID,
@@ -718,9 +749,10 @@ class WorkflowExecutionService:
         return await self._repo.count_pending(organization_id)
 
     async def get_queued_for_retry(self, before: datetime | None = None) -> list[WorkflowExecution]:
-        if before is not None:
-            return await self._repo.get_queued_for_retry(before)
-        return await self._repo.get_queued_for_retry()
+        # Default to "now" so only due retries are returned — a None filter
+        # would pick up RETRYING rows whose next_retry_at is still in the
+        # future and requeue them prematurely.
+        return await self._repo.get_queued_for_retry(before if before is not None else utcnow())
 
     async def get_stuck_running(self) -> list[WorkflowExecution]:
         return await self._repo.get_stuck_running()

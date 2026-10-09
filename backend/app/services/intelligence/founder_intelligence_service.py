@@ -182,7 +182,7 @@ class FounderIntelligenceService:
             settings.LLM_PROVIDER,
             organization_id=organization_id,
             session=self._session,
-            feature="intelligence.narrative",
+            feature="ai.intelligence.narrative",
         )
 
     def _build_context(self, signals: list[IntelligenceSignal]) -> str:

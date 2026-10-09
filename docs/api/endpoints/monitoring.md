@@ -1,14 +1,10 @@
 # Monitoring (Operational)
 
-Operator-level visibility into the automation infrastructure: execution
-statistics, worker health/heartbeats, schedule and retention sweeps, the global
-kill-switch lifecycle, and cross-organization queue depth. All endpoints are
-JWT-authenticated; the operational summary is **admin-only** (`automation_manage`),
-everything else requires `automation_read`.
-
-> These endpoints are operator/instance-scoped (they read across organizations),
-> unlike the org-scoped automation endpoints documented under
-> [workflow-executions](workflow-executions.md).
+Visibility into the automation infrastructure and the organization's execution
+queue. All endpoints are JWT-authenticated. Tenant data (executions, queue
+depth, lifecycle events, delivery outbox) is **org-scoped to the caller** and
+requires `automation_read` (all roles). Infrastructure views that disclose
+hostnames, pids, and process counters are **admin-only** (`automation_manage`).
 
 ## GET /api/v1/monitoring/operational/summary
 
@@ -18,31 +14,36 @@ worker health, automation status, schedule stats, and system/database health.
 ## GET /api/v1/monitoring/execution-statistics
 
 `automation_read`. `hours` (1–168, default 24). Counts by execution status,
-per-workflow distribution, and per-organization distribution.
+per-workflow distribution, and the caller's own organization distribution.
 
 ## GET /api/v1/monitoring/worker-statistics
 
-`automation_read`. `hours` (1–168, default 24). Worker counts, health status,
-error distribution, and per-worker detail from the heartbeat rows.
+`automation_manage` (admin-only — discloses hostnames/pids). `hours` (1–168,
+default 24). Worker counts, health status, error distribution, and per-worker
+detail from the heartbeat rows.
 
 ## GET /api/v1/monitoring/schedule-statistics
 
-`automation_read`. `hours` (1–168, default 24). Schedule dispatcher outcomes in
-the window: queued, failed, skipped, conflicts.
+`automation_manage` (admin-only — process counters). `hours` (1–168, default
+24). Schedule dispatcher outcomes in the window: queued, failed, skipped,
+conflicts.
 
 ## GET /api/v1/monitoring/retention-statistics
 
-`automation_read`. `hours` (1–168, default 24). Retention sweep outcomes:
-deleted `execution_events` and pruned `worker_health` rows.
+`automation_manage` (admin-only — process counters). `hours` (1–168, default
+24). Retention sweep outcomes: deleted `execution_events` and pruned
+`worker_health` rows.
 
 ## GET /api/v1/monitoring/automation-lifecycle
 
 `automation_read`. Counts of `automation_paused`/`automation_resumed`
-`activity_logs` events in the window plus the current kill-switch status.
+`activity_logs` events for the caller's organization in the window plus the
+current kill-switch status.
 
 ## GET /api/v1/monitoring/heartbeat-visibility
 
-`automation_read`. Per-instance worker heartbeats.
+`automation_manage` (admin-only — discloses hostnames/pids). Per-instance
+worker heartbeats.
 
 | Query param          | Type | Notes                                          |
 | -------------------- | ---- | ---------------------------------------------- |
@@ -55,8 +56,8 @@ loop or a worker that never started).
 
 ## GET /api/v1/monitoring/execution-timeline
 
-`automation_read`. Recent `execution_events` across all organizations with the
-workflow name and execution status/duration attached.
+`automation_read`. Recent `execution_events` for the caller's organization with
+the workflow name and execution status/duration attached.
 
 | Query param | Type | Notes                                      |
 | ----------- | ---- | ------------------------------------------ |
@@ -67,7 +68,7 @@ workflow name and execution status/duration attached.
 
 ## GET /api/v1/monitoring/execution-history
 
-`automation_read`. Paginated execution history across all organizations.
+`automation_read`. Paginated execution history for the caller's organization.
 
 | Query param | Type | Notes                                      |
 | ----------- | ---- | ------------------------------------------ |
@@ -79,21 +80,22 @@ workflow name and execution status/duration attached.
 
 ## GET /api/v1/monitoring/queue-status
 
-`automation_read`. Per-organization pending/queued/running depth across all
-organizations (feeds the fair-drain health view).
+`automation_read`. Pending/queued/running depth for the caller's
+organization (feeds the fair-drain health view).
 
 ## GET /api/v1/monitoring/delivery-statistics
 
 `automation_manage` (admin-only, consistent with operational summaries).
-Platform-wide delivery outbox counts across all organizations: `queued`,
+Delivery outbox counts for the caller's organization: `queued`,
 `processing`, `retrying`, `delivered`, `failed`, `cancelled`, plus derived
 `active` (queued/processing/retrying) and `terminal` (delivered/failed/
 cancelled) totals.
 
 ## GET /api/v1/monitoring/monitoring-information
 
-`automation_read`. Comprehensive system, database, worker, and queue
-information in one payload.
+`automation_read`. System, database, worker, and queue information in one
+payload. Queue depth is org-scoped; system/worker aggregates are
+platform-wide infrastructure data (no tenant rows).
 
 ## Authentication
 

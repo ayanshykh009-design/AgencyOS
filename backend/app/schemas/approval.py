@@ -22,10 +22,13 @@ class ApprovalRequestCreate(BaseModel):
 
 
 class ApprovalRequestDecision(BaseModel):
-    """Payload to approve/deny a pending request."""
+    """Payload to approve/deny a pending request.
+
+    The deciding user is ALWAYS the authenticated actor (server-derived);
+    clients cannot assert who made a decision.
+    """
 
     approve: bool
-    decided_by_user_id: uuid.UUID | None = None
     decision_note: str | None = Field(default=None, max_length=2000)
 
 

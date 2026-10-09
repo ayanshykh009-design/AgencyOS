@@ -82,7 +82,7 @@ export const PERMISSION_MATRIX: Record<PermissionKey, UserRole[]> = {
   automation_control: _ADMIN_ONLY,
   workflow_read: _READ,
   workflow_write: _WRITE,
-  workflow_manage: _ADMIN_ONLY,
+  workflow_manage: _MANAGE,
   execution_read: _READ,
   execution_write: _WRITE,
   execution_manage: _ADMIN_ONLY,

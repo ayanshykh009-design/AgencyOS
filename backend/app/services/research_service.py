@@ -48,7 +48,7 @@ class ResearchService:
             model=model,
             organization_id=organization_id,
             session=self._session,
-            feature="research",
+            feature="ai.research",
         )
 
     async def run(
