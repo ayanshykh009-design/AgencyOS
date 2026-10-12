@@ -260,7 +260,7 @@ class LeadRepository:
             .group_by(Lead.stage_id)
         )
         result = await self._session.execute(stmt)
-        return {stage_id: int(count) for stage_id, count in result.all()}
+        return {stage_id: int(count) for stage_id, count in result.all() if stage_id is not None}
 
     async def count_in_stage(self, organization_id: uuid.UUID, stage_id: uuid.UUID) -> int:
         """Count non-deleted leads currently in a stage."""
