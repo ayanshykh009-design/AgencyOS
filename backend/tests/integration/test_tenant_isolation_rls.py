@@ -191,6 +191,18 @@ def _owner_scalar(db_name: str, statement: str, params=()):
         conn.close()
 
 
+def _scalar_uuid(conn, statement: str, params=()):
+    """Fetch a single UUID value, normalizing the driver's return type.
+
+    psycopg2 can return ``uuid`` columns as ``str`` depending on how its
+    type-casters are registered, while the assertions compare against
+    ``uuid.UUID``. Normalizing here keeps the security assertion (the exact
+    tenant row is resolved) intact without weakening it.
+    """
+    value = _scalar(conn, statement, params)
+    return value if isinstance(value, uuid.UUID) else uuid.UUID(str(value))
+
+
 # --- role / policy behavior (sync) ----------------------------------------
 
 
@@ -235,14 +247,14 @@ def test_app_role_sees_only_guc_tenant(seeded_db):
     conn = _connect(seeded_db, "agencyos_app")
     try:
         _set_guc(conn, ORG_A)
-        assert _scalar(conn, "SELECT id FROM public.users") == uuid.UUID(USER_A)
-        assert _scalar(conn, "SELECT id FROM public.leads") == uuid.UUID(LEAD_A)
-        assert _scalar(conn, "SELECT id FROM public.organizations") == uuid.UUID(ORG_A)
+        assert _scalar_uuid(conn, "SELECT id FROM public.users") == uuid.UUID(USER_A)
+        assert _scalar_uuid(conn, "SELECT id FROM public.leads") == uuid.UUID(LEAD_A)
+        assert _scalar_uuid(conn, "SELECT id FROM public.organizations") == uuid.UUID(ORG_A)
 
         _set_guc(conn, ORG_B)
-        assert _scalar(conn, "SELECT id FROM public.users") == uuid.UUID(USER_B)
-        assert _scalar(conn, "SELECT id FROM public.leads") == uuid.UUID(LEAD_B)
-        assert _scalar(conn, "SELECT id FROM public.organizations") == uuid.UUID(ORG_B)
+        assert _scalar_uuid(conn, "SELECT id FROM public.users") == uuid.UUID(USER_B)
+        assert _scalar_uuid(conn, "SELECT id FROM public.leads") == uuid.UUID(LEAD_B)
+        assert _scalar_uuid(conn, "SELECT id FROM public.organizations") == uuid.UUID(ORG_B)
     finally:
         conn.close()
 
@@ -265,6 +277,11 @@ def test_cross_org_insert_rejected_same_org_insert_allowed(seeded_db):
             "INSERT INTO public.users (organization_id, email, full_name) "
             "VALUES (%s, %s, %s)",
             (ORG_A, "new-member@example.com", "New Member"),
+        )
+        # Restore the shared seeded baseline so later tests in the module do not
+        # inherit this row (tests must be independent of execution order).
+        cur.execute(
+            "DELETE FROM public.users WHERE email = %s", ("new-member@example.com",)
         )
     conn.close()
 
@@ -293,11 +310,17 @@ def test_cross_org_update_and_delete_are_invisible(seeded_db):
 
 
 def test_worker_role_bypasses_rls_and_sees_all_tenants(seeded_db):
+    # The worker role has BYPASSRLS: it must see exactly what the table owner
+    # sees (every tenant), independent of how many rows the module has added.
+    owner_orgs = _owner_scalar(seeded_db, "SELECT count(*) FROM public.organizations")
+    owner_users = _owner_scalar(seeded_db, "SELECT count(*) FROM public.users")
+    owner_leads = _owner_scalar(seeded_db, "SELECT count(*) FROM public.leads")
+    assert owner_orgs >= 2 and owner_users >= 2 and owner_leads >= 2
     conn = _connect(seeded_db, "agencyos_worker")
     try:
-        assert _scalar(conn, "SELECT count(*) FROM public.organizations") == 2
-        assert _scalar(conn, "SELECT count(*) FROM public.users") == 2
-        assert _scalar(conn, "SELECT count(*) FROM public.leads") == 2
+        assert _scalar(conn, "SELECT count(*) FROM public.organizations") == owner_orgs
+        assert _scalar(conn, "SELECT count(*) FROM public.users") == owner_users
+        assert _scalar(conn, "SELECT count(*) FROM public.leads") == owner_leads
     finally:
         conn.close()
 
@@ -312,18 +335,18 @@ def test_definer_lookups_see_through_rls_without_tenant_context(seeded_db):
             ("userb@example.com",),
         ) == 0, "plain SELECT must be RLS-blocked with no tenant context"
 
-        assert _scalar(
+        assert _scalar_uuid(
             conn, "SELECT id FROM public.app_get_user_by_email(%s)",
             ("userb@example.com",),
         ) == uuid.UUID(USER_B)
-        assert _scalar(
+        assert _scalar_uuid(
             conn, "SELECT organization_id FROM public.app_find_active_user_by_email(%s)",
             ("userb@example.com",),
         ) == uuid.UUID(ORG_B)
-        assert _scalar(
+        assert _scalar_uuid(
             conn, "SELECT id FROM public.app_get_user_by_id(%s)", (USER_B,)
         ) == uuid.UUID(USER_B)
-        assert _scalar(
+        assert _scalar_uuid(
             conn, "SELECT id FROM public.app_get_organization_by_slug(%s)",
             ("org-beta",),
         ) == uuid.UUID(ORG_B)
@@ -331,11 +354,11 @@ def test_definer_lookups_see_through_rls_without_tenant_context(seeded_db):
         assert _scalar(conn, "SELECT public.app_slug_available(%s)", ("org-alpha",)) is False
         assert _scalar(conn, "SELECT public.app_slug_available(%s)", ("fresh-slug-1",)) is True
 
-        assert _scalar(
+        assert _scalar_uuid(
             conn, "SELECT id FROM public.app_get_team_invite_by_token_hash(%s)",
             (INVITE_TOKEN_A,),
         ) == uuid.UUID("00000000-0000-0000-0000-0000000000a7")
-        assert _scalar(
+        assert _scalar_uuid(
             conn, "SELECT id FROM public.app_get_valid_refresh_token(%s, now())",
             (REFRESH_TOKEN_A,),
         ) == uuid.UUID("00000000-0000-0000-0000-0000000000a6")
@@ -358,11 +381,17 @@ def test_tenant_org_id_semantics(seeded_db):
 
 
 def test_guc_does_not_leak_across_connections(seeded_db):
+    org_a_users = _owner_scalar(
+        seeded_db,
+        "SELECT count(*) FROM public.users WHERE organization_id = %s",
+        (ORG_A,),
+    )
+    assert org_a_users >= 1
     conn1 = _connect(seeded_db, "agencyos_app")
     conn2 = _connect(seeded_db, "agencyos_app")
     try:
         _set_guc(conn1, ORG_A)
-        assert _scalar(conn1, "SELECT count(*) FROM public.users") == 1
+        assert _scalar(conn1, "SELECT count(*) FROM public.users") == org_a_users
         # A brand-new session carries no tenant context from conn1.
         assert _scalar(conn2, "SELECT public.tenant_org_id()") is None
         assert _scalar(conn2, "SELECT count(*) FROM public.users") == 0
@@ -387,7 +416,7 @@ async def test_async_auth_flow_enforced_by_rls(seeded_db):
     access = ""
     try:
         async with factory() as session:
-            await session.exec_driver_sql("SET ROLE agencyos_app")
+            await session.execute(sa_text("SET ROLE agencyos_app"))
             result = await AuthService(session).register(
                 RegisterRequest(
                     email=email,
@@ -409,7 +438,7 @@ async def test_async_auth_flow_enforced_by_rls(seeded_db):
 
         # login: definer email lookup + token issuance must work under RLS.
         async with factory() as session:
-            await session.exec_driver_sql("SET ROLE agencyos_app")
+            await session.execute(sa_text("SET ROLE agencyos_app"))
             logged = await AuthService(session).login(
                 LoginRequest(email=email, password="S3cure!pass")
             )
@@ -418,7 +447,7 @@ async def test_async_auth_flow_enforced_by_rls(seeded_db):
 
         # get_current_user: definer load + activation.
         async with factory() as session:
-            await session.exec_driver_sql("SET ROLE agencyos_app")
+            await session.execute(sa_text("SET ROLE agencyos_app"))
             user = await get_current_user(
                 db=session,
                 credentials=HTTPAuthorizationCredentials(scheme="Bearer", credentials=access),
@@ -428,7 +457,7 @@ async def test_async_auth_flow_enforced_by_rls(seeded_db):
         # No tenant context: the same app role must see zero rows.
         set_current_organization_id(None)
         async with factory() as session:
-            await session.exec_driver_sql("SET ROLE agencyos_app")
+            await session.execute(sa_text("SET ROLE agencyos_app"))
             count = (await session.execute(
                 sa_text("SELECT count(*) FROM public.users")
             )).scalar_one()
@@ -436,7 +465,7 @@ async def test_async_auth_flow_enforced_by_rls(seeded_db):
 
         # Activated: sees its own tenant again (and only its own).
         async with factory() as session:
-            await session.exec_driver_sql("SET ROLE agencyos_app")
+            await session.execute(sa_text("SET ROLE agencyos_app"))
             await activate_org(session, org_id)
             count = (await session.execute(
                 sa_text("SELECT count(*) FROM public.users")
