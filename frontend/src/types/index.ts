@@ -26,6 +26,27 @@ export interface AuthResponse {
   token_type: string;
   expires_in: number;
   user: User;
+  /** True when the account must confirm its email before it can be used. */
+  email_verification_required?: boolean;
+  /** Non-production only: the raw verification link surfaced for local dev. */
+  dev_email_verification_url?: string | null;
+}
+
+/** TOTP enrollment material returned by /auth/mfa/enroll. */
+export interface MfaEnrollResponse {
+  secret: string;
+  otpauth_url: string;
+}
+
+/** Recovery codes returned once, at MFA activation time. */
+export interface MfaActivateResponse {
+  recovery_codes: string[];
+}
+
+/** Generic acknowledgement carrying an optional dev-only link. */
+export interface MessageResponse {
+  detail: string;
+  dev_url?: string | null;
 }
 
 /** A lead/prospect being reached out to (backend LeadRead). */

@@ -17,6 +17,8 @@ from app.core.errors import AppError
 from app.models.enums import LeadStatus
 from app.models.lead import Lead
 from app.repositories.lead import LeadRepository
+from app.repositories.lead_source import LeadSourceRepository
+from app.repositories.user import UserRepository
 from app.services.assignment_service import AssignmentService
 from app.services.base import commit_with_retry, utcnow
 from app.services.pipeline_service import PipelineService
@@ -77,6 +79,7 @@ class LeadService:
     # -- writes ---------------------------------------------------------
 
     async def create(self, organization_id: uuid.UUID, data: dict[str, Any]) -> Lead:
+        await self._validate_refs(organization_id, data)
         lead = Lead(
             organization_id=organization_id,
             lead_source_id=data.get("lead_source_id"),
@@ -126,6 +129,7 @@ class LeadService:
         data: dict[str, Any],
     ) -> Lead:
         lead = await self._leads.get_or_404(organization_id, lead_id)
+        await self._validate_refs(organization_id, data)
         allowed = {
             "first_name",
             "last_name",
@@ -183,6 +187,23 @@ class LeadService:
         await commit_with_retry(self._session)
 
     # -- helpers --------------------------------------------------------
+
+    async def _validate_refs(self, organization_id: uuid.UUID, data: dict[str, Any]) -> None:
+        """Reject foreign-tenant owner/lead-source references.
+
+        The FK constraints only prove the row exists, not that it belongs to the
+        caller's organization, so a client could otherwise attach a lead to
+        another tenant's user or source. ``get_or_404`` is tenant-scoped (RLS +
+        explicit org check), so a foreign id surfaces as 404.
+        """
+        owner_user_id = data.get("owner_user_id")
+        if owner_user_id is not None:
+            await UserRepository(self._session).get_or_404(organization_id, owner_user_id)
+        lead_source_id = data.get("lead_source_id")
+        if lead_source_id is not None:
+            await LeadSourceRepository(self._session).get_or_404(
+                organization_id, lead_source_id
+            )
 
     async def duplicate_check(
         self,

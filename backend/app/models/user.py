@@ -6,7 +6,16 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, ForeignKey, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -51,7 +60,33 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     password_hash: Mapped[str | None] = mapped_column(Text)
-    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Bumped on logout / password change to revoke outstanding access tokens
+    # (mirrored in the JWT ``tv`` claim; checked by app/api/deps.py).
+    token_version: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    # Per-account brute-force throttle state (see AuthService.login). Only
+    # incorrect passwords are throttled; a correct password always succeeds.
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Email verification (opt-in per deployment; applied to new accounts).
+    # Existing rows keep email_verification_required=false (grandfathered).
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    email_verification_required: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    # Optional TOTP two-factor authentication (see 0037_mfa.sql).
+    mfa_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
+    mfa_secret_enc: Mapped[str | None] = mapped_column(Text)
+    mfa_failed_attempts: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
+    mfa_locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     organization: Mapped[Organization] = relationship(back_populates="users")
     created_workflows: Mapped[list[Workflow]] = relationship(back_populates="created_by")

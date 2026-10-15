@@ -44,6 +44,14 @@ async def get_current_user(
             status_code=401,
         )
     payload = require_valid_token(credentials.credentials)
+    # A MFA challenge token (issued mid-login) carries scope="mfa" and must never
+    # be accepted as an access token.
+    if payload.get("scope") == "mfa":
+        raise AppError(
+            code="auth.invalid_token",
+            message="Invalid or expired token",
+            status_code=401,
+        )
     try:
         user_id = uuid.UUID(payload["sub"])
     except (KeyError, ValueError, TypeError):
@@ -60,6 +68,15 @@ async def get_current_user(
         raise AppError(
             code="auth.user_unavailable",
             message="Account not found or disabled",
+            status_code=401,
+        )
+    # Enforce server-side access-token revocation: logout / password change bump
+    # users.token_version, so any token carrying a stale ``tv`` claim is rejected
+    # immediately instead of remaining valid until its ``exp``.
+    if int(payload.get("tv", 0)) != int(user.token_version or 0):
+        raise AppError(
+            code="auth.token_revoked",
+            message="Session is no longer valid",
             status_code=401,
         )
     # Bind this request's transaction context to the user's organization so

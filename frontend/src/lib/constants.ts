@@ -2,6 +2,11 @@
 export const ROUTES = {
   home: "/",
   login: "/login",
+  mfa: "/mfa",
+  verifyEmail: "/verify-email",
+  forgotPassword: "/forgot-password",
+  resetPassword: "/reset-password",
+  security: "/settings/security",
   dashboard: "/dashboard",
   leads: "/leads",
   leadDetail: (leadId: string) => `/leads/${leadId}`,

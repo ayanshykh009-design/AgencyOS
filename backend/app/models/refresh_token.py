@@ -35,6 +35,13 @@ class RefreshToken(UUIDPrimaryKeyMixin, Base):
         ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
     token_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    # Identifies the logical session ("family"): every token produced by
+    # rotating an earlier one inherits its ``family_id``. Replaying an
+    # already-rotated token reveals a leak, so the whole family is revoked
+    # (see AuthService.refresh and 0035_auth_refresh_reuse.sql).
+    family_id: Mapped[uuid.UUID] = mapped_column(
+        default=uuid.uuid4, nullable=False, index=True
+    )
     expires_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )

@@ -35,6 +35,34 @@ class RefreshTokenRepository:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_any(self, token_hash: str) -> RefreshToken | None:
+        """Fetch a token by digest regardless of revoked/expired state.
+
+        Used for reuse detection: an already-rotated token is revoked, so the
+        valid-only lookup would hide it. Routes through the SECURITY DEFINER
+        lookup because refresh runs before any tenant context exists.
+        """
+        stmt = select(RefreshToken).from_statement(
+            text(
+                "SELECT * FROM public.app_get_refresh_token_any(:token_hash)"
+            ).bindparams(token_hash=token_hash)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def revoke_family(self, family_id: uuid.UUID, *, now: datetime) -> int:
+        """Revoke every still-active token in a family; returns the count."""
+        stmt = (
+            update(RefreshToken)
+            .where(
+                RefreshToken.family_id == family_id,
+                RefreshToken.revoked_at.is_(None),
+            )
+            .values(revoked_at=now)
+        )
+        result = await self._session.execute(stmt)
+        return cast(CursorResult, result).rowcount or 0
+
     async def revoke(self, token_id: uuid.UUID, *, now: datetime) -> None:
         stmt = (
             update(RefreshToken)

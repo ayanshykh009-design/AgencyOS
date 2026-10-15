@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clearSession, getSession, isAuthenticated, setSession } from "@/lib/session";
-import { login, logout } from "@/services/auth";
+import { login, logout, refresh } from "@/services/auth";
 import type { User } from "@/types";
 
 const USER: User = {
@@ -74,6 +74,35 @@ describe("auth service", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer access-123");
     expect(isAuthenticated()).toBe(false);
+  });
+
+  it("refresh rotates the stored token pair", async () => {
+    setAuthenticated();
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "access-2",
+          refresh_token: "refresh-2",
+          token_type: "bearer",
+          expires_in: 3600,
+          user: USER,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const result = await refresh();
+
+    expect(result.access_token).toBe("access-2");
+    expect(getSession()?.accessToken).toBe("access-2");
+    expect(getSession()?.refreshToken).toBe("refresh-2");
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/auth/refresh");
+  });
+
+  it("refresh rejects when no refresh token is stored", async () => {
+    await expect(refresh()).rejects.toMatchObject({ code: "auth.no_refresh_token" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   function setAuthenticated() {

@@ -34,17 +34,38 @@ def verify_password(password: str, hashed_password: str) -> bool:
     return password_hash.verify(password, hashed_password)
 
 
+# Precomputed Argon2id hash of an arbitrary string. Verifying a submitted
+# password against it costs the same as a real check, so login for an unknown
+# account is not measurably faster than for a known one (timing side channel).
+_DUMMY_PASSWORD_HASH = password_hash.hash("agencyos-dummy-password-for-timing")
+
+
+def verify_password_dummy(password: str) -> None:
+    """Burn the same CPU as a real verify, discarding the result.
+
+    Call when no user (or no password hash) exists so callers cannot tell
+    "unknown account" from "wrong password" by response time.
+    """
+    password_hash.verify(password, _DUMMY_PASSWORD_HASH)
+
+
 def create_access_token(
     subject: str,
     expires_minutes: int | None = None,
     extra_claims: dict[str, Any] | None = None,
+    token_version: int = 0,
 ) -> str:
-    """Create a signed JWT for `subject` with iat/exp/iss/aud claims."""
+    """Create a signed JWT for `subject` with iat/exp/iss/aud claims.
+
+    ``token_version`` is embedded as the ``tv`` claim so token revocation can be
+    enforced server-side against ``users.token_version`` (see app/api/deps.py).
+    """
     now = datetime.now(UTC)
     payload: dict[str, Any] = {
         "sub": subject,
         "iat": now,
         "jti": uuid.uuid4().hex,
+        "tv": token_version,
         "exp": now + timedelta(minutes=expires_minutes or settings.ACCESS_TOKEN_EXPIRE_MINUTES),
         "iss": settings.JWT_ISSUER,
         "aud": settings.JWT_AUDIENCE,
@@ -86,4 +107,17 @@ def generate_refresh_token() -> str:
 
 def hash_refresh_token(token: str) -> str:
     """Return the SHA-256 digest stored in refresh_tokens.token_hash."""
+    return sha256(token.encode("utf-8")).hexdigest()
+
+
+# --- Account-lifecycle tokens (email verification / password reset) ---
+
+
+def generate_opaque_token() -> str:
+    """Generate a high-entropy opaque token (returned to the user once)."""
+    return token_urlsafe(48)
+
+
+def hash_opaque_token(token: str) -> str:
+    """Return the SHA-256 digest stored for an opaque account token."""
     return sha256(token.encode("utf-8")).hexdigest()

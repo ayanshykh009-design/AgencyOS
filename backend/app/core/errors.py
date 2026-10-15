@@ -33,11 +33,13 @@ class AppError(Exception):
         message: str,
         status_code: int = 400,
         details: dict | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.code = code
         self.message = message
         self.status_code = status_code
         self.details = details
+        self.headers = headers
         super().__init__(message)
 
     def to_response(self) -> ErrorResponse:

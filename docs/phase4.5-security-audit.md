@@ -173,18 +173,30 @@ async def create_lead(..., current_user: CurrentUser):
 **Status: ✅ PASS**
 
 **Implementation**:
-- Access tokens: JWT with org/role claims
+- Access tokens: JWT with org/role claims **and a `tv` (token-version) claim**
 - Refresh tokens: Opaque, hashed, rotated on every refresh
 - Token validation: `require_valid_token()` middleware
-- Revocation: Proper invalidation on logout/password change
+- Revocation: logout / password change bump `users.token_version`, so a stale
+  access token is rejected by `get_current_user` immediately (not merely on `exp`)
+  and all refresh tokens are revoked; the frontend transparently refreshes on a
+  401 and retries once (`frontend/src/lib/api-client.ts`)
 
 ### 2. CSRF Protection
 
 **Status: ✅ PASS**
 
-**Assessment**: Tokens are HTTP-only, stateful refresh tokens prevent CSRF
-- No session cookies vulnerable to theft
-- Refresh token rotation mitigates replay attacks
+**Assessment**: The API is **token-based, not cookie-based** — the access/refresh
+tokens travel in the JSON body and are read from `localStorage`, so there is no
+ambient credential a browser would attach automatically (the classic CSRF
+precondition). The only cookie is a **non-authoritative boolean routing marker**
+(`agencyos.auth`, set client-side, carrying no token and granting no authority),
+which is read by `frontend/src/proxy.ts` purely for redirects and is marked
+`Secure` over HTTPS. Stateful refresh rotation further limits replay.
+
+> Correction (Stage 1 hardening): earlier revisions of this audit claimed the
+> tokens were "HTTP-only". That was inaccurate — tokens are never set as
+> cookies by the backend. The statement is retained here only as a correction
+> note.
 
 ## Input Validation and Sanitization
 
@@ -275,6 +287,9 @@ async def create_lead(..., current_user: CurrentUser):
 - ✅ Token rotation functional
 - ✅ Password hashing secure
 - ✅ Session management robust
+- ✅ Refresh-token reuse detection (family revocation + `token_version` bump)
+- ✅ Per-account login throttle (victim-safe, `Retry-After`)
+- ✅ Email verification, password reset (enumeration-safe), and TOTP MFA added as opt-in account-security flows (see `docs/security.md` and `docs/api/endpoints/auth.md`)
 
 ### 3. Authorization Tests
 

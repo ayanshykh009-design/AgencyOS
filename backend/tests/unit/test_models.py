@@ -268,6 +268,10 @@ def test_no_secrets_columns() -> None:
     # intentionally absent from every API response schema (UserRead excludes it);
     # the raw value can never be recovered, so the column itself is safe.
     hashed_secret_columns = {"password_hash"}
+    # users.mfa_secret_enc stores the TOTP secret ENCRYPTED at rest
+    # (app.core.mfa) and is never returned by any API schema (MfaEnrollResponse
+    # returns a fresh secret, not the stored one); safe like password_hash.
+    hashed_secret_columns |= {"mfa_secret_enc"}
     # credentials.credential_type is a classification LABEL (n8n_api_key,
     # api_key, basic_auth), not the secret itself; the encrypted value lives in
     # credentials.encrypted_value and is never returned by an API schema.

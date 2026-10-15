@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import AppError
 from app.models.enums import WorkflowTriggerType
 from app.models.workflow_trigger import WorkflowTrigger
+from app.repositories.workflow import WorkflowRepository
 from app.repositories.workflow_trigger import WorkflowTriggerRepository
 from app.schemas.workflow_trigger import WorkflowTriggerCreate, WorkflowTriggerUpdate
 from app.services.base import commit_with_retry
@@ -93,12 +94,17 @@ class WorkflowTriggerService:
         return await self._repo.get_or_404(organization_id, trigger_id)
 
     async def create(self, data: WorkflowTriggerCreate) -> WorkflowTrigger:
-        if data.organization_id is None:
+        org_id = data.organization_id
+        if org_id is None:
             raise AppError(
                 code="workflow_trigger.organization_required",
                 message="organization_id is required",
                 status_code=400,
             )
+
+        # Reject a workflow_id that belongs to another tenant: the FK alone would
+        # accept it, silently attaching a trigger to a foreign org's workflow.
+        await WorkflowRepository(self._session).get_or_404(org_id, data.workflow_id)
 
         self._validate_schedule_cron(data.trigger_type, data.schedule_cron)
         if data.trigger_type == WorkflowTriggerType.EVENT and not data.event_type:
@@ -115,7 +121,7 @@ class WorkflowTriggerService:
             )
 
         trigger = WorkflowTrigger(
-            organization_id=data.organization_id,
+            organization_id=org_id,
             workflow_id=data.workflow_id,
             name=data.name,
             trigger_type=data.trigger_type,

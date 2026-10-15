@@ -95,8 +95,12 @@ function setAuthCookie(value: string | null): void {
   if (typeof document === "undefined") {
     return;
   }
+  // Mark the marker cookie Secure over HTTPS so it is never sent in the clear;
+  // skipped on http (e.g. localhost dev) where a Secure cookie would be dropped.
+  const secure =
+    typeof location !== "undefined" && location.protocol === "https:" ? "; secure" : "";
   const expires = value
-    ? `; max-age=${COOKIE_MAX_AGE}; samesite=lax; path=/`
+    ? `; max-age=${COOKIE_MAX_AGE}; samesite=lax; path=/${secure}`
     : "; max-age=0; path=/";
   document.cookie = `${AUTH_COOKIE}=${value ?? ""}${expires}`;
 }

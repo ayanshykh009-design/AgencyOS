@@ -138,6 +138,18 @@ EXPECTED_MIGRATION_SHAS = {
     "0033_tenant_isolation_rls.sql": (
         "6c12a07d7be58e74d8c8fbd2317802cd768061ede254f967685e536f1ffa3644"
     ),
+    "0034_auth_session_hardening.sql": (
+        "cad80311bbf9da45f46f8d621ffd8801b75c2ff227d4df73a8b14274fd64f6f1"
+    ),
+    "0035_auth_refresh_reuse.sql": (
+        "a26716256a90c1c38b85eed94232a882d145535e2f0aa680cd83672d8a99166d"
+    ),
+    "0036_account_lifecycle.sql": (
+        "8e707efedcdce0606f08e8a9dc61e1e88a3289187472431043b58d0d28427069"
+    ),
+    "0037_mfa.sql": (
+        "8a15ec1e76435165c6efac8bf2b1e2a78f295272d1ed350dc34b0b707f727589"
+    ),
 }
 
 

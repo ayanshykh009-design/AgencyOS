@@ -1,5 +1,6 @@
 -- Agency users. Phase 2 added first-party auth: password_hash holds the
--- Argon2id hash (NULL for identity-provider-only accounts).
+-- Argon2id hash (NULL for identity-provider-only accounts). Stage 3 (0036)
+-- added email verification, Stage 3b (0037) added optional TOTP MFA.
 CREATE TABLE IF NOT EXISTS public.users (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES public.organizations (id) ON DELETE CASCADE,
@@ -9,6 +10,15 @@ CREATE TABLE IF NOT EXISTS public.users (
   is_active       boolean NOT NULL DEFAULT true,
   password_hash   text,
   last_login_at   timestamptz,
+  token_version   integer NOT NULL DEFAULT 0,
+  failed_login_attempts integer NOT NULL DEFAULT 0,
+  locked_until    timestamptz,
+  email_verified_at timestamptz,
+  email_verification_required boolean NOT NULL DEFAULT false,
+  mfa_enabled     boolean NOT NULL DEFAULT false,
+  mfa_secret_enc  text,
+  mfa_failed_attempts integer NOT NULL DEFAULT 0,
+  mfa_locked_until timestamptz,
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT uq_users_org_email UNIQUE (organization_id, email)

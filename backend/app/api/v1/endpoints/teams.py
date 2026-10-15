@@ -94,7 +94,8 @@ async def revoke_invite(
     response_model=TeamInviteLookup,
     summary="Resolve invite details for the acceptance screen",
 )
-async def lookup_invite(token: str, db: DbSession) -> TeamInviteLookup:
+@limiter.limit(settings.RATE_LIMIT_STRICT)
+async def lookup_invite(request: Request, token: str, db: DbSession) -> TeamInviteLookup:
     """Return non-sensitive invite details for a token (no session)."""
     service = TeamService(db)
     invite = await service.lookup_invite(token)

@@ -552,8 +552,8 @@ paths:
     post:
       tags:
       - auth
-      summary: Revoke all refresh tokens for the current user
-      description: Log the user out of every device session.
+      summary: Revoke all sessions for the current user
+      description: Log the user out of every device session (revokes access + refresh).
       operationId: logout_api_v1_auth_logout_post
       responses:
         '204':
@@ -581,7 +581,7 @@ paths:
       tags:
       - auth
       summary: Change the current user's password
-      description: Verify the current password and set a new one (revokes other sessions).
+      description: Verify the current password and set a new one (revokes all sessions).
       operationId: change_password_api_v1_auth_change_password_post
       requestBody:
         content:
@@ -600,6 +600,186 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /api/v1/auth/verify-email:
+    post:
+      tags:
+      - auth
+      summary: Confirm an email address with a verification token
+      description: Consume a single-use verification token and mark the account verified.
+      operationId: verify_email_api_v1_auth_verify_email_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailRequest'
+        required: true
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/verify-email/resend:
+    post:
+      tags:
+      - auth
+      summary: Re-send the email-verification link
+      description: Invalidate the previous token and send a fresh verification link.
+      operationId: resend_verification_api_v1_auth_verify_email_resend_post
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+      security:
+      - HTTPBearer: []
+  /api/v1/auth/password-reset/request:
+    post:
+      tags:
+      - auth
+      summary: Request a password reset email
+      description: 'Always 202: never reveals whether an account exists (enumeration-safe).'
+      operationId: password_reset_request_api_v1_auth_password_reset_request_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+        required: true
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/password-reset/confirm:
+    post:
+      tags:
+      - auth
+      summary: Complete a password reset with a token
+      description: Set a new password and revoke every existing session for the account.
+      operationId: password_reset_confirm_api_v1_auth_password_reset_confirm_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+        required: true
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/mfa/enroll:
+    post:
+      tags:
+      - auth
+      summary: Start TOTP enrollment (pending until a code is confirmed)
+      description: Generate a pending TOTP secret and provisioning URI.
+      operationId: mfa_enroll_api_v1_auth_mfa_enroll_post
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaEnrollResponse'
+      security:
+      - HTTPBearer: []
+  /api/v1/auth/mfa/activate:
+    post:
+      tags:
+      - auth
+      summary: Confirm enrollment and enable TOTP two-factor authentication
+      description: Verify a code against the pending secret and return recovery codes.
+      operationId: mfa_activate_api_v1_auth_mfa_activate_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaCodeRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaActivateResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /api/v1/auth/mfa/disable:
+    post:
+      tags:
+      - auth
+      summary: Disable TOTP two-factor authentication
+      description: Verify the current factor, then turn off TOTP and drop recovery codes.
+      operationId: mfa_disable_api_v1_auth_mfa_disable_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaCodeRequest'
+        required: true
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /api/v1/auth/mfa/verify:
+    post:
+      tags:
+      - auth
+      summary: Complete a MFA-gated login
+      description: Validate the challenge token + second factor, then issue a session.
+      operationId: mfa_verify_api_v1_auth_mfa_verify_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerifyRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/leads:
     post:
       tags:
@@ -9110,6 +9290,16 @@ components:
           default: 3600
         user:
           $ref: '#/components/schemas/UserRead'
+        email_verification_required:
+          type: boolean
+          title: Email Verification Required
+          default: false
+        dev_email_verification_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dev Email Verification Url
+          default: null
       type: object
       required:
       - access_token
@@ -13510,6 +13700,76 @@ components:
         ``working`` memories are ephemeral (pruned after ``MEMORY_WORKING_TTL_DAYS``);
 
         ``long_term`` memories are durable and never auto-deleted.'
+    MessageResponse:
+      properties:
+        detail:
+          type: string
+          title: Detail
+        dev_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dev Url
+      type: object
+      required:
+      - detail
+      title: MessageResponse
+      description: Generic acknowledgement (optionally carrying a dev-only link).
+    MfaActivateResponse:
+      properties:
+        recovery_codes:
+          items:
+            type: string
+          type: array
+          title: Recovery Codes
+      type: object
+      required:
+      - recovery_codes
+      title: MfaActivateResponse
+      description: Recovery codes returned once, at activation time.
+    MfaCodeRequest:
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Code
+      type: object
+      required:
+      - code
+      title: MfaCodeRequest
+      description: A TOTP (or recovery) code submitted to a MFA endpoint.
+    MfaEnrollResponse:
+      properties:
+        secret:
+          type: string
+          title: Secret
+        otpauth_url:
+          type: string
+          title: Otpauth Url
+      type: object
+      required:
+      - secret
+      - otpauth_url
+      title: MfaEnrollResponse
+      description: Pending TOTP enrollment material (secret + provisioning URI).
+    MfaVerifyRequest:
+      properties:
+        mfa_token:
+          type: string
+          minLength: 1
+          title: Mfa Token
+        code:
+          type: string
+          maxLength: 64
+          minLength: 1
+          title: Code
+      type: object
+      required:
+      - mfa_token
+      - code
+      title: MfaVerifyRequest
+      description: Second-factor submission to complete a MFA-gated login.
     MonitoringInformationResponse:
       properties:
         system:
@@ -14356,6 +14616,34 @@ components:
       - items
       - total
       title: Page[WorkflowTriggerRead]
+    PasswordResetConfirmRequest:
+      properties:
+        token:
+          type: string
+          minLength: 1
+          title: Token
+        new_password:
+          type: string
+          maxLength: 128
+          minLength: 8
+          title: New Password
+      type: object
+      required:
+      - token
+      - new_password
+      title: PasswordResetConfirmRequest
+      description: Payload to complete a password reset with a token + new password.
+    PasswordResetRequest:
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email
+      type: object
+      required:
+      - email
+      title: PasswordResetRequest
+      description: Payload to request a password reset (enumeration-safe).
     PipelineStageCreate:
       properties:
         name:
@@ -15561,6 +15849,17 @@ components:
       - msg
       - type
       title: ValidationError
+    VerifyEmailRequest:
+      properties:
+        token:
+          type: string
+          minLength: 1
+          title: Token
+      type: object
+      required:
+      - token
+      title: VerifyEmailRequest
+      description: Payload to confirm an email address with a verification token.
     WebhookLeadBody:
       properties:
         first_name:

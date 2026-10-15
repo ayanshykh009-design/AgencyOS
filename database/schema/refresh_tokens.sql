@@ -1,10 +1,12 @@
 -- Refresh tokens for first-party auth (rotation-based). Only the SHA-256
--- digest of the opaque token is stored — never the raw token.
+-- digest of the opaque token is stored — never the raw token. Stage 2 (0035)
+-- grouped rotations into families for reuse/theft detection.
 CREATE TABLE IF NOT EXISTS public.refresh_tokens (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id         uuid NOT NULL REFERENCES public.users (id) ON DELETE CASCADE,
   organization_id uuid NOT NULL REFERENCES public.organizations (id) ON DELETE CASCADE,
   token_hash      text NOT NULL UNIQUE,
+  family_id       uuid NOT NULL DEFAULT gen_random_uuid(),
   expires_at      timestamptz NOT NULL,
   created_at      timestamptz NOT NULL DEFAULT now(),
   revoked_at      timestamptz,
@@ -14,3 +16,4 @@ CREATE TABLE IF NOT EXISTS public.refresh_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON public.refresh_tokens (user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires_at ON public.refresh_tokens (expires_at);
+CREATE INDEX IF NOT EXISTS ix_refresh_tokens_family_id ON public.refresh_tokens (family_id);

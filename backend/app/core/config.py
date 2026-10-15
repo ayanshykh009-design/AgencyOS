@@ -104,6 +104,35 @@ class Settings(BaseSettings):
     # AI endpoints trigger LLM/n8n work — keep them tighter than the default.
     RATE_LIMIT_AI: str = "60/minute"
 
+    # --- Account security (email verification / password reset / MFA) ---
+    # Email verification gate for NEW accounts. Defaults OFF so local dev and
+    # the existing test suite are unaffected; a production deployment enables it
+    # (and then MUST configure SMTP — see validate_for_production). Existing
+    # accounts are grandfathered (never retroactively locked out).
+    EMAIL_VERIFICATION_ENABLED: bool = False
+    EMAIL_VERIFICATION_TOKEN_TTL_MINUTES: int = 1440
+    EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: int = 60
+    # Self-service password reset. Enumeration-safe (always 202); tokens are
+    # single-use, short-lived, and hashed at rest.
+    PASSWORD_RESET_ENABLED: bool = True
+    PASSWORD_RESET_TOKEN_TTL_MINUTES: int = 60
+    # Optional TOTP two-factor authentication. Enrollment is per-user and
+    # opt-in; the login challenge only appears for users who enabled it.
+    MFA_ENABLED: bool = False
+    MFA_ISSUER: str = "AgencyOS"
+    MFA_CHALLENGE_TTL_MINUTES: int = 5
+    MFA_MAX_ATTEMPTS: int = 5
+    # SMTP delivery for verification/reset emails. When unset, links are only
+    # surfaced in non-production environments (logged, and returned by the API
+    # to the local caller); production refuses to boot with a mail-dependent
+    # feature enabled but no SMTP configured (fail fast, never silent no-op).
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_USE_TLS: bool = True
+
     # --- CSV import worker ---
     IMPORT_WORKER_ENABLED: bool = True
     IMPORT_CHUNK_SIZE: int = 200
@@ -332,6 +361,27 @@ class Settings(BaseSettings):
         """Parse TRUSTED_HOSTS into a list of allowed Host headers."""
         return [h.strip() for h in self.TRUSTED_HOSTS.split(",") if h.strip()]
 
+    @property
+    def smtp_configured(self) -> bool:
+        """True when outbound email delivery is configured."""
+        return bool(self.SMTP_HOST and self.SMTP_FROM_EMAIL)
+
+    def _validate_account_security(self) -> None:
+        if self.EMAIL_VERIFICATION_TOKEN_TTL_MINUTES < 5:
+            raise RuntimeError("EMAIL_VERIFICATION_TOKEN_TTL_MINUTES must be >= 5")
+        if self.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS < 0:
+            raise RuntimeError("EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS must be >= 0")
+        if self.PASSWORD_RESET_TOKEN_TTL_MINUTES < 5:
+            raise RuntimeError("PASSWORD_RESET_TOKEN_TTL_MINUTES must be >= 5")
+        if self.MFA_CHALLENGE_TTL_MINUTES < 1:
+            raise RuntimeError("MFA_CHALLENGE_TTL_MINUTES must be >= 1")
+        if self.MFA_MAX_ATTEMPTS < 1:
+            raise RuntimeError("MFA_MAX_ATTEMPTS must be >= 1")
+        if self.SMTP_FROM_EMAIL and "@" not in self.SMTP_FROM_EMAIL:
+            raise RuntimeError("SMTP_FROM_EMAIL must be a valid email address")
+        if self.SMTP_HOST and not (0 < self.SMTP_PORT <= 65535):
+            raise RuntimeError("SMTP_PORT must be between 1 and 65535")
+
     def _validate_redis_url(self) -> None:
         if not self.REDIS_URL:
             return
@@ -470,6 +520,7 @@ class Settings(BaseSettings):
         """Environment-agnostic startup validation (called on every boot)."""
         self._validate_redis_url()
         self._validate_enc_key()
+        self._validate_account_security()
         self._validate_phase5d()
         self._validate_m6_delivery()
         self._validate_m8_founder()
@@ -501,6 +552,7 @@ class Settings(BaseSettings):
             raise RuntimeError("ENABLE_CSP must be enabled in production")
         self._validate_redis_url()
         self._validate_enc_key()
+        self._validate_account_security()
         self._validate_phase5d()
         self._validate_m6_delivery()
         self._validate_m8_founder()

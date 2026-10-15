@@ -16,6 +16,13 @@ WORKFLOW_ID = uuid.UUID("00000000-0000-0000-0000-000000000501")
 TRIGGER_ID = uuid.UUID("00000000-0000-0000-0000-000000000701")
 
 
+class _Result:
+    """Minimal execute() result: any workflow_id resolves as existing."""
+
+    def scalar_one_or_none(self) -> object:
+        return MagicMock()
+
+
 class FakeSession:
     def __init__(self) -> None:
         self.commits = 0
@@ -34,6 +41,11 @@ class FakeSession:
 
     async def rollback(self) -> None:
         pass
+
+    async def execute(self, *args: object, **kwargs: object) -> _Result:
+        # WorkflowRepository.get_or_404 runs a tenant-scoped SELECT; the fake
+        # resolves it so create() only exercises trigger validation.
+        return _Result()
 
 
 def _service() -> WorkflowTriggerService:

@@ -17,11 +17,21 @@ from app.schemas.auth import (
     AuthResponse,
     ChangePasswordRequest,
     LoginRequest,
+    MessageResponse,
+    MfaActivateResponse,
+    MfaCodeRequest,
+    MfaEnrollResponse,
+    MfaVerifyRequest,
+    PasswordResetConfirmRequest,
+    PasswordResetRequest,
     RefreshRequest,
     RegisterRequest,
+    VerifyEmailRequest,
 )
 from app.schemas.user import UserRead
+from app.services.account_security_service import AccountSecurityService
 from app.services.auth_service import AuthService
+from app.services.mfa_service import MfaService
 
 router = APIRouter()
 
@@ -66,12 +76,13 @@ async def refresh(request: Request, body: RefreshRequest, db: DbSession) -> Auth
 @router.post(
     "/logout",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Revoke all refresh tokens for the current user",
+    summary="Revoke all sessions for the current user",
 )
-async def logout(db: DbSession, current_user: CurrentUser):
-    """Log the user out of every device session."""
+@limiter.limit(settings.RATE_LIMIT_STRICT)
+async def logout(request: Request, db: DbSession, current_user: CurrentUser):
+    """Log the user out of every device session (revokes access + refresh)."""
     service = AuthService(db)
-    await service.logout(current_user.id)
+    await service.logout(current_user)
 
 
 @router.get(
@@ -89,11 +100,140 @@ async def me(current_user: CurrentUser) -> UserRead:
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Change the current user's password",
 )
+@limiter.limit(settings.RATE_LIMIT_STRICT)
 async def change_password(
+    request: Request,
     db: DbSession,
     current_user: CurrentUser,
     body: ChangePasswordRequest,
 ):
-    """Verify the current password and set a new one (revokes other sessions)."""
+    """Verify the current password and set a new one (revokes all sessions)."""
     service = AuthService(db)
     await service.change_password(current_user, body.current_password, body.new_password)
+
+
+# -- Email verification -----------------------------------------------------
+
+
+@router.post(
+    "/verify-email",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Confirm an email address with a verification token",
+)
+@limiter.limit(settings.RATE_LIMIT_STRICT)
+async def verify_email(request: Request, body: VerifyEmailRequest, db: DbSession):
+    """Consume a single-use verification token and mark the account verified."""
+    await AccountSecurityService(db).verify_email(body.token)
+
+
+@router.post(
+    "/verify-email/resend",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=MessageResponse,
+    summary="Re-send the email-verification link",
+)
+@limiter.limit(settings.RATE_LIMIT_STRICT)
+async def resend_verification(
+    request: Request, db: DbSession, current_user: CurrentUser
+) -> MessageResponse:
+    """Invalidate the previous token and send a fresh verification link."""
+    if not settings.EMAIL_VERIFICATION_ENABLED:
+        return MessageResponse(detail="Email verification is not enabled")
+    account = AccountSecurityService(db)
+    dev_url = await account.resend_verification(current_user)
+    return MessageResponse(detail="Verification email sent", dev_url=dev_url)
+
+
+# -- Password reset ---------------------------------------------------------
+
+
+@router.post(
+    "/password-reset/request",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=MessageResponse,
+    summary="Request a password reset email",
+)
+@limiter.limit(settings.RATE_LIMIT_STRICT)
+async def password_reset_request(
+    request: Request, body: PasswordResetRequest, db: DbSession
+) -> MessageResponse:
+    """Always 202: never reveals whether an account exists (enumeration-safe)."""
+    if not settings.PASSWORD_RESET_ENABLED:
+        return MessageResponse(detail="Password reset is not enabled")
+    dev_url = await AccountSecurityService(db).request_password_reset(str(body.email))
+    return MessageResponse(detail="If that account exists, a reset email was sent", dev_url=dev_url)
+
+
+@router.post(
+    "/password-reset/confirm",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Complete a password reset with a token",
+)
+@limiter.limit(settings.RATE_LIMIT_STRICT)
+async def password_reset_confirm(
+    request: Request, body: PasswordResetConfirmRequest, db: DbSession
+):
+    """Set a new password and revoke every existing session for the account."""
+    await AccountSecurityService(db).reset_password(body.token, body.new_password)
+
+
+# -- Two-factor authentication ----------------------------------------------
+
+
+@router.post(
+    "/mfa/enroll",
+    response_model=MfaEnrollResponse,
+    summary="Start TOTP enrollment (pending until a code is confirmed)",
+)
+@limiter.limit(settings.RATE_LIMIT_STRICT)
+async def mfa_enroll(
+    request: Request, db: DbSession, current_user: CurrentUser
+) -> MfaEnrollResponse:
+    """Generate a pending TOTP secret and provisioning URI."""
+    secret, uri = await MfaService(db).enroll(current_user)
+    return MfaEnrollResponse(secret=secret, otpauth_url=uri)
+
+
+@router.post(
+    "/mfa/activate",
+    response_model=MfaActivateResponse,
+    summary="Confirm enrollment and enable TOTP two-factor authentication",
+)
+@limiter.limit(settings.RATE_LIMIT_STRICT)
+async def mfa_activate(
+    request: Request,
+    db: DbSession,
+    current_user: CurrentUser,
+    body: MfaCodeRequest,
+) -> MfaActivateResponse:
+    """Verify a code against the pending secret and return recovery codes."""
+    codes = await MfaService(db).activate(current_user, body.code)
+    return MfaActivateResponse(recovery_codes=codes)
+
+
+@router.post(
+    "/mfa/disable",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Disable TOTP two-factor authentication",
+)
+@limiter.limit(settings.RATE_LIMIT_STRICT)
+async def mfa_disable(
+    request: Request,
+    db: DbSession,
+    current_user: CurrentUser,
+    body: MfaCodeRequest,
+):
+    """Verify the current factor, then turn off TOTP and drop recovery codes."""
+    await MfaService(db).disable(current_user, body.code)
+
+
+@router.post(
+    "/mfa/verify",
+    response_model=AuthResponse,
+    summary="Complete a MFA-gated login",
+)
+@limiter.limit(settings.RATE_LIMIT_STRICT)
+async def mfa_verify(request: Request, body: MfaVerifyRequest, db: DbSession) -> AuthResponse:
+    """Validate the challenge token + second factor, then issue a session."""
+    user = await MfaService(db).verify_challenge(body.mfa_token, body.code)
+    return await AuthService(db).session_for_user(user)

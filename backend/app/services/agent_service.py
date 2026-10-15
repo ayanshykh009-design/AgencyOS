@@ -27,6 +27,7 @@ from app.models.agent_state import AgentState
 from app.models.enums import AgentHealth, AgentRunStatus, AgentRunTrigger, AgentStateStatus
 from app.repositories.agent_run import AgentRunRepository
 from app.repositories.agent_state import AgentStateRepository
+from app.repositories.workflow import WorkflowRepository
 from app.services.base import commit_with_retry, utcnow
 
 
@@ -97,6 +98,11 @@ class AgentService:
                 message="Agent runs must be created as queued",
                 status_code=400,
             )
+
+        # A caller-supplied workflow_id must belong to this tenant; the FK only
+        # checks existence, not ownership.
+        if workflow_id is not None:
+            await WorkflowRepository(self._session).get_or_404(organization_id, workflow_id)
 
         if idempotency_key:
             existing = await self._runs.get_by_idempotency_key(organization_id, idempotency_key)

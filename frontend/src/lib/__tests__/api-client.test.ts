@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apiFetch } from "@/lib/api-client";
-import { clearSession, setSession } from "@/lib/session";
+import { clearSession, getSession, setSession } from "@/lib/session";
 import type { User } from "@/types";
 
 const USER: User = {
@@ -111,5 +111,62 @@ describe("apiFetch", () => {
       status: 0,
       code: "network.error",
     });
+  });
+
+  it("refreshes once on a 401 and retries with the new token", async () => {
+    setSession({
+      accessToken: "expired",
+      refreshToken: "refresh-456",
+      expiresIn: 3600,
+      user: USER,
+    });
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ error: { code: "auth.token_revoked" } }, 401))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: "new-access",
+          refresh_token: "new-refresh",
+          token_type: "bearer",
+          expires_in: 3600,
+          user: USER,
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+
+    const data = await apiFetch<{ ok: boolean }>("/leads");
+
+    expect(data.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const refreshCall = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(refreshCall[0]).toContain("/auth/refresh");
+    const retryCall = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect((retryCall[1].headers as Record<string, string>).Authorization).toBe(
+      "Bearer new-access"
+    );
+    expect(getSession()?.accessToken).toBe("new-access");
+  });
+
+  it("clears the session when the refresh attempt fails", async () => {
+    setSession({
+      accessToken: "expired",
+      refreshToken: "refresh-456",
+      expiresIn: 3600,
+      user: USER,
+    });
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ error: { code: "auth.token_revoked" } }, 401))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+    await expect(apiFetch("/leads")).rejects.toMatchObject({ status: 401 });
+    expect(getSession()).toBeNull();
+  });
+
+  it("does not attempt a refresh for unauthenticated requests", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: { code: "auth.invalid_credentials" } }, 401));
+
+    await expect(
+      apiFetch("/auth/login", { method: "POST", auth: false, body: "{}" })
+    ).rejects.toMatchObject({ status: 401 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

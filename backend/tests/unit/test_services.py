@@ -6,7 +6,7 @@ verified without a database. Repository SQL is covered by the integration
 suite (which runs against a real PostgreSQL server in CI).
 """
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -299,7 +299,7 @@ async def test_refresh_rejects_invalid_token() -> None:
     service = AuthService(session)
     service._users = MagicMock()
     service._tokens = MagicMock()
-    service._tokens.get_valid = AsyncMock(return_value=None)
+    service._tokens.get_any = AsyncMock(return_value=None)
 
     with pytest.raises(AppError) as exc_info:
         await service.refresh("not-a-real-token")
@@ -315,12 +315,14 @@ async def test_refresh_rotates_token() -> None:
     service._users = MagicMock()
     service._tokens = MagicMock()
     service._users.get = AsyncMock(return_value=_make_user())
-    service._tokens.get_valid = AsyncMock(
+    family_id = uuid.uuid4()
+    service._tokens.get_any = AsyncMock(
         return_value=RefreshToken(
             user_id=uuid.uuid4(),
             organization_id=ORG_ID,
             token_hash="deadbeef",
-            expires_at=utcnow(),
+            family_id=family_id,
+            expires_at=utcnow() + timedelta(days=1),
         )
     )
     service._tokens.add = MagicMock()
@@ -331,6 +333,10 @@ async def test_refresh_rotates_token() -> None:
     assert result.access_token and result.refresh_token
     assert service._tokens.mark_replaced.await_count == 1
     assert session.committed is True
+    # The rotated token must inherit the original family so a later replay of
+    # the parent can revoke the whole chain.
+    issued = service._tokens.add.call_args.args[0]
+    assert issued.family_id == family_id
 
 
 @pytest.mark.asyncio
@@ -339,12 +345,12 @@ async def test_refresh_rejects_inactive_user() -> None:
     service = AuthService(session)
     service._users = MagicMock()
     service._tokens = MagicMock()
-    service._tokens.get_valid = AsyncMock(
+    service._tokens.get_any = AsyncMock(
         return_value=RefreshToken(
             user_id=uuid.uuid4(),
             organization_id=ORG_ID,
             token_hash="deadbeef",
-            expires_at=utcnow(),
+            expires_at=utcnow() + timedelta(days=1),
         )
     )
     service._users.get = AsyncMock(return_value=_make_user(is_active=False))
@@ -353,6 +359,39 @@ async def test_refresh_rejects_inactive_user() -> None:
         await service.refresh("a-valid-raw-token")
 
     assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_refresh_detects_reuse_and_revokes_family() -> None:
+    session = FakeSession()
+    service = AuthService(session)
+    service._users = MagicMock()
+    service._tokens = MagicMock()
+    victim = _make_user()
+    service._users.get = AsyncMock(return_value=victim)
+    family_id = uuid.uuid4()
+    service._tokens.get_any = AsyncMock(
+        return_value=RefreshToken(
+            user_id=victim.id,
+            organization_id=ORG_ID,
+            token_hash="rotated",
+            family_id=family_id,
+            expires_at=utcnow() + timedelta(days=1),
+            revoked_at=utcnow(),
+        )
+    )
+    service._tokens.revoke_family = AsyncMock(return_value=3)
+
+    with pytest.raises(AppError) as exc_info:
+        await service.refresh("leaked-raw-token")
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.code == "auth.refresh_token_reuse"
+    service._tokens.revoke_family.assert_awaited_once()
+    assert service._tokens.revoke_family.await_args.args[0] == family_id
+    # Access tokens for the user are invalidated by bumping the token version.
+    assert victim.token_version == 1
+    assert session.committed is True
 
 
 @pytest.mark.asyncio
@@ -375,26 +414,96 @@ async def test_change_password_rotates_hash_and_revokes_tokens() -> None:
     service._tokens = MagicMock()
     service._tokens.revoke_all_for_user = AsyncMock()
     user = _make_user(password_hash=hash_password("old-password"))
+    user.token_version = 0
 
     await service.change_password(user, "old-password", "new-password")
 
     assert verify_password("new-password", user.password_hash)
     assert not verify_password("old-password", user.password_hash)
+    assert user.token_version == 1
     service._tokens.revoke_all_for_user.assert_awaited_once()
     assert session.committed is True
 
 
 @pytest.mark.asyncio
-async def test_logout_revokes_all_tokens() -> None:
+async def test_logout_revokes_all_tokens_and_bumps_token_version() -> None:
     session = FakeSession()
     service = AuthService(session)
     service._tokens = MagicMock()
     service._tokens.revoke_all_for_user = AsyncMock()
+    user = _make_user()
+    user.token_version = 0
 
-    await service.logout(uuid.uuid4())
+    await service.logout(user)
 
     service._tokens.revoke_all_for_user.assert_awaited_once()
+    assert user.token_version == 1
     assert session.committed is True
+
+
+@pytest.mark.asyncio
+async def test_login_locks_account_after_repeated_failures() -> None:
+    session = FakeSession()
+    service = AuthService(session)
+    service._users = MagicMock()
+    user = _make_user(password_hash=hash_password("S3cure!pass"))
+    user.failed_login_attempts = 4  # next failure crosses the threshold
+    service._users.get_active_by_email = AsyncMock(return_value=user)
+
+    with pytest.raises(AppError) as exc_info:
+        await service.login(LoginRequest(email="owner@example.com", password="wrongpass"))
+
+    assert exc_info.value.status_code == 401
+    assert user.failed_login_attempts == 5
+    assert user.locked_until is not None
+    assert session.committed is True
+
+    # A subsequent incorrect attempt is throttled with Retry-After.
+    with pytest.raises(AppError) as locked:
+        await service.login(LoginRequest(email="owner@example.com", password="wrongpass"))
+    assert locked.value.status_code == 429
+    assert locked.value.code == "auth.too_many_attempts"
+    assert locked.value.headers and "Retry-After" in locked.value.headers
+
+
+@pytest.mark.asyncio
+async def test_login_correct_password_succeeds_even_when_locked() -> None:
+    """An attacker cannot lock a victim out: a correct password always works."""
+    session = FakeSession()
+    service = AuthService(session)
+    service._users = MagicMock()
+    service._tokens = MagicMock()
+    service._tokens.add = MagicMock()
+    user = _make_user(password_hash=hash_password("S3cure!pass"))
+    user.failed_login_attempts = 10
+    user.locked_until = utcnow() + timedelta(minutes=5)
+    service._users.get_active_by_email = AsyncMock(return_value=user)
+
+    result = await service.login(
+        LoginRequest(email="owner@example.com", password="S3cure!pass")
+    )
+
+    assert result.access_token and result.refresh_token
+    assert user.failed_login_attempts == 0
+    assert user.locked_until is None
+
+
+@pytest.mark.asyncio
+async def test_issue_tokens_embeds_token_version_claim() -> None:
+    from app.core.security import decode_access_token
+
+    session = FakeSession()
+    service = AuthService(session)
+    service._tokens = MagicMock()
+    service._tokens.add = MagicMock()
+    user = _make_user()
+    user.token_version = 7
+
+    access, _refresh, _record = await service._issue_tokens(user)
+    payload = decode_access_token(access)
+
+    assert payload["tv"] == 7
+    assert payload["sub"] == str(user.id)
 
 
 # ---------------------------------------------------------------------------

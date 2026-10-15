@@ -25,6 +25,10 @@ that are wired into the foundation — treat them as a contract, not a suggestio
 | Unified error envelope         | `backend/app/core/errors.py` — no stack traces to clients            |
 | Argon2id password hashing      | `backend/app/core/security.py` (pwdlib)                              |
 | JWT with iss/aud validation    | `backend/app/core/security.py` (PyJWT)                               |
+| Revocable access tokens        | `users.token_version` + `tv` claim, enforced in `backend/app/api/deps.py`; bumped by auth-service logout/password change |
+| Per-account login throttle     | `backend/app/services/auth_service.py` — progressive lock on *incorrect* passwords only (429 + `Retry-After`); a correct password always authenticates |
+| Timing-safe login              | `verify_password_dummy()` in `backend/app/core/security.py` (unknown account costs the same as a real check) |
+| Refresh-on-401 (client)        | `frontend/src/lib/api-client.ts` — single deduped refresh, then one retry |
 | Fail-fast prod config          | `Settings.validate_for_production()` in `backend/app/core/config.py` |
 | RLS-first data access          | `database/supabase/policies/` (required for every tenant table)      |
 | Backend RLS (tenant isolation) | `database/migrations/0033_tenant_isolation_rls.sql` + `backend/app/core/tenant_context.py` |
@@ -81,6 +85,56 @@ Behavioral proof lives in
 `backend/tests/integration/test_tenant_isolation_rls.py` (PostgreSQL-gated,
 runs in CI); static contract checks in
 `backend/tests/integration/test_rls_policy_coverage.py`.
+
+## Auth session hardening
+
+Stateless JWTs alone cannot be revoked before `exp`. The session layer closes
+that gap and hardens the login surface:
+
+- **Revocable access tokens.** Every JWT carries a `tv` claim mirroring
+  `users.token_version`; `get_current_user` rejects any token whose `tv` is
+  stale. Logout and password change bump the counter (and revoke all refresh
+  tokens), so a leaked access token dies immediately.
+- **Victim-safe brute-force throttle.** Failed logins increment
+  `users.failed_login_attempts` and apply a progressive `locked_until`; only
+  *incorrect* passwords are throttled (429 + `Retry-After`). A correct password
+  always authenticates and clears the counter, so an attacker cannot lock a
+  legitimate user out.
+- **Timing-safe failure.** Unknown accounts run `verify_password_dummy()` so
+  account existence is not leaked by response time.
+- **Tenant-scoped FK checks.** Client-supplied `workflow_id` / `owner_user_id` /
+  `lead_source_id` references are validated against the caller's organization
+  (a bare FK only proves existence), preventing cross-tenant attachment.
+- **Auth audit logging.** `agencyos.auth` logs login success/failure (email
+  digest, not address), logout, and password change.
+- **Refresh-token reuse detection.** Refresh tokens are opaque, rotated on
+  every use, and grouped into a `family_id`. Presenting an already-rotated
+  token is treated as theft: the whole family is revoked and the user's
+  `token_version` is bumped, killing every outstanding access token
+  (`auth.refresh_token_reuse`).
+
+## Account security (email verification, password reset, TOTP MFA)
+
+These flows ship disabled-by-default where behavior changes (email
+verification, MFA) and are gated by env flags; production validation refuses
+to boot if a mail-dependent feature is enabled without SMTP.
+
+- **Email verification** (`EMAIL_VERIFICATION_ENABLED`). New accounts must
+  confirm their email before login succeeds (`403 auth.email_verification_required`);
+  existing rows are grandfathered. Tokens are single-use, SHA-256-hashed at
+  rest (`auth_tokens`), short-lived, and delivered by email.
+- **Password reset** (`PASSWORD_RESET_ENABLED`, default on). Enumeration-safe:
+  the request endpoint always returns `202` whether or not the account exists
+  (and burns comparable CPU for unknown addresses). Completing a reset revokes
+  every existing session (`token_version` bump + refresh revocation).
+- **TOTP two-factor** (`MFA_ENABLED`). Opt-in per account, two-step enrollment
+  (pending secret → confirm a code → recovery codes issued once, Argon2-hashed).
+  The login challenge is a short-lived JWT carrying `scope: "mfa"` that the
+  auth guard rejects as an access token. Failed codes are throttled with a
+  progressive lockout (`Retry-After`). TOTP secrets are encrypted at rest
+  (`app/core/mfa.py`) and never returned by an API schema.
+
+See `docs/api/endpoints/auth.md` for the endpoints and error codes.
 
 ## Must-dos before production
 

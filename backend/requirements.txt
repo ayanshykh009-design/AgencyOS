@@ -28,6 +28,8 @@ pwdlib[argon2]>=0.2
 cryptography>=42
 python-multipart>=0.0.9
 email-validator>=2.2
+# TOTP generation/verification for optional MFA (RFC 6238).
+pyotp>=2.9,<3
 
 # --- API guards ---
 slowapi>=0.1.9

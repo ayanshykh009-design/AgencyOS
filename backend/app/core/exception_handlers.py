@@ -33,7 +33,9 @@ def _error_response(
 
 async def _app_error_handler(request: Request, exc: Exception) -> JSONResponse:
     error = cast(AppError, exc)
-    return _error_response(error.status_code, error.code, error.message, error.details)
+    return _error_response(
+        error.status_code, error.code, error.message, error.details, error.headers
+    )
 
 
 async def _validation_error_handler(request: Request, exc: Exception) -> JSONResponse:

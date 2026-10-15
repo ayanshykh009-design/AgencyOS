@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ApiRequestError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { login } from "@/services/auth";
+import { login, mfaTokenFromError } from "@/services/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,6 +26,12 @@ export default function LoginPage() {
       router.replace(ROUTES.dashboard);
       router.refresh();
     } catch (err) {
+      // A second factor is required: hand off to the challenge screen.
+      const mfaToken = mfaTokenFromError(err);
+      if (mfaToken) {
+        router.push(`${ROUTES.mfa}?token=${encodeURIComponent(mfaToken)}`);
+        return;
+      }
       setError(
         err instanceof ApiRequestError ? err.message : "Unable to log in. Please try again."
       );

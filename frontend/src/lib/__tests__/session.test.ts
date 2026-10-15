@@ -58,6 +58,7 @@ describe("session store", () => {
 
   afterEach(() => {
     clearSession();
+    vi.unstubAllGlobals();
     // @ts-expect-error restoring a test-only global
     delete globalThis.window;
     // @ts-expect-error restoring a test-only global
@@ -118,5 +119,18 @@ describe("session store", () => {
   it("ignores corrupted persisted data", () => {
     globalThis.window.localStorage.setItem("agencyos.session", "{not json");
     expect(getSession()).toBeNull();
+  });
+
+  it("marks the marker cookie Secure when served over HTTPS", () => {
+    vi.stubGlobal("location", { protocol: "https:" });
+    setSession({
+      accessToken: "access-123",
+      refreshToken: "refresh-456",
+      expiresIn: 3600,
+      user: USER,
+    });
+
+    expect(globalThis.document.cookie).toContain(`${AUTH_COOKIE}=1`);
+    expect(globalThis.document.cookie).toContain("secure");
   });
 });
