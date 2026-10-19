@@ -2,7 +2,7 @@
 
 **Date:** 18 October 2026
 **Baseline:** `main` @ `5e9f302be17f6f9a9da107e49d86b357c46da4bb` (origin/main, in sync)
-**Working tree:** uncommitted, unpushed (per instruction)
+**Working tree:** committed and pushed to origin/main (ea52e9b); uncommitted plan files remain
 **Scope:** security remediation only; no Phase 6 work performed.
 
 ## 1. Actual starting state
