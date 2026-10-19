@@ -29,7 +29,16 @@ async def _rate_limit_exceeded_handler(request: Request, exc: Exception) -> JSON
     body = ErrorResponse(
         error=ErrorDetail(code="rate_limited", message="Rate limit exceeded, retry later")
     ).model_dump()
-    return JSONResponse(status_code=429, content=body)
+    headers: dict[str, str] = {}
+    limit = getattr(exc, "limit", None)
+    item = getattr(limit, "limit", None) if limit is not None else None
+    expiry = getattr(item, "get_expiry", None) if item is not None else None
+    if callable(expiry) and item is not None:
+        try:
+            headers["Retry-After"] = str(int(item.get_expiry()))  # type: ignore[union-attr]
+        except (TypeError, ValueError):
+            pass
+    return JSONResponse(status_code=429, content=body, headers=headers)
 
 
 def register_rate_limit(app: FastAPI) -> None:

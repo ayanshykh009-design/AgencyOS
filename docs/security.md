@@ -33,6 +33,9 @@ that are wired into the foundation — treat them as a contract, not a suggestio
 | RLS-first data access          | `database/supabase/policies/` (required for every tenant table)      |
 | Backend RLS (tenant isolation) | `database/migrations/0033_tenant_isolation_rls.sql` + `backend/app/core/tenant_context.py` |
 | Restricted connection roles    | `agencyos_app` (RLS-enforced) via `DATABASE_URL`, `agencyos_worker` (BYPASSRLS) via `WORKER_DATABASE_URL` |
+| Runtime role verified at boot  | `backend/app/core/db_roles.py` — production refuses to start on an owner/superuser DSN |
+| Mail flows require SMTP        | `validate_for_production()` — a mail-dependent feature without SMTP cannot boot |
+| Account security active in prod | `validate_for_production()` — requires `EMAIL_VERIFICATION_ENABLED` and `MFA_ENABLED` |
 | Non-root prod containers       | `docker/*/Dockerfile.prod`                                           |
 | No secrets in git              | `.gitignore` + `*.env.example` only                                  |
 | Credential envelope encryption | `backend/app/services/credential_crypto_service.py` (per-org DEKs + key rotation) |

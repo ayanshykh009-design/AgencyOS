@@ -83,6 +83,12 @@ def test_production_validation_accepts_strong_secret() -> None:
         DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
         WORKER_DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
         CREDENTIALS_ENC_KEY="Zk9x7mW3pQ2vRtY8uB1cN4dL6eF0gH5jAbCdEfGhIjKl",
+        # Production requires the account-security controls to be *active*.
+        EMAIL_VERIFICATION_ENABLED=True,
+        MFA_ENABLED=True,
+        SMTP_HOST="smtp.example.com",
+        SMTP_FROM_EMAIL="no-reply@example.com",
+        REDIS_URL="redis://localhost:6379/0",
     )
     settings.validate_for_production()  # must not raise
 
@@ -137,6 +143,11 @@ def test_production_validation_rejects_bad_redis() -> None:
         WORKER_DATABASE_URL="postgresql+asyncpg://u:p@db:5432/app",
         REDIS_URL="sqlite:///rate.db",
         CREDENTIALS_ENC_KEY="Zk9x7mW3pQ2vRtY8uB1cN4dL6eF0gH5jAbCdEfGhIjKl",
+        # Production requires the account-security controls to be *active*.
+        EMAIL_VERIFICATION_ENABLED=True,
+        MFA_ENABLED=True,
+        SMTP_HOST="smtp.example.com",
+        SMTP_FROM_EMAIL="no-reply@example.com",
     )
     with pytest.raises(RuntimeError, match="REDIS_URL"):
         settings.validate_for_production()

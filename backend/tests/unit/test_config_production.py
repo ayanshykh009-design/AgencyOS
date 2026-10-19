@@ -22,6 +22,13 @@ def _prod_settings(**overrides) -> Settings:
         WORKER_DATABASE_URL="postgresql://agencyos:secret@db:5432/agencyos",
         ENABLE_CSP=True,
         CREDENTIALS_ENC_KEY="c2VjcmV0LW1hc3Rlci1rZXktZm9yLXRlc3Rpbmctb25seQ==",
+        # Production must run with the account-security controls *enabled* and
+        # with SMTP configured, otherwise the mail flows silently no-op.
+        EMAIL_VERIFICATION_ENABLED=True,
+        MFA_ENABLED=True,
+        SMTP_HOST="smtp.example.com",
+        SMTP_FROM_EMAIL="no-reply@example.com",
+        REDIS_URL="redis://localhost:6379/0",
     )
     base.update(overrides)
     return Settings(**base)
@@ -47,6 +54,14 @@ def test_prod_accepts_safe_config():
         {"CREDENTIALS_ENC_KEY": ""},
         {"CREDENTIALS_ENC_KEY_PREVIOUS": "rotate-me", "CREDENTIAL_KEY_VERSION": "1"},
         {"CREDENTIAL_KEY_VERSION": "0"},
+        # Account-security controls must be active in production, not just built.
+        {"EMAIL_VERIFICATION_ENABLED": False},
+        {"MFA_ENABLED": False},
+        {"SMTP_HOST": ""},
+        {"SMTP_FROM_EMAIL": ""},
+        # A per-process memory:// limiter dilutes auth throttling across replicas.
+        {"REDIS_URL": ""},
+        {"REDIS_URL": "ftp://nope"},
     ],
 )
 def test_prod_rejects_unsafe_config(bad):

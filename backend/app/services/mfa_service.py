@@ -36,6 +36,7 @@ from app.core.security import (
 from app.core.tenant_context import activate_org
 from app.models.user import User
 from app.models.user_recovery_code import UserRecoveryCode
+from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
 from app.repositories.user_recovery_code import UserRecoveryCodeRepository
 from app.services.base import commit_with_retry, utcnow
@@ -52,6 +53,7 @@ class MfaService:
         self._session = session
         self._users = UserRepository(session)
         self._codes = UserRecoveryCodeRepository(session)
+        self._refresh_tokens = RefreshTokenRepository(session)
 
     # -- enrollment ------------------------------------------------------
 
@@ -92,11 +94,10 @@ class MfaService:
         user.mfa_failed_attempts = 0
         user.mfa_locked_until = None
         await self._codes.delete_all_for_user(user.id)
+        await self._revoke_all_sessions(user)
         recovery_codes = generate_recovery_codes()
         for raw in recovery_codes:
-            self._codes.add(
-                UserRecoveryCode(user_id=user.id, code_hash=hash_password(raw))
-            )
+            self._codes.add(UserRecoveryCode(user_id=user.id, code_hash=hash_password(raw)))
         await commit_with_retry(self._session)
         logger.info("auth.mfa.enabled user_id=%s org_id=%s", user.id, user.organization_id)
         return recovery_codes
@@ -117,8 +118,22 @@ class MfaService:
         user.mfa_failed_attempts = 0
         user.mfa_locked_until = None
         await self._codes.delete_all_for_user(user.id)
+        await self._revoke_all_sessions(user)
         await commit_with_retry(self._session)
         logger.info("auth.mfa.disabled user_id=%s org_id=%s", user.id, user.organization_id)
+
+    async def _revoke_all_sessions(self, user: User) -> None:
+        """Invalidate every outstanding session for ``user``.
+
+        Changing the second factor must not leave pre-existing sessions usable:
+        a refresh token minted *before* MFA enrolment would otherwise keep
+        rotating for up to ``REFRESH_TOKEN_EXPIRE_DAYS`` without ever presenting
+        the new factor, which is an MFA bypass via an alternate auth path.
+        Bumping ``token_version`` also kills already-issued access tokens
+        server-side (enforced by the ``tv`` claim check in app/api/deps.py).
+        """
+        user.token_version = (user.token_version or 0) + 1
+        await self._refresh_tokens.revoke_all_for_user(user.id, now=utcnow())
 
     # -- login challenge -------------------------------------------------
 

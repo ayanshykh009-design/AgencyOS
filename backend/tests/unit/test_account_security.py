@@ -337,6 +337,8 @@ async def test_mfa_activate_enables_and_returns_recovery_codes(
     session = FakeSession()
     service = MfaService(session)
     service._codes = MagicMock()
+    service._refresh_tokens = MagicMock()
+    service._refresh_tokens.revoke_all_for_user = AsyncMock(return_value=0)
     service._codes.delete_all_for_user = AsyncMock()
     secret = generate_secret()
     user = _make_user(mfa_secret_enc=None)
@@ -398,6 +400,8 @@ async def test_mfa_disable_clears_secret_and_codes(
     session = FakeSession()
     service = MfaService(session)
     service._codes = MagicMock()
+    service._refresh_tokens = MagicMock()
+    service._refresh_tokens.revoke_all_for_user = AsyncMock(return_value=0)
     service._codes.delete_all_for_user = AsyncMock()
     service._codes.list_unused = AsyncMock(return_value=[])
     secret = generate_secret()
@@ -473,6 +477,8 @@ async def test_mfa_verify_challenge_accepts_valid_totp(
     service = MfaService(session)
     service._users = MagicMock()
     service._codes = MagicMock()
+    service._refresh_tokens = MagicMock()
+    service._refresh_tokens.revoke_all_for_user = AsyncMock(return_value=0)
     service._codes.list_unused = AsyncMock(return_value=[])
     secret = generate_secret()
     user = _make_user(mfa_enabled=True, mfa_secret_enc=None)
@@ -498,6 +504,8 @@ async def test_mfa_verify_challenge_consumes_recovery_code(
     service = MfaService(session)
     service._users = MagicMock()
     service._codes = MagicMock()
+    service._refresh_tokens = MagicMock()
+    service._refresh_tokens.revoke_all_for_user = AsyncMock(return_value=0)
     service._codes.mark_used = AsyncMock()
     user = _make_user(mfa_enabled=True)
     record = UserRecoveryCode(
@@ -525,6 +533,8 @@ async def test_mfa_failed_attempts_lock_out_after_threshold(
     service = MfaService(session)
     service._users = MagicMock()
     service._codes = MagicMock()
+    service._refresh_tokens = MagicMock()
+    service._refresh_tokens.revoke_all_for_user = AsyncMock(return_value=0)
     service._codes.list_unused = AsyncMock(return_value=[])
     user = _make_user(mfa_enabled=True)
     user.mfa_secret_enc = _encrypt(generate_secret())
@@ -567,3 +577,55 @@ def _current_code(secret: str) -> str:
 def _current_code_from_user(user: User) -> str:
     secret = decrypt_mfa_secret(user.mfa_secret_enc)
     return _current_code(secret)
+
+
+@pytest.mark.asyncio
+async def test_mfa_activate_revokes_existing_sessions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Enrolling a second factor must invalidate sessions minted without it.
+
+    A refresh token issued before MFA enrolment would otherwise keep rotating
+    for up to REFRESH_TOKEN_EXPIRE_DAYS without ever presenting the new factor.
+    """
+    monkeypatch.setattr(settings, "MFA_ENABLED", True)
+    session = FakeSession()
+    service = MfaService(session)
+    service._codes = MagicMock()
+    service._refresh_tokens = MagicMock()
+    service._refresh_tokens.revoke_all_for_user = AsyncMock(return_value=2)
+    service._codes.delete_all_for_user = AsyncMock()
+    secret = generate_secret()
+    user = _make_user(mfa_secret_enc=None, token_version=3)
+    user.mfa_secret_enc = _encrypt(secret)
+
+    await service.activate(user, _current_code(secret))
+
+    assert user.mfa_enabled is True
+    # Access tokens carrying the stale `tv` claim are rejected by deps.py.
+    assert user.token_version == 4
+    service._refresh_tokens.revoke_all_for_user.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_mfa_disable_revokes_existing_sessions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Removing a second factor must force every session to re-authenticate."""
+    monkeypatch.setattr(settings, "MFA_ENABLED", True)
+    session = FakeSession()
+    service = MfaService(session)
+    service._codes = MagicMock()
+    service._codes.list_unused = AsyncMock(return_value=[])
+    service._codes.delete_all_for_user = AsyncMock()
+    service._refresh_tokens = MagicMock()
+    service._refresh_tokens.revoke_all_for_user = AsyncMock(return_value=1)
+    secret = generate_secret()
+    user = _make_user(mfa_enabled=True, token_version=7)
+    user.mfa_secret_enc = _encrypt(secret)
+
+    await service.disable(user, _current_code(secret))
+
+    assert user.mfa_enabled is False
+    assert user.token_version == 8
+    service._refresh_tokens.revoke_all_for_user.assert_awaited_once()

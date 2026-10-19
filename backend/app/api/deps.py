@@ -70,6 +70,17 @@ async def get_current_user(
             message="Account not found or disabled",
             status_code=401,
         )
+    # Enforce email verification on every authenticated request, not only at
+    # login. ``register()`` mints a token pair in the same transaction as the
+    # account, so without this gate an unverified user would hold a usable
+    # session (and could keep rotating it) without ever proving ownership of
+    # the address. Same code/status as AuthService._email_verification_required.
+    if user.email_verification_required and user.email_verified_at is None:
+        raise AppError(
+            code="auth.email_verification_required",
+            message="Confirm your email address before continuing",
+            status_code=403,
+        )
     # Enforce server-side access-token revocation: logout / password change bump
     # users.token_version, so any token carrying a stale ``tv`` claim is rejected
     # immediately instead of remaining valid until its ``exp``.

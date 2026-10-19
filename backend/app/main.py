@@ -12,6 +12,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.core.db_roles import verify_runtime_database_roles
 from app.core.exception_handlers import register_exception_handlers
 from app.core.logging import setup_logging
 from app.core.middleware import (
@@ -30,6 +31,10 @@ async def lifespan(application: FastAPI):
     """Startup/shutdown lifecycle hooks (with fail-fast config validation)."""
     settings.validate_runtime()
     settings.validate_for_production()
+    # RLS is only load-bearing if the runtime role is subject to it: migration
+    # 0033 does not FORCE RLS, so an owner/superuser DSN would bypass every
+    # tenant policy while the test suite stayed green. Fail closed instead.
+    await verify_runtime_database_roles()
     setup_telemetry(application)
     logger.info("AgencyOS API starting (env=%s, debug=%s)", settings.APP_ENV, settings.APP_DEBUG)
     yield

@@ -156,9 +156,7 @@ class AuthService:
         user.last_login_at = now
         access, refresh, _record = await self._issue_tokens(user)
         await commit_with_retry(self._session)
-        logger.info(
-            "auth.login.success user_id=%s org_id=%s", user.id, user.organization_id
-        )
+        logger.info("auth.login.success user_id=%s org_id=%s", user.id, user.organization_id)
         return await self._auth_response(user, access, refresh)
 
     async def refresh(self, raw_token: str) -> AuthResponse:
@@ -186,10 +184,12 @@ class AuthService:
                 message="Account is disabled",
                 status_code=403,
             )
+        # Rotation must not become a way around the email-verification gate:
+        # mirror the check enforced in login() and app/api/deps.py.
+        if user.email_verification_required and user.email_verified_at is None:
+            raise self._email_verification_required()
 
-        access, refresh, new_record = await self._issue_tokens(
-            user, family_id=record.family_id
-        )
+        access, refresh, new_record = await self._issue_tokens(user, family_id=record.family_id)
         await self._tokens.mark_replaced(record.id, new_record.id, now=now)
         await commit_with_retry(self._session)
         return await self._auth_response(user, access, refresh)
@@ -228,9 +228,7 @@ class AuthService:
         now = utcnow()
         await self._tokens.revoke_all_for_user(user.id, now=now)
         await commit_with_retry(self._session)
-        logger.info(
-            "auth.password_changed user_id=%s org_id=%s", user.id, user.organization_id
-        )
+        logger.info("auth.password_changed user_id=%s org_id=%s", user.id, user.organization_id)
 
     async def _resolve_register_conflict(self, email: str, slug: str) -> None:
         """Distinguish email-vs-slug uniqueness conflicts and raise 409."""

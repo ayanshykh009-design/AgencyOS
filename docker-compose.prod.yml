@@ -48,12 +48,17 @@ services:
     env_file: .env.production
     environment:
       # The compose subnet hostname for Postgres overrides the localhost default.
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Runtime API DSN. MUST resolve to a LOGIN role that is a member of
+      # agencyos_app, otherwise RLS is bypassed and tenant isolation is
+      # lost. Startup refuses to boot in production if it is not
+      # (app/core/db_roles.py). The POSTGRES_USER fallback exists only so
+      # dev/staging compose keeps working; override it in .env.production.
+      DATABASE_URL: postgresql+asyncpg://${DATABASE_USER:-${POSTGRES_USER}}:${DATABASE_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/${POSTGRES_DB}
       # Required in APP_ENV=production (validate_for_production). Workers run
       # cross-tenant by design and bypass RLS; for least privilege point this
       # at a LOGIN role that is a member of agencyos_worker instead of the
       # cluster owner (see docs/database.md — Row Level Security).
-      WORKER_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      WORKER_DATABASE_URL: postgresql+asyncpg://${WORKER_DATABASE_USER:-${POSTGRES_USER}}:${WORKER_DATABASE_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/${POSTGRES_DB}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
@@ -118,10 +123,15 @@ services:
     env_file: .env.production
     environment:
       # The compose subnet hostname for Postgres overrides the localhost default.
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Runtime API DSN. MUST resolve to a LOGIN role that is a member of
+      # agencyos_app, otherwise RLS is bypassed and tenant isolation is
+      # lost. Startup refuses to boot in production if it is not
+      # (app/core/db_roles.py). The POSTGRES_USER fallback exists only so
+      # dev/staging compose keeps working; override it in .env.production.
+      DATABASE_URL: postgresql+asyncpg://${DATABASE_USER:-${POSTGRES_USER}}:${DATABASE_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/${POSTGRES_DB}
       # See backend service: BYPASSRLS worker DSN (member of agencyos_worker
       # for least privilege; the cluster-owner DSN also bypasses RLS).
-      WORKER_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      WORKER_DATABASE_URL: postgresql+asyncpg://${WORKER_DATABASE_USER:-${POSTGRES_USER}}:${WORKER_DATABASE_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/${POSTGRES_DB}
     command: ["sh", "/app/scripts/prod/start_workers.sh"]
     depends_on:
       postgres:

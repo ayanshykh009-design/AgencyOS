@@ -50,7 +50,15 @@ class Settings(BaseSettings):
     # at startup via ``validate_for_production`` — see ``_KNOWN_WEAK_SECRET_KEYS``.
     SECRET_KEY: str = DEFAULT_SECRET_KEY
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    # 15 minutes: short enough to bound the window in which a stolen access
+    # token is silently usable (the frontend holds tokens in browser
+    # storage, so XSS can read them), while long enough that the existing
+    # refresh-on-401 path with request deduplication (frontend/src/lib/
+    # api-client.ts) rotates at most a few times per session. Revocation
+    # does not depend on this value - the `tv` claim is checked against
+    # users.token_version on every request - but a shorter lifetime still
+    # caps damage from a token exfiltrated without triggering a refresh.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     JWT_ISSUER: str = "agencyos"
     JWT_AUDIENCE: str = "agencyos-api"
@@ -550,6 +558,41 @@ class Settings(BaseSettings):
             )
         if not self.ENABLE_CSP:
             raise RuntimeError("ENABLE_CSP must be enabled in production")
+        # The auth rate limiter stores counters in REDIS_URL, falling back to
+        # memory://. An in-memory limiter is per-process, so behind more than
+        # one replica each instance keeps its own counter and the effective
+        # limit becomes N x RATE_LIMIT_STRICT - i.e. brute-force protection is
+        # silently diluted rather than absent. Require the shared backend.
+        if not self.REDIS_URL:
+            raise RuntimeError(
+                "REDIS_URL must be set in production: the rate limiter needs "
+                "shared storage, otherwise per-process memory:// counters make "
+                "auth throttling ineffective across replicas"
+            )
+        # Account-security controls must be *active* in production, not merely
+        # implemented. A feature flag left at its development default silently
+        # removes the protection while the code and CI still look green.
+        if not self.EMAIL_VERIFICATION_ENABLED:
+            raise RuntimeError(
+                "EMAIL_VERIFICATION_ENABLED must be true in production: new "
+                "accounts must prove ownership of their email address"
+            )
+        if not self.MFA_ENABLED:
+            raise RuntimeError(
+                "MFA_ENABLED must be true in production so users can enrol a "
+                "second factor (enrolment itself stays per-user opt-in)"
+            )
+        # A mail-dependent feature without SMTP silently no-ops: send_email()
+        # logs a warning and returns False while the endpoint still answers 202,
+        # so the user never receives the verification/reset link. Refuse to boot
+        # rather than ship a control that cannot deliver.
+        if (
+            self.EMAIL_VERIFICATION_ENABLED or self.PASSWORD_RESET_ENABLED
+        ) and not self.smtp_configured:
+            raise RuntimeError(
+                "SMTP_HOST and SMTP_FROM_EMAIL must be set in production when "
+                "EMAIL_VERIFICATION_ENABLED or PASSWORD_RESET_ENABLED is true"
+            )
         self._validate_redis_url()
         self._validate_enc_key()
         self._validate_account_security()

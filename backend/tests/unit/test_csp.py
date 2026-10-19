@@ -82,6 +82,7 @@ def test_validate_runtime_accepts_valid_csp_origins() -> None:
 def test_production_validation_requires_csp() -> None:
     settings = Settings(
         APP_ENV="production",
+        REDIS_URL="redis://localhost:6379/0",
         APP_DEBUG=False,
         SECRET_KEY="overridden-production-secret-key-with-sufficient-length-12345",
         DATABASE_URL="postgresql+asyncpg://user:pass@db:5432/agencyos",
