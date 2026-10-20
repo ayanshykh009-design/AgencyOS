@@ -41,11 +41,10 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 
   let res = await send(path, auth, headers, rest);
   if (res.status === 401 && auth) {
-    if (await refreshSessionOnce()) {
+    const result = await performRefresh();
+    if (result.ok) {
       res = await send(path, auth, headers, rest);
-    } else {
-      // Refresh token missing/expired/revoked: drop the dead session so the app
-      // falls back to the login flow.
+    } else if (result.definitive) {
       clearSession();
     }
   }
@@ -81,20 +80,22 @@ async function send(
   }
 }
 
-// A single in-flight refresh shared by all concurrent 401s so a burst of
-// requests rotates the refresh token exactly once.
-let inFlightRefresh: Promise<boolean> | null = null;
+// A single in-flight refresh shared by all callers (bootstrap + 401 retries)
+// so a burst of requests rotates the refresh token exactly once.
+export type RefreshResult = { ok: true; data: AuthResponse } | { ok: false; definitive: boolean };
 
-function refreshSessionOnce(): Promise<boolean> {
+let inFlightRefresh: Promise<RefreshResult> | null = null;
+
+export function performRefresh(): Promise<RefreshResult> {
   if (!inFlightRefresh) {
-    inFlightRefresh = refreshSession().finally(() => {
+    inFlightRefresh = doRefresh().finally(() => {
       inFlightRefresh = null;
     });
   }
   return inFlightRefresh;
 }
 
-async function refreshSession(): Promise<boolean> {
+async function doRefresh(): Promise<RefreshResult> {
   try {
     const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
       method: "POST",
@@ -102,7 +103,11 @@ async function refreshSession(): Promise<boolean> {
       headers: { "Content-Type": "application/json" },
     });
     if (!res.ok) {
-      return false;
+      const definitive = res.status === 401 || res.status === 403;
+      if (definitive) {
+        clearSession();
+      }
+      return { ok: false, definitive };
     }
     const data = (await res.json()) as AuthResponse;
     setSession({
@@ -110,9 +115,10 @@ async function refreshSession(): Promise<boolean> {
       expiresIn: data.expires_in,
       user: data.user,
     });
-    return true;
+    return { ok: true, data };
   } catch {
-    return false;
+    // Network failure: not definitive; leave session state untouched.
+    return { ok: false, definitive: false };
   }
 }
 

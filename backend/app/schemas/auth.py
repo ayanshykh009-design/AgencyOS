@@ -56,13 +56,13 @@ class AuthResponse(TokenResponse):
 
 
 class RefreshRequest(BaseModel):
-    """Payload to exchange a refresh token for a new token pair.
+    """Empty body: the refresh token travels in the HttpOnly cookie.
 
-    ``refresh_token`` is optional for backward compatibility; the server
-    prefers the HttpOnly ``agencyos.refresh`` cookie when present.
+    Retained as a model so the endpoint keeps a documented request schema;
+    no refresh-token field is accepted in the body (cookie-only, V5).
     """
 
-    refresh_token: str | None = Field(default=None, min_length=1)
+    pass
 
 
 class ChangePasswordRequest(BaseModel):

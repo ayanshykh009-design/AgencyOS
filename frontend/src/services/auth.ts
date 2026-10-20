@@ -1,5 +1,5 @@
 // Auth service: login, logout, refresh, session persistence.
-import { ApiRequestError, apiFetch } from "@/lib/api-client";
+import { ApiRequestError, apiFetch, performRefresh } from "@/lib/api-client";
 import { clearSession, setSession, type Session } from "@/lib/session";
 import type {
   AuthResponse,
@@ -25,12 +25,15 @@ export async function login(input: LoginInput): Promise<AuthResponse> {
 
 /** Rotate the refresh cookie and persist the new access token in memory. */
 export async function refresh(): Promise<AuthResponse> {
-  const result = await apiFetch<AuthResponse>("/auth/refresh", {
-    method: "POST",
-    auth: false,
-  });
-  persist(result);
-  return result;
+  const result = await performRefresh();
+  if (!result.ok) {
+    throw new ApiRequestError(
+      result.definitive ? 401 : 0,
+      result.definitive ? "auth.invalid_refresh" : "auth.network_error",
+      result.definitive ? "Refresh token invalid or expired" : "Unable to reach the API"
+    );
+  }
+  return result.data;
 }
 
 export async function logout(): Promise<void> {

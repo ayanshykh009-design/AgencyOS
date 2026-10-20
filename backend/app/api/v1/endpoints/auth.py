@@ -25,7 +25,6 @@ from app.schemas.auth import (
     MfaVerifyRequest,
     PasswordResetConfirmRequest,
     PasswordResetRequest,
-    RefreshRequest,
     RegisterRequest,
     VerifyEmailRequest,
 )
@@ -121,18 +120,10 @@ async def login(
     summary="Rotate a refresh token",
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
-async def refresh(
-    request: Request, db: DbSession, response: Response, body: RefreshRequest | None = None
-) -> AuthResponse:
-    """Exchange a refresh token for a new token pair (rotation).
-
-    The refresh token is read from the HttpOnly ``agencyos.refresh`` cookie
-    (preferred) or, for backward compatibility, from the request body.
-    """
+async def refresh(request: Request, db: DbSession, response: Response) -> AuthResponse:
+    """Exchange the HttpOnly refresh cookie for a new token pair (rotation)."""
     _validate_csrf_origin(request)
     raw_token = request.cookies.get(settings.REFRESH_COOKIE_NAME)
-    if not raw_token and body is not None:
-        raw_token = body.refresh_token
     if not raw_token:
         raise AppError(
             code="auth.invalid_refresh", message="Missing refresh token", status_code=401
