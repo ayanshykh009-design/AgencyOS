@@ -2,7 +2,8 @@
 
 **Date:** 20 October 2026
 **Baseline:** `main` @ `c60b51aa61322770620b9de42e32522be1bda744`
-**Commit:** `56e1f416e72cb3b2b7bb6ee968bd72a2a2c2306f` (pushed to origin/main)
+**Commit (initial):** `56e1f416e72cb3b2b7bb6ee968bd72a2a2c2306f`
+**Final commit:** `13f903850e832094814c428976813957df7d2145` (pushed to origin/main)
 **Scope:** V5 Option B only — HttpOnly refresh cookie + in-memory access token. No Phase 6 work.
 
 ## 1. Original behavior
