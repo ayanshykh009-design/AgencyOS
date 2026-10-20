@@ -12,6 +12,7 @@ import uuid
 from datetime import timedelta
 from hashlib import sha256
 
+from fastapi import Response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -60,7 +61,9 @@ class AuthService:
 
     # -- public API ------------------------------------------------------
 
-    async def register(self, payload: RegisterRequest) -> AuthResponse:
+    async def register(
+        self, payload: RegisterRequest, response: Response | None = None
+    ) -> AuthResponse:
         """Create an organization + owner and return a session token pair."""
         email = str(payload.email).strip().lower()
         await self._orgs.ensure_slug_available(payload.organization_slug)
@@ -107,9 +110,10 @@ class AuthService:
         if verification_token is not None:
             await account.send_verification_email(user, verification_token)
             dev_url = account.dev_verification_url(verification_token)
+        self._set_refresh_cookie(response, refresh)
         return await self._auth_response(user, access, refresh, dev_verification_url=dev_url)
 
-    async def login(self, payload: LoginRequest) -> AuthResponse:
+    async def login(self, payload: LoginRequest, response: Response | None = None) -> AuthResponse:
         """Authenticate a user and return a session token pair.
 
         Timing-safe for unknown accounts and victim-safe under brute force: a
@@ -157,9 +161,10 @@ class AuthService:
         access, refresh, _record = await self._issue_tokens(user)
         await commit_with_retry(self._session)
         logger.info("auth.login.success user_id=%s org_id=%s", user.id, user.organization_id)
+        self._set_refresh_cookie(response, refresh)
         return await self._auth_response(user, access, refresh)
 
-    async def refresh(self, raw_token: str) -> AuthResponse:
+    async def refresh(self, raw_token: str, response: Response | None = None) -> AuthResponse:
         """Rotate a refresh token and issue a fresh token pair.
 
         Detects token *reuse*: if the presented token was already rotated
@@ -192,6 +197,7 @@ class AuthService:
         access, refresh, new_record = await self._issue_tokens(user, family_id=record.family_id)
         await self._tokens.mark_replaced(record.id, new_record.id, now=now)
         await commit_with_retry(self._session)
+        self._set_refresh_cookie(response, refresh)
         return await self._auth_response(user, access, refresh)
 
     async def logout(self, user: User) -> None:
@@ -201,7 +207,7 @@ class AuthService:
         await commit_with_retry(self._session)
         logger.info("auth.logout user_id=%s org_id=%s", user.id, user.organization_id)
 
-    async def session_for_user(self, user: User) -> AuthResponse:
+    async def session_for_user(self, user: User, response: Response | None = None) -> AuthResponse:
         """Issue a token pair for an already-authenticated user (e.g. post-MFA).
 
         Used to complete a login that was gated on a second factor: the user
@@ -209,7 +215,23 @@ class AuthService:
         """
         access, refresh, _record = await self._issue_tokens(user)
         await commit_with_retry(self._session)
+        self._set_refresh_cookie(response, refresh)
         return await self._auth_response(user, access, refresh)
+
+    def _set_refresh_cookie(self, response, refresh: str) -> None:
+        if response is None:
+            return
+        max_age = settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400
+        response.set_cookie(
+            key=settings.REFRESH_COOKIE_NAME,
+            value=refresh,
+            max_age=max_age,
+            expires=max_age,
+            path=settings.REFRESH_COOKIE_PATH,
+            secure=settings.refresh_cookie_secure,
+            httponly=True,
+            samesite=settings.REFRESH_COOKIE_SAMESITE,
+        )
 
     async def change_password(self, user: User, current: str, new_password: str) -> None:
         """Verify the current password, then rotate to a new hash.
@@ -290,7 +312,6 @@ class AuthService:
         await self._session.refresh(user)
         return AuthResponse(
             access_token=access,
-            refresh_token=refresh,
             user=UserRead.model_validate(user),
             email_verification_required=bool(
                 user.email_verification_required and user.email_verified_at is None

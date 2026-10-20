@@ -32,7 +32,7 @@ describe("exports service", () => {
 
   it("downloadExport fetches with auth and triggers a blob download", async () => {
     clearSession();
-    setSession({ accessToken: "access-123", refreshToken: "r", expiresIn: 3600, user: USER });
+    setSession({ accessToken: "access-123", expiresIn: 3600, user: USER });
 
     const click = vi.fn();
     const anchor = { href: "", download: "", click, remove: vi.fn() };

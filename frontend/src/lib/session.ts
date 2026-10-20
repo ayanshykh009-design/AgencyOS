@@ -1,7 +1,9 @@
 // Client auth session store.
 //
-// Owns the JWT token pair + user profile and persists it to localStorage.
-// A short-lived cookie marker is also set so Next.js middleware can route
+// Owns the in-memory JWT access token + user profile (V5 Option B). The
+// refresh token is never stored in JS-accessible storage; it lives in the
+// HttpOnly ``agencyos.refresh`` cookie and is rotated via /auth/refresh.
+// A short-lived cookie marker is still set so Next.js middleware can route
 // unauthenticated visitors to /login (the cookie never carries the token).
 //
 // This module is framework-free (no React, no fetch) so it is unit-testable
@@ -13,7 +15,6 @@ import type { User } from "@/types";
 
 export interface Session {
   accessToken: string;
-  refreshToken: string;
   expiresIn: number;
   user: User;
 }
@@ -28,51 +29,29 @@ type Listener = () => void;
 const listeners = new Set<Listener>();
 let cachedSession: Session | null = null;
 
-/** Read the persisted session from localStorage (cached in memory). */
+/** Read the in-memory session (no persistence). */
 export function getSession(): Session | null {
-  if (cachedSession) {
-    return cachedSession;
-  }
-  if (typeof window === "undefined") {
-    return null;
-  }
-  const raw = window.localStorage.getItem(STORAGE_KEYS.authSession);
-  if (!raw) {
-    return null;
-  }
-  try {
-    cachedSession = JSON.parse(raw) as Session;
-  } catch {
-    window.localStorage.removeItem(STORAGE_KEYS.authSession);
-    cachedSession = null;
-  }
   return cachedSession;
 }
 
 export function getAccessToken(): string | null {
-  return getSession()?.accessToken ?? null;
+  return cachedSession?.accessToken ?? null;
 }
 
 export function isAuthenticated(): boolean {
-  return getSession() !== null;
+  return cachedSession !== null;
 }
 
-/** Persist a new session (localStorage + middleware cookie) and notify. */
+/** Install a new in-memory session and notify. */
 export function setSession(session: Session): void {
   cachedSession = session;
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEYS.authSession, JSON.stringify(session));
-  }
   setAuthCookie("1");
   notify();
 }
 
-/** Clear the session and its marker cookie. */
+/** Clear the in-memory session and its marker cookie. */
 export function clearSession(): void {
   cachedSession = null;
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(STORAGE_KEYS.authSession);
-  }
   setAuthCookie(null);
   notify();
 }
@@ -95,8 +74,6 @@ function setAuthCookie(value: string | null): void {
   if (typeof document === "undefined") {
     return;
   }
-  // Mark the marker cookie Secure over HTTPS so it is never sent in the clear;
-  // skipped on http (e.g. localhost dev) where a Secure cookie would be dropped.
   const secure =
     typeof location !== "undefined" && location.protocol === "https:" ? "; secure" : "";
   const expires = value

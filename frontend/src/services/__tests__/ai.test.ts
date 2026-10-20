@@ -111,7 +111,6 @@ describe("ai service", () => {
   it("updateAISettings PATCHes the org override", async () => {
     setSession({
       accessToken: "access-123",
-      refreshToken: "refresh-456",
       expiresIn: 3600,
       user: USER,
     });

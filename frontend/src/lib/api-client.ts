@@ -9,7 +9,7 @@
 // (deduped across concurrent callers) and one retry of the original request.
 
 import { env } from "@/lib/env";
-import { clearSession, getAccessToken, getSession, setSession } from "@/lib/session";
+import { clearSession, getAccessToken, setSession } from "@/lib/session";
 import type { ApiError, AuthResponse } from "@/types";
 
 export class ApiRequestError extends Error {
@@ -69,6 +69,7 @@ async function send(
   try {
     return await fetch(`${env.NEXT_PUBLIC_API_URL}${path}`, {
       ...rest,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -94,15 +95,11 @@ function refreshSessionOnce(): Promise<boolean> {
 }
 
 async function refreshSession(): Promise<boolean> {
-  const session = getSession();
-  if (!session?.refreshToken) {
-    return false;
-  }
   try {
     const res = await fetch(`${env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: session.refreshToken }),
     });
     if (!res.ok) {
       return false;
@@ -110,7 +107,6 @@ async function refreshSession(): Promise<boolean> {
     const data = (await res.json()) as AuthResponse;
     setSession({
       accessToken: data.access_token,
-      refreshToken: data.refresh_token,
       expiresIn: data.expires_in,
       user: data.user,
     });

@@ -8,10 +8,11 @@ resolves them against slowapi's globals, producing unresolved ForwardRefs.
 Real (non-string) annotations keep ``get_type_hints`` working.
 """
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
+from app.core.errors import AppError
 from app.core.rate_limit import limiter
 from app.schemas.auth import (
     AuthResponse,
@@ -36,6 +37,55 @@ from app.services.mfa_service import MfaService
 router = APIRouter()
 
 
+def _validate_csrf_origin(request: Request, require: bool = True) -> None:
+    """Validate the Origin/Referer of browser requests against trusted origins.
+
+    Used for cookie-authenticated state-changing endpoints (refresh, logout).
+    When ``require`` is True (refresh), a missing/invalid origin is rejected.
+    When False (logout, which also accepts a Bearer token), validation runs
+    only when an Origin/Referer is present.
+    """
+    origin = request.headers.get("origin")
+    referer = request.headers.get("referer")
+    allowed = set(settings.cors_origins_list)
+
+    candidate: str | None = None
+    if origin:
+        candidate = origin
+    elif referer:
+        # Extract origin from Referer URL.
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(referer)
+            if parsed.scheme and parsed.netloc:
+                candidate = f"{parsed.scheme}://{parsed.netloc}"
+        except Exception:  # noqa: BLE001
+            candidate = None
+
+    if candidate is None:
+        if require:
+            raise AppError(
+                code="auth.csrf_origin_required",
+                message="Origin header is required",
+                status_code=403,
+            )
+        return
+    if candidate not in allowed:
+        raise AppError(
+            code="auth.csrf_origin_invalid",
+            message="Origin not allowed",
+            status_code=403,
+        )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.REFRESH_COOKIE_NAME,
+        path=settings.REFRESH_COOKIE_PATH,
+    )
+
+
 @router.post(
     "/register",
     response_model=AuthResponse,
@@ -43,10 +93,12 @@ router = APIRouter()
     summary="Register an organization and its owner",
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
-async def register(request: Request, body: RegisterRequest, db: DbSession) -> AuthResponse:
+async def register(
+    request: Request, body: RegisterRequest, db: DbSession, response: Response
+) -> AuthResponse:
     """Create a new organization + owner account and return a session."""
     service = AuthService(db)
-    return await service.register(body)
+    return await service.register(body, response=response)
 
 
 @router.post(
@@ -55,10 +107,12 @@ async def register(request: Request, body: RegisterRequest, db: DbSession) -> Au
     summary="Log in with email and password",
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
-async def login(request: Request, body: LoginRequest, db: DbSession) -> AuthResponse:
+async def login(
+    request: Request, body: LoginRequest, db: DbSession, response: Response
+) -> AuthResponse:
     """Authenticate a user and return a token pair."""
     service = AuthService(db)
-    return await service.login(body)
+    return await service.login(body, response=response)
 
 
 @router.post(
@@ -67,10 +121,24 @@ async def login(request: Request, body: LoginRequest, db: DbSession) -> AuthResp
     summary="Rotate a refresh token",
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
-async def refresh(request: Request, body: RefreshRequest, db: DbSession) -> AuthResponse:
-    """Exchange a refresh token for a new token pair (rotation)."""
+async def refresh(
+    request: Request, db: DbSession, response: Response, body: RefreshRequest | None = None
+) -> AuthResponse:
+    """Exchange a refresh token for a new token pair (rotation).
+
+    The refresh token is read from the HttpOnly ``agencyos.refresh`` cookie
+    (preferred) or, for backward compatibility, from the request body.
+    """
+    _validate_csrf_origin(request)
+    raw_token = request.cookies.get(settings.REFRESH_COOKIE_NAME)
+    if not raw_token and body is not None:
+        raw_token = body.refresh_token
+    if not raw_token:
+        raise AppError(
+            code="auth.invalid_refresh", message="Missing refresh token", status_code=401
+        )
     service = AuthService(db)
-    return await service.refresh(body.refresh_token)
+    return await service.refresh(raw_token, response=response)
 
 
 @router.post(
@@ -79,10 +147,12 @@ async def refresh(request: Request, body: RefreshRequest, db: DbSession) -> Auth
     summary="Revoke all sessions for the current user",
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
-async def logout(request: Request, db: DbSession, current_user: CurrentUser):
+async def logout(request: Request, db: DbSession, current_user: CurrentUser, response: Response):
     """Log the user out of every device session (revokes access + refresh)."""
+    _validate_csrf_origin(request, require=False)
     service = AuthService(db)
     await service.logout(current_user)
+    _clear_refresh_cookie(response)
 
 
 @router.get(
@@ -233,7 +303,9 @@ async def mfa_disable(
     summary="Complete a MFA-gated login",
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
-async def mfa_verify(request: Request, body: MfaVerifyRequest, db: DbSession) -> AuthResponse:
+async def mfa_verify(
+    request: Request, body: MfaVerifyRequest, db: DbSession, response: Response
+) -> AuthResponse:
     """Validate the challenge token + second factor, then issue a session."""
     user = await MfaService(db).verify_challenge(body.mfa_token, body.code)
-    return await AuthService(db).session_for_user(user)
+    return await AuthService(db).session_for_user(user, response=response)

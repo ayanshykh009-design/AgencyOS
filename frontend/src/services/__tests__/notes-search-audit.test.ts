@@ -30,7 +30,7 @@ describe("notes service", () => {
 
   beforeEach(() => {
     clearSession();
-    setSession({ accessToken: "access-123", refreshToken: "r", expiresIn: 3600, user: USER });
+    setSession({ accessToken: "access-123", expiresIn: 3600, user: USER });
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
   });
@@ -97,7 +97,7 @@ describe("search service", () => {
 
   beforeEach(() => {
     clearSession();
-    setSession({ accessToken: "access-123", refreshToken: "r", expiresIn: 3600, user: USER });
+    setSession({ accessToken: "access-123", expiresIn: 3600, user: USER });
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
   });
@@ -133,7 +133,7 @@ describe("audit service", () => {
 
   beforeEach(() => {
     clearSession();
-    setSession({ accessToken: "access-123", refreshToken: "r", expiresIn: 3600, user: USER });
+    setSession({ accessToken: "access-123", expiresIn: 3600, user: USER });
     fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
   });

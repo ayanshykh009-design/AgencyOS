@@ -35,7 +35,6 @@ describe("auth service", () => {
       new Response(
         JSON.stringify({
           access_token: "access-123",
-          refresh_token: "refresh-456",
           token_type: "bearer",
           expires_in: 3600,
           user: USER,
@@ -82,7 +81,6 @@ describe("auth service", () => {
       new Response(
         JSON.stringify({
           access_token: "access-2",
-          refresh_token: "refresh-2",
           token_type: "bearer",
           expires_in: 3600,
           user: USER,
@@ -95,20 +93,13 @@ describe("auth service", () => {
 
     expect(result.access_token).toBe("access-2");
     expect(getSession()?.accessToken).toBe("access-2");
-    expect(getSession()?.refreshToken).toBe("refresh-2");
     const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("/auth/refresh");
-  });
-
-  it("refresh rejects when no refresh token is stored", async () => {
-    await expect(refresh()).rejects.toMatchObject({ code: "auth.no_refresh_token" });
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   function setAuthenticated() {
     setSession({
       accessToken: "access-123",
-      refreshToken: "refresh-456",
       expiresIn: 3600,
       user: USER,
     });

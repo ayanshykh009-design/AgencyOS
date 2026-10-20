@@ -28,10 +28,14 @@ class RegisterRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    """JWT pair returned after login/refresh."""
+    """Access token returned after login/refresh.
+
+    The refresh token is delivered exclusively through the HttpOnly
+    ``agencyos.refresh`` cookie (V5 Option B) and is never serialized
+    into a JSON response body.
+    """
 
     access_token: str
-    refresh_token: str
     token_type: str = "bearer"
     # Reflect the configured access-token lifetime instead of a hardcoded value,
     # so clients never trust a stale "expires_in" after a config change.
@@ -52,9 +56,13 @@ class AuthResponse(TokenResponse):
 
 
 class RefreshRequest(BaseModel):
-    """Payload to exchange a refresh token for a new token pair."""
+    """Payload to exchange a refresh token for a new token pair.
 
-    refresh_token: str = Field(min_length=1)
+    ``refresh_token`` is optional for backward compatibility; the server
+    prefers the HttpOnly ``agencyos.refresh`` cookie when present.
+    """
+
+    refresh_token: str | None = Field(default=None, min_length=1)
 
 
 class ChangePasswordRequest(BaseModel):

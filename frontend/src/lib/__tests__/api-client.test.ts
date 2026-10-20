@@ -50,7 +50,6 @@ describe("apiFetch", () => {
   it("attaches the bearer token from the session", async () => {
     setSession({
       accessToken: "access-123",
-      refreshToken: "refresh-456",
       expiresIn: 3600,
       user: USER,
     });
@@ -65,7 +64,6 @@ describe("apiFetch", () => {
   it("omits the bearer token when auth is disabled", async () => {
     setSession({
       accessToken: "access-123",
-      refreshToken: "refresh-456",
       expiresIn: 3600,
       user: USER,
     });
@@ -116,7 +114,6 @@ describe("apiFetch", () => {
   it("refreshes once on a 401 and retries with the new token", async () => {
     setSession({
       accessToken: "expired",
-      refreshToken: "refresh-456",
       expiresIn: 3600,
       user: USER,
     });
@@ -149,7 +146,6 @@ describe("apiFetch", () => {
   it("clears the session when the refresh attempt fails", async () => {
     setSession({
       accessToken: "expired",
-      refreshToken: "refresh-456",
       expiresIn: 3600,
       user: USER,
     });

@@ -150,7 +150,8 @@ async def test_register_creates_org_owner_and_tokens(monkeypatch) -> None:
     result = await service.register(_register_payload())
 
     assert result.access_token
-    assert result.refresh_token
+    # refresh token is now delivered via the HttpOnly cookie, not the JSON body
+    assert result.access_token
     assert result.user.email == "owner@example.com"
     assert result.user.role is UserRole.OWNER
     assert session.committed is True
@@ -238,7 +239,7 @@ async def test_login_success_issues_tokens_and_stamps_last_login() -> None:
         LoginRequest(email="owner@example.com", password="S3cure!pass")
     )
 
-    assert result.access_token and result.refresh_token
+    assert result.access_token
     assert user.last_login_at is not None
     assert session.committed is True
 
@@ -330,7 +331,7 @@ async def test_refresh_rotates_token() -> None:
 
     result = await service.refresh("a-valid-raw-token")
 
-    assert result.access_token and result.refresh_token
+    assert result.access_token
     assert service._tokens.mark_replaced.await_count == 1
     assert session.committed is True
     # The rotated token must inherit the original family so a later replay of
@@ -483,7 +484,7 @@ async def test_login_correct_password_succeeds_even_when_locked() -> None:
         LoginRequest(email="owner@example.com", password="S3cure!pass")
     )
 
-    assert result.access_token and result.refresh_token
+    assert result.access_token
     assert user.failed_login_attempts == 0
     assert user.locked_until is None
 

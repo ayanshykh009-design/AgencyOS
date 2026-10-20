@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     # caps damage from a token exfiltrated without triggering a refresh.
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    # HttpOnly refresh-token cookie (V5 Option B). Path-restricted to auth routes.
+    REFRESH_COOKIE_NAME: str = "agencyos.refresh"
+    REFRESH_COOKIE_PATH: str = "/api/v1/auth"
+    REFRESH_COOKIE_SAMESITE: str = "lax"
+    @property
+    def refresh_cookie_secure(self) -> bool:
+        return self.APP_ENV == "production"
     JWT_ISSUER: str = "agencyos"
     JWT_AUDIENCE: str = "agencyos-api"
     # Shared secret for inbound webhooks (n8n / contact forms). Endpoints that

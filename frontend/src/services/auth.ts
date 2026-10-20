@@ -1,6 +1,6 @@
 // Auth service: login, logout, refresh, session persistence.
 import { ApiRequestError, apiFetch } from "@/lib/api-client";
-import { clearSession, getSession, setSession, type Session } from "@/lib/session";
+import { clearSession, setSession, type Session } from "@/lib/session";
 import type {
   AuthResponse,
   MessageResponse,
@@ -23,16 +23,11 @@ export async function login(input: LoginInput): Promise<AuthResponse> {
   return result;
 }
 
-/** Rotate the stored refresh token and persist the new token pair. */
+/** Rotate the refresh cookie and persist the new access token in memory. */
 export async function refresh(): Promise<AuthResponse> {
-  const session = getSession();
-  if (!session?.refreshToken) {
-    throw new ApiRequestError(401, "auth.no_refresh_token", "No refresh token available");
-  }
   const result = await apiFetch<AuthResponse>("/auth/refresh", {
     method: "POST",
     auth: false,
-    body: JSON.stringify({ refresh_token: session.refreshToken }),
   });
   persist(result);
   return result;
@@ -140,7 +135,6 @@ export function mfaTokenFromError(err: unknown): string | null {
 function persist(result: AuthResponse): void {
   const session: Session = {
     accessToken: result.access_token,
-    refreshToken: result.refresh_token,
     expiresIn: result.expires_in,
     user: result.user,
   };

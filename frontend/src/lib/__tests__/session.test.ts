@@ -74,7 +74,6 @@ describe("session store", () => {
   it("persists a session to localStorage and sets the middleware cookie", () => {
     setSession({
       accessToken: "access-123",
-      refreshToken: "refresh-456",
       expiresIn: 3600,
       user: USER,
     });
@@ -88,7 +87,6 @@ describe("session store", () => {
   it("clearSession removes storage and the cookie marker", () => {
     setSession({
       accessToken: "access-123",
-      refreshToken: "refresh-456",
       expiresIn: 3600,
       user: USER,
     });
@@ -105,7 +103,6 @@ describe("session store", () => {
 
     setSession({
       accessToken: "access-123",
-      refreshToken: "refresh-456",
       expiresIn: 3600,
       user: USER,
     });
@@ -125,7 +122,6 @@ describe("session store", () => {
     vi.stubGlobal("location", { protocol: "https:" });
     setSession({
       accessToken: "access-123",
-      refreshToken: "refresh-456",
       expiresIn: 3600,
       user: USER,
     });
