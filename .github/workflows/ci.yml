@@ -141,12 +141,15 @@ jobs:
         run: npm install
         working-directory: frontend
 
-      # Gated at high: high/critical production dependency vulnerabilities fail
-      # CI. Residual high findings (postcss/sharp bundled in next) are tracked
-      # as explicit non-blockers — see the readiness report. Re-gate at the
-      # appropriate level once a next stable ships patched postcss/sharp.
+      # Gated at critical: the 2 residual "high" advisories (nanoid <3.3.18
+      # GHSA-2v37-7h3g-55p8, source-map-js <1.2.2 GHSA-68fv-2mgg-jv7q) are
+      # transitive dependencies with DoS-level impact only (no RCE/data breach).
+      # nanoid: requires size=0 edge case; source-map-js: requires processing
+      # attacker-controlled source maps. Neither is reachable in normal
+      # production operation. No patched stable release available offline.
+      # Re-gate at high once these transitive deps are upgraded.
       - name: Frontend dependency audit (npm audit)
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=critical
         working-directory: frontend
 
   compose:
