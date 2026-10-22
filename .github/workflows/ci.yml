@@ -89,6 +89,9 @@ jobs:
       - name: Test (vitest)
         run: npm test
 
+      - name: Build (next build)
+        run: npm run build
+
   contract-diff:
     name: Frontend/backend contract + docs consistency
     runs-on: ubuntu-latest
@@ -138,12 +141,12 @@ jobs:
         run: npm install
         working-directory: frontend
 
-      # Gated at critical: the 3 residual "high" advisories are postcss/sharp
-      # bundled inside next (not exploitable here — no next/image usage, postcss
-      # is build-time only) and have no stable next release yet. Re-gate at high
-      # once a next stable ships patched postcss/sharp (>= 16.3).
+      # Gated at high: high/critical production dependency vulnerabilities fail
+      # CI. Residual high findings (postcss/sharp bundled in next) are tracked
+      # as explicit non-blockers — see the readiness report. Re-gate at the
+      # appropriate level once a next stable ships patched postcss/sharp.
       - name: Frontend dependency audit (npm audit)
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=high
         working-directory: frontend
 
   compose:
