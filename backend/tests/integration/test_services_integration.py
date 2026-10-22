@@ -148,10 +148,22 @@ async def test_db_fixture_preserves_password_auth(db) -> None:
         assert result.scalar_one() == 1
 
 
+class _CookieCapture:
+    def __init__(self) -> None:
+        self.refresh_token: str | None = None
+
+    def set_cookie(self, *, key: str, value: str, **kwargs) -> None:
+        from app.core.config import settings
+
+        if key == settings.REFRESH_COOKIE_NAME:
+            self.refresh_token = value
+
+
 async def _register_org(factory, email: str = "owner@example.com") -> tuple[str, str, str]:
     """Register an org via AuthService; returns (user_id, access, refresh)."""
     async with factory() as session:
         service = AuthService(session)
+        capture = _CookieCapture()
         result = await service.register(
             RegisterRequest(
                 email=email,
@@ -159,9 +171,11 @@ async def _register_org(factory, email: str = "owner@example.com") -> tuple[str,
                 full_name="Owner",
                 organization_name="Acme",
                 organization_slug=f"acme-{uuid.uuid4().hex[:8]}",
-            )
+            ),
+            response=capture,
         )
-        return str(result.user.id), result.access_token, result.refresh_token
+        assert capture.refresh_token is not None
+        return str(result.user.id), result.access_token, capture.refresh_token
 
 
 async def test_register_login_refresh_roundtrip(db) -> None:
