@@ -55,6 +55,26 @@ class AuthTokenRepository:
         result = await self._session.execute(stmt)
         return cast(CursorResult, result).rowcount or 0
 
+    async def claim(self, token_id: uuid.UUID, purpose: str, *, now: datetime) -> bool:
+        """Atomically claim a token for consumption.
+
+        Returns True only if this request transitioned the token from unused
+        to used (rowcount == 1). Checks purpose, unused state, and expiry
+        in the same UPDATE so concurrent requests cannot both succeed.
+        """
+        stmt = (
+            update(AuthToken)
+            .where(
+                AuthToken.id == token_id,
+                AuthToken.purpose == purpose,
+                AuthToken.used_at.is_(None),
+                AuthToken.expires_at > now,
+            )
+            .values(used_at=now)
+        )
+        result = await self._session.execute(stmt)
+        return (cast(CursorResult, result).rowcount or 0) == 1
+
     async def mark_used(self, token_id: uuid.UUID, *, now: datetime) -> None:
         stmt = (
             update(AuthToken)

@@ -121,13 +121,13 @@ async def test_verify_email_marks_user_verified_and_consumes_token() -> None:
     token = _auth_token(user_id=user.id)
     service._tokens.get_by_hash_any = AsyncMock(return_value=token)
     service._users.get_active_by_id_unscoped = AsyncMock(return_value=user)
-    service._tokens.mark_used = AsyncMock()
+    service._tokens.claim = AsyncMock(return_value=True)
 
     await service.verify_email("a-valid-raw-token")
 
     assert user.email_verified_at is not None
     assert user.email_verification_required is False
-    service._tokens.mark_used.assert_awaited_once()
+    service._tokens.claim.assert_awaited_once()
     assert session.committed is True
 
 
@@ -249,7 +249,7 @@ async def test_reset_password_sets_new_hash_and_revokes_sessions() -> None:
     token = _auth_token(user_id=user.id, purpose=PURPOSE_PASSWORD_RESET)
     service._tokens.get_by_hash_any = AsyncMock(return_value=token)
     service._users.get_active_by_id_unscoped = AsyncMock(return_value=user)
-    service._tokens.mark_used = AsyncMock()
+    service._tokens.claim = AsyncMock(return_value=True)
     service._refresh_tokens.revoke_all_for_user = AsyncMock()
     user.token_version = 3
 

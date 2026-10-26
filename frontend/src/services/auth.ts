@@ -61,9 +61,13 @@ export async function verifyEmail(token: string): Promise<void> {
   });
 }
 
-/** Re-issue the verification link for the signed-in user. */
-export async function resendVerification(): Promise<MessageResponse> {
-  return apiFetch<MessageResponse>("/auth/verify-email/resend", { method: "POST" });
+/** Re-send the verification link for an email address (pre-authentication). */
+export async function resendVerification(email: string): Promise<MessageResponse> {
+  return apiFetch<MessageResponse>("/auth/verify-email/resend", {
+    method: "POST",
+    auth: false,
+    body: JSON.stringify({ email }),
+  });
 }
 
 // --- Password reset ---------------------------------------------------------

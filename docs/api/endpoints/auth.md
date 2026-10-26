@@ -73,8 +73,12 @@ Consume a verification token and mark the account verified. Pre-authentication.
 
 ### POST /api/v1/auth/verify-email/resend
 
-Invalidate any previous token and send a fresh link. Requires a session.
-`202 MessageResponse`. `404` when verification is disabled.
+Pre-authentication resend: send a fresh verification link for an email
+address. The body is `{"email": "..."}`; no session is required, so users
+blocked by the verification gate can still request a new link. Any previous
+token is invalidated. Enumeration-safe: always `202 MessageResponse` whether
+or not the account exists, is already verified, or verification is enabled.
+Rate-limited (`RATE_LIMIT_STRICT`).
 
 ## Password reset
 

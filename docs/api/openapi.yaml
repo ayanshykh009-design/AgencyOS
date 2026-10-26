@@ -627,8 +627,15 @@ paths:
       tags:
       - auth
       summary: Re-send the email-verification link
-      description: Invalidate the previous token and send a fresh verification link.
+      description: 'Pre-authentication and enumeration-safe: invalidates any previous
+        token and sends a fresh verification link by email, always returning 202.'
       operationId: resend_verification_api_v1_auth_verify_email_resend_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyEmailResendRequest'
+        required: true
       responses:
         '202':
           description: Successful Response
@@ -636,8 +643,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
-      security:
-      - HTTPBearer: []
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/auth/password-reset/request:
     post:
       tags:
@@ -15860,6 +15871,17 @@ components:
       - token
       title: VerifyEmailRequest
       description: Payload to confirm an email address with a verification token.
+    VerifyEmailResendRequest:
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email
+      type: object
+      required:
+      - email
+      title: VerifyEmailResendRequest
+      description: Payload to request a fresh verification link by email (pre-auth).
     WebhookLeadBody:
       properties:
         first_name:

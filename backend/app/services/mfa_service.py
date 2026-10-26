@@ -193,8 +193,9 @@ class MfaService:
             return False
         for record in await self._codes.list_unused(user.id):
             if verify_password(cleaned, record.code_hash):
-                await self._codes.mark_used(record.id, now=utcnow())
-                return True
+                claimed = await self._codes.mark_used(record.id, now=utcnow())
+                if claimed:
+                    return True
         return False
 
     @staticmethod

@@ -27,6 +27,7 @@ from app.schemas.auth import (
     PasswordResetRequest,
     RegisterRequest,
     VerifyEmailRequest,
+    VerifyEmailResendRequest,
 )
 from app.schemas.user import UserRead
 from app.services.account_security_service import AccountSecurityService
@@ -195,13 +196,18 @@ async def verify_email(request: Request, body: VerifyEmailRequest, db: DbSession
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
 async def resend_verification(
-    request: Request, db: DbSession, current_user: CurrentUser
+    request: Request, db: DbSession, body: VerifyEmailResendRequest
 ) -> MessageResponse:
-    """Invalidate the previous token and send a fresh verification link."""
+    """Invalidate the previous token and send a fresh verification link.
+
+    Pre-authentication: does not require an authenticated session, so
+    unverified users blocked by the verification gate can still request a
+    new link. Enumeration-safe (always 202).
+    """
     if not settings.EMAIL_VERIFICATION_ENABLED:
         return MessageResponse(detail="Email verification is not enabled")
     account = AccountSecurityService(db)
-    dev_url = await account.resend_verification(current_user)
+    dev_url = await account.resend_verification_by_email(str(body.email))
     return MessageResponse(detail="Verification email sent", dev_url=dev_url)
 
 

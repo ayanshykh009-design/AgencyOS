@@ -78,6 +78,12 @@ class VerifyEmailRequest(BaseModel):
     token: str = Field(min_length=1)
 
 
+class VerifyEmailResendRequest(BaseModel):
+    """Payload to request a fresh verification link by email (pre-auth)."""
+
+    email: EmailStr
+
+
 class MessageResponse(BaseModel):
     """Generic acknowledgement (optionally carrying a dev-only link)."""
 
