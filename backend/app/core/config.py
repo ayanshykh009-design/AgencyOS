@@ -28,6 +28,12 @@ _KNOWN_WEAK_SECRET_KEYS = frozenset(
         "password",
     }
 )
+# The *only* environments where a process-local fallback (in-memory resend
+# cooldown, memory:// rate-limit counters) is explicitly supported. Every other
+# value — including staging, QA, and unrecognised names — is treated as a
+# deployed environment where shared Redis is mandatory. Fail-safe by default:
+# a typo in APP_ENV must not silently downgrade a security control.
+LOCAL_APP_ENVS = frozenset({"development", "dev", "local", "test", "testing", "ci"})
 
 
 class Settings(BaseSettings):
@@ -138,9 +144,10 @@ class Settings(BaseSettings):
     MFA_CHALLENGE_TTL_MINUTES: int = 5
     MFA_MAX_ATTEMPTS: int = 5
     # SMTP delivery for verification/reset emails. When unset, links are only
-    # surfaced in non-production environments (logged, and returned by the API
-    # to the local caller); production refuses to boot with a mail-dependent
-    # feature enabled but no SMTP configured (fail fast, never silent no-op).
+    # surfaced in explicitly local development/test environments (logged, and
+    # returned by the API to the local caller); staging and production refuse to
+    # boot with a mail-dependent feature enabled but no SMTP configured (fail
+    # fast, never silent no-op, never a raw-token link in a deployed environment).
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USERNAME: str = ""
@@ -381,6 +388,18 @@ class Settings(BaseSettings):
         """True when outbound email delivery is configured."""
         return bool(self.SMTP_HOST and self.SMTP_FROM_EMAIL)
 
+    @property
+    def is_local_environment(self) -> bool:
+        """True only for explicitly supported development/test environments.
+
+        Anything else (staging, QA, production, or an unrecognised value) is
+        treated as a deployed environment where per-process fallbacks are not
+        acceptable. Callers must not infer "not production" from the absence of
+        ``production`` alone — that mistake silently weakens controls in
+        staging.
+        """
+        return self.APP_ENV.strip().lower() in LOCAL_APP_ENVS
+
     def _validate_account_security(self) -> None:
         if self.EMAIL_VERIFICATION_TOKEN_TTL_MINUTES < 5:
             raise RuntimeError("EMAIL_VERIFICATION_TOKEN_TTL_MINUTES must be >= 5")
@@ -398,10 +417,18 @@ class Settings(BaseSettings):
             raise RuntimeError("SMTP_PORT must be between 1 and 65535")
 
     def _validate_redis_url(self) -> None:
-        if not self.REDIS_URL:
+        if self.REDIS_URL:
+            if not self.REDIS_URL.startswith(("redis://", "rediss://")):
+                raise RuntimeError("REDIS_URL must use the redis:// or rediss:// scheme")
             return
-        if not self.REDIS_URL.startswith(("redis://", "rediss://")):
-            raise RuntimeError("REDIS_URL must use the redis:// or rediss:// scheme")
+        if not self.is_local_environment:
+            raise RuntimeError(
+                f"REDIS_URL must be set when APP_ENV={self.APP_ENV!r}: shared "
+                "Redis is required outside development/test for the auth rate "
+                "limiter and the per-email resend cooldown, otherwise each "
+                "instance keeps its own state and the controls are silently "
+                "diluted"
+            )
 
     def _validate_enc_key(self) -> None:
         if self.APP_ENV == "production" and not self.CREDENTIALS_ENC_KEY:

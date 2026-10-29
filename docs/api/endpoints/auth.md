@@ -90,6 +90,12 @@ non-delivering resend. If the shared store is unavailable the endpoint fails
 closed: it reports success generically but performs no resend. The Redis key is
 a keyed HMAC digest of the normalized address — raw addresses are never stored.
 
+The `dev_url` field (verification and password-reset responses) carries a raw
+single-use link only in explicitly local `development`/`test` environments. In
+every deployed environment — including `staging` — it is `null`, and a deployed
+process refuses to boot without `REDIS_URL`, since the per-address cooldown and
+the IP rate limiter both require shared state.
+
 ## Password reset
 
 `PASSWORD_RESET_ENABLED` (default on). Reset is enumeration-safe: the request

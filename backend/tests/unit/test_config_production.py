@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.config import Settings
+from app.core.config import LOCAL_APP_ENVS, Settings
 
 
 def _prod_settings(**overrides) -> Settings:
@@ -80,6 +80,30 @@ def test_validate_runtime_rejects_bad_redis_url():
 def test_validate_runtime_accepts_default():
     # Default (dev) configuration must pass the always-on runtime checks.
     assert Settings().validate_runtime() is None
+
+
+@pytest.mark.parametrize("app_env", ["staging", "qa", "production", "totally-unknown"])
+def test_deployed_environments_require_shared_redis(app_env: str) -> None:
+    """Only the explicit local allow-list may run without shared Redis.
+
+    Staging (and any unrecognised APP_ENV) must not silently fall back to the
+    per-process cooldown / memory rate limiter: the boot refuses instead.
+    """
+    with pytest.raises(RuntimeError, match="REDIS_URL must be set"):
+        Settings(APP_ENV=app_env, REDIS_URL="").validate_runtime()
+
+
+@pytest.mark.parametrize("app_env", sorted(LOCAL_APP_ENVS))
+def test_development_and_test_environments_do_not_require_redis(app_env: str) -> None:
+    """Explicit development/test environments keep the supported local fallback."""
+    assert Settings(APP_ENV=app_env, REDIS_URL="").validate_runtime() is None
+
+
+def test_staging_with_shared_redis_passes_runtime_validation() -> None:
+    assert (
+        Settings(APP_ENV="staging", REDIS_URL="redis://cache:6379/0").validate_runtime()
+        is None
+    )
 
 
 def test_production_flag_gate():

@@ -13,13 +13,14 @@ a fixed domain-separation label. The raw address never reaches Redis, logs,
 metrics, errors, or responses. ``SECRET_KEY`` (required to be strong in
 production) is the HMAC key.
 
+The process-local backend exists for development and tests only. It is
+selectable only for the explicit ``LOCAL_APP_ENVS`` allow-list; every other
+environment (staging, QA, production, or an unknown value) requires shared
+Redis at boot and fails closed if the shared store is somehow missing.
+
 Failure behaviour: a store failure raises :class:`CooldownStoreUnavailable`;
 callers must fail closed (suppress the resend) rather than send without the
 control in place.
-
-The process-local backend exists for development and tests only. Production
-boot validation requires ``REDIS_URL``, so it can never be the production
-enforcement mechanism.
 """
 
 from __future__ import annotations
@@ -77,10 +78,11 @@ class RedisCooldownBackend:
 
 
 class InMemoryCooldownBackend:
-    """Process-local fallback for development/tests only (never production).
+    """Process-local fallback for development/tests only (never deployed).
 
     The critical section is synchronous under a mutex, so it is atomic within a
-    process. It is *not* shared across workers; production requires Redis.
+    process. It is *not* shared across workers; it is only selectable in the
+    explicit development/test allow-list (``LOCAL_APP_ENVS``).
     """
 
     def __init__(self, clock: Callable[[], float] | None = None) -> None:
@@ -109,29 +111,60 @@ class InMemoryCooldownBackend:
             self._expiries.clear()
 
 
+class UnavailableCooldownBackend:
+    """Fail-closed backend for deployed environments without shared Redis.
+
+    Defence in depth: startup validation refuses to boot such configurations,
+    but if a service is constructed anyway (a code path that bypasses the app
+    lifespan, or a bad deploy) the gate must never silently degrade to
+    per-process memory. Every attempt reports the store as unavailable so the
+    caller suppresses the resend.
+    """
+
+    async def acquire(self, key: str, ttl_seconds: int) -> bool:
+        raise CooldownStoreUnavailable(
+            "shared Redis is required for the resend cooldown in this environment"
+        )
+
+
 _default_backend: CooldownBackend | None = None
 
 
 def _get_default_backend() -> CooldownBackend:
-    """Return the process-wide backend, preferring shared Redis when configured."""
+    """Return the process-wide backend, preferring shared Redis when configured.
+
+    The in-memory backend is restricted to the explicit development/test
+    allow-list. Any other environment without ``REDIS_URL`` gets a backend that
+    fails closed instead of a per-process cooldown that would look healthy while
+    enforcing nothing across replicas.
+    """
     global _default_backend
     if _default_backend is None:
         if settings.REDIS_URL:
             _default_backend = RedisCooldownBackend()
-        else:
+        elif settings.is_local_environment:
             logger.warning(
                 "auth.resend.cooldown using process-local backend; "
-                "REDIS_URL is required in production"
+                "REDIS_URL is required outside development/test"
             )
             _default_backend = InMemoryCooldownBackend()
+        else:
+            logger.error(
+                "auth.resend.cooldown shared store required but REDIS_URL is unset "
+                "(app_env=%s); failing closed",
+                settings.APP_ENV,
+            )
+            _default_backend = UnavailableCooldownBackend()
     return _default_backend
 
 
 def reset_default_cooldown_state() -> None:
-    """Clear the default backend when it is process-local (test helper)."""
+    """Drop the cached default backend and clear memory state (test helper)."""
+    global _default_backend
     backend = _default_backend
     if isinstance(backend, InMemoryCooldownBackend):
         backend.reset()
+    _default_backend = None
 
 
 def normalize_email(email: str) -> str:

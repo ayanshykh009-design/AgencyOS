@@ -199,6 +199,11 @@ def test_resend_production_never_returns_dev_link_or_raw_token(
     monkeypatch.setattr(settings, "APP_ENV", "production")
     client = _client()
     service = _service_for(_make_user())
+    # Isolate the dev-link contract from store availability: production refuses
+    # to boot without Redis, so a working store is the realistic precondition.
+    service._resend_cooldown = EmailResendCooldown(
+        InMemoryCooldownBackend(), cooldown_seconds=60, secret="test-secret"
+    )
 
     with patch("app.api.v1.endpoints.auth.AccountSecurityService", return_value=service):
         res = client.post(RESEND_URL, json={"email": "owner@example.com"})

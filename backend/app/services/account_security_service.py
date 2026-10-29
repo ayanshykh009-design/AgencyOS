@@ -265,8 +265,13 @@ class AccountSecurityService:
 
     @staticmethod
     def _dev_url(url: str) -> str | None:
-        """Surface the raw link only outside production (dev/test convenience)."""
-        return None if settings.APP_ENV == "production" else url
+        """Surface the raw link only in explicitly local development/test envs.
+
+        Deployed environments (staging, QA, production, unknown values) must
+        never hand a raw single-use token back to the caller; the link travels
+        by email only.
+        """
+        return url if settings.is_local_environment else None
 
     @staticmethod
     def _invalid_verification() -> AppError:

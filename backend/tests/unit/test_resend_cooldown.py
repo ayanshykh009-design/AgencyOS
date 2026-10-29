@@ -14,12 +14,14 @@ import hashlib
 import pytest
 from redis.exceptions import ConnectionError as RedisConnectionError
 
+from app.core.config import LOCAL_APP_ENVS, settings
 from app.services.resend_cooldown import (
     CooldownStoreUnavailable,
     EmailResendCooldown,
     InMemoryCooldownBackend,
     RedisCooldownBackend,
     normalize_email,
+    reset_default_cooldown_state,
 )
 
 SECRET = "unit-test-secret-key"
@@ -209,4 +211,48 @@ async def test_redis_backend_maps_a_lost_connection_to_store_unavailable() -> No
 
     with pytest.raises(CooldownStoreUnavailable):
         await gate.reserve("owner@example.com")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("app_env", sorted(LOCAL_APP_ENVS))
+async def test_default_backend_uses_memory_only_in_explicit_local_envs(
+    monkeypatch: pytest.MonkeyPatch, app_env: str
+) -> None:
+    """Development/test keep the supported process-local fallback."""
+    monkeypatch.setattr(settings, "APP_ENV", app_env)
+    monkeypatch.setattr(settings, "REDIS_URL", "")
+    reset_default_cooldown_state()
+
+    gate = EmailResendCooldown(cooldown_seconds=60, secret=SECRET)
+
+    assert await gate.reserve("owner@example.com") is True
+    assert await gate.reserve("owner@example.com") is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("app_env", ["staging", "qa", "production", "totally-unknown"])
+async def test_default_backend_fails_closed_outside_local_envs(
+    monkeypatch: pytest.MonkeyPatch,
+    app_env: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A deployed environment without shared Redis must not enforce per-process.
+
+    Boot validation rejects this configuration; the backend selection is the
+    second layer, so a bypassed lifespan still fails closed rather than sending
+    mail behind a cooldown that only exists inside one replica.
+    """
+    monkeypatch.setattr(settings, "APP_ENV", app_env)
+    monkeypatch.setattr(settings, "REDIS_URL", "")
+    reset_default_cooldown_state()
+
+    with caplog.at_level("ERROR", logger="agencyos.resend_cooldown"):
+        gate = EmailResendCooldown(cooldown_seconds=60, secret=SECRET)
+
+    with pytest.raises(CooldownStoreUnavailable):
+        await gate.reserve("owner@example.com")
+
+    assert "shared store required" in caplog.text
+    assert "owner@example.com" not in caplog.text
+
 

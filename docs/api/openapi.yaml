@@ -13729,7 +13729,7 @@ components:
       required:
       - detail
       title: MessageResponse
-      description: Generic acknowledgement (optionally carrying a dev-only link).
+      description: Generic acknowledgement (optionally carrying a development/test-only link).
     MfaActivateResponse:
       properties:
         recovery_codes:

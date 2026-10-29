@@ -85,7 +85,7 @@ class VerifyEmailResendRequest(BaseModel):
 
 
 class MessageResponse(BaseModel):
-    """Generic acknowledgement (optionally carrying a dev-only link)."""
+    """Generic acknowledgement (optionally carrying a development/test-only link)."""
 
     detail: str
     dev_url: str | None = None

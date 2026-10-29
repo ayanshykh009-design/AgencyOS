@@ -298,6 +298,9 @@ async def test_resend_by_email_production_never_returns_raw_token(
     service._users.get_active_by_email = AsyncMock(return_value=user)
     service._tokens.invalidate_outstanding = AsyncMock()
     service.send_verification_email = AsyncMock()
+    # Isolate the dev-link contract from store availability: production refuses
+    # to boot without Redis, so a working store is the realistic precondition.
+    service._resend_cooldown = _CooldownStub(allowed=True)
 
     result = await service.resend_verification_by_email("owner@example.com")
 
@@ -375,6 +378,77 @@ async def test_resend_by_email_store_failure_fails_closed() -> None:
     service._tokens.add.assert_not_called()
     service.send_verification_email.assert_not_awaited()
     assert session.committed is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("app_env", ["staging", "qa", "totally-unknown"])
+async def test_deployed_environment_never_returns_a_raw_token_link(
+    monkeypatch: pytest.MonkeyPatch, app_env: str
+) -> None:
+    """Staging (and unknown envs) must behave like production for dev links.
+
+    The resend still issues the token and sends the email — only the raw link is
+    withheld from the API response, so a deployed environment cannot hand a
+    single-use token to the caller.
+    """
+    monkeypatch.setattr(settings, "APP_ENV", app_env)
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=_make_user())
+    service._tokens = MagicMock()
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    service._resend_cooldown = _CooldownStub(allowed=True)
+
+    result = await service.resend_verification_by_email("owner@example.com")
+
+    assert result is None
+    assert service._tokens.add.call_count == 1
+    service.send_verification_email.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("app_env", ["development", "test"])
+async def test_local_environments_keep_the_dev_link(
+    monkeypatch: pytest.MonkeyPatch, app_env: str
+) -> None:
+    monkeypatch.setattr(settings, "APP_ENV", app_env)
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=_make_user())
+    service._tokens = MagicMock()
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    service._resend_cooldown = _CooldownStub(allowed=True)
+
+    result = await service.resend_verification_by_email("owner@example.com")
+
+    assert result is not None
+    assert "/verify-email?token=" in result
+
+
+@pytest.mark.parametrize("app_env", ["staging", "production", "qa", "totally-unknown"])
+def test_dev_url_is_hidden_in_deployed_environments(
+    monkeypatch: pytest.MonkeyPatch, app_env: str
+) -> None:
+    """The shared helper covers reset links too, not just verification."""
+    monkeypatch.setattr(settings, "APP_ENV", app_env)
+
+    assert (
+        AccountSecurityService._dev_url("https://app.example/verify-email?token=raw")
+        is None
+    )
+
+
+def test_dev_url_is_preserved_in_local_environments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "APP_ENV", "development")
+    url = "https://app.example/verify-email?token=raw"
+
+    assert AccountSecurityService._dev_url(url) == url
 
 
 @pytest.mark.asyncio
