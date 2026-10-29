@@ -80,8 +80,10 @@ token is invalidated. Enumeration-safe: always `202 MessageResponse` whether
 or not the account exists, is already verified, or verification is enabled.
 Rate-limited (`RATE_LIMIT_STRICT`).
 
-A per-address cooldown (`EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS`, 60s in
-production) allows at most one attempt per normalized address per window. It is
+A per-address cooldown (`EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS`) allows at
+most one attempt per normalized address per window. It must be at least 60
+seconds in every deployed environment (staging, QA, production); only explicit
+development/test environments may set 0 to disable it. It is
 enforced with an atomic `SET NX EX` against the shared Redis store and applies
 before the account lookup, so unknown, verified, inactive and eligible
 addresses consume the window identically. A suppressed request invalidates no

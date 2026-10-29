@@ -405,6 +405,21 @@ class Settings(BaseSettings):
             raise RuntimeError("EMAIL_VERIFICATION_TOKEN_TTL_MINUTES must be >= 5")
         if self.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS < 0:
             raise RuntimeError("EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS must be >= 0")
+        # R2: the per-email resend cooldown is a security control, so every
+        # deployed environment must enforce at least one minute — not just
+        # production. Applies during runtime validation (which runs on every
+        # boot), so staging/QA/unknown environments cannot shorten it to 0/59
+        # merely because they are not named "production". Development/test keep
+        # the full range, including 0 to intentionally disable the gate locally.
+        if (
+            not self.is_local_environment
+            and self.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS < 60
+        ):
+            raise RuntimeError(
+                "EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS must be >= 60 outside "
+                "development/test: the per-email resend cooldown is a security "
+                "control in every deployed environment"
+            )
         if self.PASSWORD_RESET_TOKEN_TTL_MINUTES < 5:
             raise RuntimeError("PASSWORD_RESET_TOKEN_TTL_MINUTES must be >= 5")
         if self.MFA_CHALLENGE_TTL_MINUTES < 1:
@@ -612,8 +627,10 @@ class Settings(BaseSettings):
                 "accounts must prove ownership of their email address"
             )
         # R2: the resend endpoint must not become an unbounded mail amplifier.
-        # A zero/short cooldown silently removes the control, so refuse to boot
-        # unless the production window is at least one minute.
+        # A zero/short cooldown silently removes the control. Runtime validation
+        # already enforces this for every deployed environment; this keeps
+        # validate_for_production self-contained for callers that invoke it
+        # directly.
         if self.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS < 60:
             raise RuntimeError(
                 "EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS must be >= 60 in "

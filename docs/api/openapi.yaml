@@ -630,8 +630,9 @@ paths:
       description: 'Pre-authentication and enumeration-safe: invalidates any previous
         token and sends a fresh verification link by email, always returning 202.
         Attempts are limited to one per normalized address per rolling cooldown
-        window (60s in production) using an atomic shared-store reservation; a
-        suppressed attempt has no token/email side effects and is indistinguishable
+        window (at least 60s in every deployed environment) using an atomic
+        shared-store reservation; a suppressed attempt has no token/email side
+        effects and is indistinguishable
         from any other non-delivering resend.'
       operationId: resend_verification_api_v1_auth_verify_email_resend_post
       requestBody:

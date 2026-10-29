@@ -1,7 +1,8 @@
 """Atomic per-email cooldown for verification-resend attempts (R2).
 
 Policy: at most one resend attempt per normalized email address per rolling
-window (``EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS``, 60s in production).
+window (``EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS``; at least 60s in every
+deployed environment, 0 disables it only in development/test).
 
 Atomicity: the production backend issues a single Redis ``SET key 1 NX EX ttl``.
 Acquisition is one server-side round-trip, so two concurrent requests can never
