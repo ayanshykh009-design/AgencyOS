@@ -36,6 +36,11 @@ from app.repositories.auth_token import AuthTokenRepository
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
 from app.services.base import commit_with_retry, utcnow
+from app.services.resend_cooldown import (
+    CooldownStoreUnavailable,
+    EmailResendCooldown,
+    normalize_email,
+)
 
 logger = logging.getLogger("agencyos.account_security")
 
@@ -43,11 +48,17 @@ logger = logging.getLogger("agencyos.account_security")
 class AccountSecurityService:
     """Email-verification and password-reset token lifecycle."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        *,
+        resend_cooldown: EmailResendCooldown | None = None,
+    ) -> None:
         self._session = session
         self._users = UserRepository(session)
         self._tokens = AuthTokenRepository(session)
         self._refresh_tokens = RefreshTokenRepository(session)
+        self._resend_cooldown = resend_cooldown or EmailResendCooldown()
 
     # -- email verification ---------------------------------------------
 
@@ -100,8 +111,21 @@ class AccountSecurityService:
             "auth.email_verified user_id=%s org_id=%s", user.id, user.organization_id
         )
 
+    async def _resend_attempt_allowed(self, email: str) -> bool:
+        """Consume one per-address resend attempt, failing closed on store errors."""
+        try:
+            allowed = await self._resend_cooldown.reserve(normalize_email(email))
+        except CooldownStoreUnavailable:
+            logger.error("auth.resend.cooldown_store_unavailable", exc_info=True)
+            return False
+        if not allowed:
+            logger.info("auth.resend.cooldown_suppressed")
+        return allowed
+
     async def resend_verification(self, user: User) -> str | None:
         """Re-issue a verification token, invalidating any previous one."""
+        if not await self._resend_attempt_allowed(user.email):
+            return None
         now = utcnow()
         await self._tokens.invalidate_outstanding(
             user.id, PURPOSE_EMAIL_VERIFICATION, now=now
@@ -116,9 +140,19 @@ class AccountSecurityService:
 
         Enumeration-safe: returns None for nonexistent, already-verified, or
         ineligible accounts without revealing which case applied.
+
+        The per-address cooldown is consumed *first* and for every address, so
+        account state cannot influence whether the attempt is throttled. A
+        suppressed request touches no token and sends no email. If the shared
+        cooldown store is unavailable we fail closed: no resend is performed
+        rather than sending without the control in place.
         """
+        normalized = normalize_email(email)
+        if not await self._resend_attempt_allowed(normalized):
+            return None
+
         now = utcnow()
-        user = await self._users.get_active_by_email(email)
+        user = await self._users.get_active_by_email(normalized)
         if user is None or user.email_verified_at is not None or not user.is_active:
             # Burn comparable work to avoid timing-based enumeration.
             verify_password_dummy("agencyos-verify-resend-timing")

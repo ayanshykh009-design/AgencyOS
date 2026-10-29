@@ -80,6 +80,16 @@ token is invalidated. Enumeration-safe: always `202 MessageResponse` whether
 or not the account exists, is already verified, or verification is enabled.
 Rate-limited (`RATE_LIMIT_STRICT`).
 
+A per-address cooldown (`EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS`, 60s in
+production) allows at most one attempt per normalized address per window. It is
+enforced with an atomic `SET NX EX` against the shared Redis store and applies
+before the account lookup, so unknown, verified, inactive and eligible
+addresses consume the window identically. A suppressed request invalidates no
+token, sends no email, and returns the same generic `202` body as any other
+non-delivering resend. If the shared store is unavailable the endpoint fails
+closed: it reports success generically but performs no resend. The Redis key is
+a keyed HMAC digest of the normalized address — raw addresses are never stored.
+
 ## Password reset
 
 `PASSWORD_RESET_ENABLED` (default on). Reset is enumeration-safe: the request

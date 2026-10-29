@@ -22,6 +22,12 @@ from app.models.enums import UserRole
 from app.models.user import User
 from app.services.account_security_service import AccountSecurityService
 from app.services.base import utcnow
+from app.services.resend_cooldown import (
+    CooldownStoreUnavailable,
+    EmailResendCooldown,
+    InMemoryCooldownBackend,
+    reset_default_cooldown_state,
+)
 
 RESEND_URL = "/api/v1/auth/verify-email/resend"
 STRICT_LIMIT = 20  # @limiter.limit(settings.RATE_LIMIT_STRICT) at import time
@@ -40,6 +46,7 @@ def _reset_counters() -> None:
     reset = getattr(storage, "reset", None)
     if callable(reset):
         reset()
+    reset_default_cooldown_state()
 
 
 class _SessionStub:
@@ -109,6 +116,13 @@ def _service_for(user: User | None) -> AccountSecurityService:
     return service
 
 
+class _FailingCooldown:
+    """Cooldown whose backing store is unavailable."""
+
+    async def reserve(self, email: str) -> bool:
+        raise CooldownStoreUnavailable("store down")
+
+
 def test_resend_response_is_identical_for_unknown_and_verified_accounts() -> None:
     _reset_counters()
     client = _client()
@@ -121,6 +135,9 @@ def test_resend_response_is_identical_for_unknown_and_verified_accounts() -> Non
         return_value=unknown_service,
     ):
         unknown = client.post(RESEND_URL, json=payload)
+    # The cooldown is per-address, so reset it before the second call to keep
+    # exercising the *verified* branch rather than the suppressed path.
+    reset_default_cooldown_state()
     with patch(
         "app.api.v1.endpoints.auth.AccountSecurityService",
         return_value=verified_service,
@@ -191,6 +208,80 @@ def test_resend_production_never_returns_dev_link_or_raw_token(
     assert body["dev_url"] is None
     assert "token" not in res.text.lower()
     # The token is still generated and emailed; only the API leak is closed.
+    assert service._tokens.add.call_count == 1
+    service.send_verification_email.assert_awaited_once()
+
+
+def test_resend_repeat_is_suppressed_and_still_generic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A repeat inside the window is silent: no token, no email, generic 202."""
+    _reset_counters()
+    monkeypatch.setattr(settings, "APP_ENV", "production")
+    client = _client()
+    service = _service_for(_make_user())
+    service._resend_cooldown = EmailResendCooldown(
+        InMemoryCooldownBackend(), cooldown_seconds=60, secret="test-secret"
+    )
+
+    with patch("app.api.v1.endpoints.auth.AccountSecurityService", return_value=service):
+        first = client.post(RESEND_URL, json={"email": " Owner@Example.com "})
+        second = client.post(RESEND_URL, json={"email": "owner@example.com"})
+
+    assert first.status_code == 202
+    assert second.status_code == 202
+    # Production responses carry no dev link/token and are byte-identical, so
+    # the caller cannot tell the resend was throttled.
+    assert first.json() == second.json() == {
+        "detail": EXPECTED_DETAIL,
+        "dev_url": None,
+    }
+    assert "owner@example.com" not in second.text.lower()
+    # Only the first, allowed attempt performed the side effects.
+    service._tokens.invalidate_outstanding.assert_awaited_once()
+    assert service._tokens.add.call_count == 1
+    service.send_verification_email.assert_awaited_once()
+
+
+def test_resend_store_failure_is_generic_and_side_effect_free() -> None:
+    """Fail closed: without the shared store the endpoint still answers 202."""
+    _reset_counters()
+    client = _client()
+    service = _service_for(_make_user())
+    service._resend_cooldown = _FailingCooldown()
+
+    with patch("app.api.v1.endpoints.auth.AccountSecurityService", return_value=service):
+        res = client.post(RESEND_URL, json={"email": "owner@example.com"})
+
+    assert res.status_code == 202
+    assert res.json() == {"detail": EXPECTED_DETAIL, "dev_url": None}
+    assert "owner@example.com" not in res.text.lower()
+    service._users.get_active_by_email.assert_not_awaited()
+    service._tokens.invalidate_outstanding.assert_not_awaited()
+    service._tokens.add.assert_not_called()
+    service.send_verification_email.assert_not_awaited()
+
+
+def test_resend_cooldown_does_not_bypass_the_ip_rate_limit() -> None:
+    """Both controls are independent: cooldown suppresses mail, IP limit 429s."""
+    _reset_counters()
+    client = _client()
+    service = _service_for(_make_user())
+    service._resend_cooldown = EmailResendCooldown(
+        InMemoryCooldownBackend(), cooldown_seconds=60, secret="test-secret"
+    )
+    payload = {"email": "owner@example.com"}
+
+    with patch("app.api.v1.endpoints.auth.AccountSecurityService", return_value=service):
+        statuses = [
+            client.post(RESEND_URL, json=payload).status_code
+            for _ in range(STRICT_LIMIT + 1)
+        ]
+
+    assert statuses[:STRICT_LIMIT] == [202] * STRICT_LIMIT, statuses
+    assert statuses[STRICT_LIMIT] == 429, statuses
+    # The email cooldown suppressed every repeat, but the IP limiter still
+    # rejected the request after its own allowance was exhausted.
     assert service._tokens.add.call_count == 1
     service.send_verification_email.assert_awaited_once()
 

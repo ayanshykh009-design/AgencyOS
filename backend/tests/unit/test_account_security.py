@@ -5,6 +5,7 @@ authentication hardening pass. Like the rest of the unit suite, they swap the
 concrete repositories for lightweight fakes so the business rules are verified
 without a database.
 """
+import logging
 import uuid
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock
@@ -32,6 +33,11 @@ from app.models.user_recovery_code import UserRecoveryCode
 from app.services.account_security_service import AccountSecurityService
 from app.services.base import utcnow
 from app.services.mfa_service import MfaService
+from app.services.resend_cooldown import (
+    CooldownStoreUnavailable,
+    EmailResendCooldown,
+    InMemoryCooldownBackend,
+)
 
 ORG_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
@@ -183,6 +189,8 @@ async def test_resend_verification_invalidates_previous_tokens() -> None:
     user = _make_user()
     service._tokens.invalidate_outstanding = AsyncMock()
     service.send_verification_email = AsyncMock()
+    # Explicit allow: the test asserts the token lifecycle, not the cooldown.
+    service._resend_cooldown = _CooldownStub(allowed=True)
 
     await service.resend_verification(user)
 
@@ -298,6 +306,189 @@ async def test_resend_by_email_production_never_returns_raw_token(
     # suppressed in production.
     assert service._tokens.add.call_count == 1
     service.send_verification_email.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# Per-email resend cooldown (R2)
+# ---------------------------------------------------------------------------
+
+
+class _CooldownStub:
+    """Cooldown double that records calls and can simulate a store failure."""
+
+    def __init__(
+        self, *, allowed: bool = True, error: Exception | None = None
+    ) -> None:
+        self.allowed = allowed
+        self.error = error
+        self.calls: list[str] = []
+
+    async def reserve(self, email: str) -> bool:
+        self.calls.append(email)
+        if self.error is not None:
+            raise self.error
+        return self.allowed
+
+
+@pytest.mark.asyncio
+async def test_resend_by_email_suppressed_request_has_no_side_effects() -> None:
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=_make_user())
+    service._tokens = MagicMock()
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    cooldown = _CooldownStub(allowed=False)
+    service._resend_cooldown = cooldown
+
+    result = await service.resend_verification_by_email(" Owner@Example.com ")
+
+    assert result is None
+    # The gate sees the normalized address and runs before the account lookup.
+    assert cooldown.calls == ["owner@example.com"]
+    service._users.get_active_by_email.assert_not_awaited()
+    service._tokens.invalidate_outstanding.assert_not_awaited()
+    service._tokens.add.assert_not_called()
+    service.send_verification_email.assert_not_awaited()
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+async def test_resend_by_email_store_failure_fails_closed() -> None:
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=_make_user())
+    service._tokens = MagicMock()
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    service._resend_cooldown = _CooldownStub(
+        error=CooldownStoreUnavailable("store down")
+    )
+
+    result = await service.resend_verification_by_email("owner@example.com")
+
+    assert result is None
+    service._users.get_active_by_email.assert_not_awaited()
+    service._tokens.invalidate_outstanding.assert_not_awaited()
+    service._tokens.add.assert_not_called()
+    service.send_verification_email.assert_not_awaited()
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "cooldown",
+    [
+        pytest.param(_CooldownStub(allowed=False), id="suppressed"),
+        pytest.param(
+            _CooldownStub(error=CooldownStoreUnavailable("store down")),
+            id="store-unavailable",
+        ),
+    ],
+)
+async def test_authenticated_resend_is_gated_before_any_side_effect(
+    cooldown: _CooldownStub,
+) -> None:
+    """The authenticated resend path shares the same gate.
+
+    Nothing may be invalidated, created, committed, or mailed when the attempt
+    is suppressed or the store is unavailable.
+    """
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._tokens = MagicMock()
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    service._resend_cooldown = cooldown
+    user = _make_user()
+
+    result = await service.resend_verification(user)
+
+    assert result is None
+    assert cooldown.calls == ["owner@example.com"]
+    service._tokens.invalidate_outstanding.assert_not_awaited()
+    service._tokens.add.assert_not_called()
+    service.send_verification_email.assert_not_awaited()
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "account",
+    ["unknown", "verified", "inactive", "eligible"],
+)
+async def test_cooldown_is_consumed_identically_for_every_account_state(
+    account: str,
+) -> None:
+    """Unknown/verified/inactive/eligible addresses all burn the same attempt.
+
+    If only real, mailable accounts consumed the window, a second request could
+    reveal account state through the throttle. The second attempt must be
+    suppressed before the lookup for all four cases.
+    """
+    users = {
+        "unknown": None,
+        "verified": _make_user(email_verified_at=utcnow()),
+        "inactive": _make_user(is_active=False),
+        "eligible": _make_user(),
+    }
+    user = users[account]
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=user)
+    service._tokens = MagicMock()
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    service._resend_cooldown = EmailResendCooldown(
+        InMemoryCooldownBackend(), cooldown_seconds=60, secret="test-secret"
+    )
+
+    first = await service.resend_verification_by_email(" Owner@Example.com ")
+    second = await service.resend_verification_by_email("owner@example.com ")
+
+    assert second is None
+    # Only the first (allowed) attempt reached the account layer.
+    assert service._users.get_active_by_email.await_count == 1
+    if account == "eligible":
+        assert first is not None
+        service._tokens.invalidate_outstanding.assert_awaited_once()
+        assert service._tokens.add.call_count == 1
+        service.send_verification_email.assert_awaited_once()
+        assert session.committed is True
+    else:
+        assert first is None
+        service._tokens.invalidate_outstanding.assert_not_awaited()
+        service._tokens.add.assert_not_called()
+        service.send_verification_email.assert_not_awaited()
+        assert session.committed is False
+
+
+@pytest.mark.asyncio
+async def test_cooldown_diagnostics_never_log_the_address(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service = AccountSecurityService(FakeSession())
+    service._users = MagicMock()
+    service._tokens = MagicMock()
+    service.send_verification_email = AsyncMock()
+
+    service._resend_cooldown = _CooldownStub(allowed=False)
+    with caplog.at_level(logging.INFO, logger="agencyos.account_security"):
+        await service.resend_verification_by_email("owner@example.com")
+
+    service._resend_cooldown = _CooldownStub(
+        error=CooldownStoreUnavailable("store down")
+    )
+    with caplog.at_level(logging.ERROR, logger="agencyos.account_security"):
+        await service.resend_verification_by_email("second@example.com")
+
+    assert "owner@example.com" not in caplog.text
+    assert "second@example.com" not in caplog.text
+    assert "cooldown_suppressed" in caplog.text
+    assert "cooldown_store_unavailable" in caplog.text
 
 
 # ---------------------------------------------------------------------------

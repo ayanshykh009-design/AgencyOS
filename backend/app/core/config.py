@@ -584,6 +584,14 @@ class Settings(BaseSettings):
                 "EMAIL_VERIFICATION_ENABLED must be true in production: new "
                 "accounts must prove ownership of their email address"
             )
+        # R2: the resend endpoint must not become an unbounded mail amplifier.
+        # A zero/short cooldown silently removes the control, so refuse to boot
+        # unless the production window is at least one minute.
+        if self.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS < 60:
+            raise RuntimeError(
+                "EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS must be >= 60 in "
+                "production: the per-email resend cooldown is a security control"
+            )
         if not self.MFA_ENABLED:
             raise RuntimeError(
                 "MFA_ENABLED must be true in production so users can enrol a "

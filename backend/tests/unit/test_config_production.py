@@ -62,6 +62,9 @@ def test_prod_accepts_safe_config():
         # A per-process memory:// limiter dilutes auth throttling across replicas.
         {"REDIS_URL": ""},
         {"REDIS_URL": "ftp://nope"},
+        # R2: the per-email resend cooldown must not be silently disabled.
+        {"EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS": 0},
+        {"EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS": 59},
     ],
 )
 def test_prod_rejects_unsafe_config(bad):
