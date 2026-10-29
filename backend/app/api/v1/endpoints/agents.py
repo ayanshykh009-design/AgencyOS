@@ -6,7 +6,7 @@ slowapi's ``@limiter.limit`` wrapper breaks FastAPI's forward-ref resolution.
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
@@ -109,6 +109,7 @@ async def create_agent_run(
     body: AgentRunCreate,
     db: DbSession,
     current_user: CurrentUser,
+    response: Response,
 ) -> AgentRunRead:
     service = AgentService(db)
     data = body.model_dump(exclude={"organization_id"})
@@ -152,6 +153,7 @@ async def cancel_agent_run(
     run_id: uuid.UUID,
     db: DbSession,
     current_user: CurrentUser,
+    response: Response,
 ) -> AgentRunRead:
     service = AgentService(db)
     run = await service.cancel_run(

@@ -7,7 +7,7 @@ resolves them against slowapi's globals, producing unresolved ForwardRefs.
 
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
@@ -44,6 +44,7 @@ async def get_ai_settings(
     request: Request,
     db: DbSession,
     current_user: CurrentUser,
+    response: Response,
 ) -> OrganizationAISettingsRead:
     """Return the resolved provider/model (per-org override else env defaults)."""
     service = AIService(db)
@@ -67,6 +68,7 @@ async def update_ai_settings(
     body: OrganizationAISettingsUpdate,
     db: DbSession,
     current_user: CurrentUser,
+    response: Response,
 ) -> OrganizationAISettingsRead:
     """Set per-org LLM provider/model and AI kill switch; falls back to env."""
     service = AIService(db)
@@ -91,7 +93,10 @@ async def update_ai_settings(
 )
 @limiter.limit(settings.RATE_LIMIT_DEFAULT)
 async def list_tools(
-    request: Request, db: DbSession, current_user: CurrentUser
+    request: Request,
+    db: DbSession,
+    current_user: CurrentUser,
+    response: Response,
 ) -> list[ToolManifestEntry]:
     """Return the static tool manifest (no LLM call)."""
     service = AIService(db)
@@ -112,6 +117,7 @@ async def run_brain(
     body: BrainRunRequest,
     db: DbSession,
     current_user: CurrentUser,
+    response: Response,
 ) -> AgentRunRead:
     """Queue an AI run through the unified AgentRuntime lifecycle (M11-C).
 
@@ -167,6 +173,7 @@ async def dispatch(
     body: DispatchRequest,
     db: DbSession,
     current_user: CurrentUser,
+    response: Response,
 ) -> DispatchResponse:
     """Send a ready-to-send draft to the configured n8n workflow."""
     if not body.workflow.strip():

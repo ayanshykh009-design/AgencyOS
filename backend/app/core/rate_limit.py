@@ -6,6 +6,13 @@ Uses slowapi. Storage:
 
 Apply per-endpoint limits with `@limiter.limit(settings.RATE_LIMIT_STRICT)`
 (e.g. on auth endpoints). Register via register_rate_limit(app).
+
+``headers_enabled=True`` means slowapi writes the ``X-RateLimit-*`` and
+``Retry-After`` headers into the decorated handler's ``response`` argument.
+Every limited handler therefore MUST declare ``response: Response`` (FastAPI
+injects it); without it slowapi raises after the handler succeeds and the
+client sees an HTTP 500. ``tests/unit/test_rate_limited_handler_contract.py``
+enforces this across all endpoint modules.
 """
 
 from fastapi import FastAPI, Request
