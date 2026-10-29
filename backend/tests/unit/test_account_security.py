@@ -17,6 +17,7 @@ from app.core.errors import AppError
 from app.core.mfa import decrypt_mfa_secret, generate_secret
 from app.core.security import (
     create_access_token,
+    hash_opaque_token,
     hash_password,
     verify_password,
 )
@@ -190,6 +191,113 @@ async def test_resend_verification_invalidates_previous_tokens() -> None:
     assert service._tokens.add.call_count == 1
     service.send_verification_email.assert_awaited_once()
     assert session.committed is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({"email_verified_at": utcnow()}, id="already-verified"),
+        pytest.param({"is_active": False}, id="inactive"),
+    ],
+)
+async def test_resend_by_email_ineligible_account_is_silent_and_side_effect_free(
+    overrides: dict[str, object],
+) -> None:
+    """Verified/inactive accounts must not learn they were matched.
+
+    No new token, no email, and — critically — no invalidation of any token
+    the account may still hold.
+    """
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._tokens = MagicMock()
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=_make_user(**overrides))
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+
+    result = await service.resend_verification_by_email("owner@example.com")
+
+    assert result is None
+    service._tokens.invalidate_outstanding.assert_not_awaited()
+    service._tokens.add.assert_not_called()
+    service.send_verification_email.assert_not_awaited()
+    assert not any(isinstance(obj, AuthToken) for obj in session.added)
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+async def test_resend_by_email_unknown_account_is_silent_and_side_effect_free() -> None:
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._tokens = MagicMock()
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=None)
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+
+    result = await service.resend_verification_by_email("ghost@example.com")
+
+    assert result is None
+    service._tokens.invalidate_outstanding.assert_not_awaited()
+    service._tokens.add.assert_not_called()
+    service.send_verification_email.assert_not_awaited()
+    assert not any(isinstance(obj, AuthToken) for obj in session.added)
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+async def test_resend_by_email_eligible_user_gets_fresh_token_and_email() -> None:
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._tokens = MagicMock()
+    service._users = MagicMock()
+    user = _make_user()
+    service._users.get_active_by_email = AsyncMock(return_value=user)
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+
+    result = await service.resend_verification_by_email("Owner@Example.com")
+
+    assert result is not None
+    assert "/verify-email?token=" in result
+    service._tokens.invalidate_outstanding.assert_awaited_once()
+    assert service._tokens.add.call_count == 1
+    staged = service._tokens.add.call_args.args[0]
+    assert isinstance(staged, AuthToken)
+    assert staged.user_id == user.id
+    assert staged.purpose == PURPOSE_EMAIL_VERIFICATION
+    # The link carries the raw token; only its digest is persisted.
+    raw_token = result.rsplit("token=", 1)[1]
+    assert staged.token_hash == hash_opaque_token(raw_token)
+    service.send_verification_email.assert_awaited_once_with(user, raw_token)
+    assert session.committed is True
+    # Requesting a new link must not silently verify the account.
+    assert user.email_verified_at is None
+
+
+@pytest.mark.asyncio
+async def test_resend_by_email_production_never_returns_raw_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "APP_ENV", "production")
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._tokens = MagicMock()
+    service._users = MagicMock()
+    user = _make_user()
+    service._users.get_active_by_email = AsyncMock(return_value=user)
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+
+    result = await service.resend_verification_by_email("owner@example.com")
+
+    assert result is None
+    # The token is still generated and mailed; only the API-facing dev link is
+    # suppressed in production.
+    assert service._tokens.add.call_count == 1
+    service.send_verification_email.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

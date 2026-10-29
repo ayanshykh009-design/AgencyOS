@@ -198,11 +198,11 @@ class AuthService:
         claimed = await self._tokens.mark_replaced(record.id, new_record.id, now=now)
         if not claimed:
             # Another request already rotated this token: reuse detected.
-            # Revoke the successor we just created and trigger family revocation.
+            # Revoke the successor we just created, then trigger family
+            # revocation. ``_on_reuse_detected`` commits and always raises, so
+            # there is no fall-through path here.
             await self._tokens.revoke(new_record.id, now=now)
             await self._on_reuse_detected(record, now)
-            await commit_with_retry(self._session)
-            raise self._invalid_refresh()
         await commit_with_retry(self._session)
         self._set_refresh_cookie(response, refresh)
         return await self._auth_response(user, access, refresh)

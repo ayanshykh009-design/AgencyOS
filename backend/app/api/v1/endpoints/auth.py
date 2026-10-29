@@ -168,6 +168,7 @@ async def change_password(
     db: DbSession,
     current_user: CurrentUser,
     body: ChangePasswordRequest,
+    response: Response,
 ):
     """Verify the current password and set a new one (revokes all sessions)."""
     service = AuthService(db)
@@ -183,7 +184,9 @@ async def change_password(
     summary="Confirm an email address with a verification token",
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
-async def verify_email(request: Request, body: VerifyEmailRequest, db: DbSession):
+async def verify_email(
+    request: Request, body: VerifyEmailRequest, db: DbSession, response: Response
+):
     """Consume a single-use verification token and mark the account verified."""
     await AccountSecurityService(db).verify_email(body.token)
 
@@ -196,7 +199,7 @@ async def verify_email(request: Request, body: VerifyEmailRequest, db: DbSession
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
 async def resend_verification(
-    request: Request, db: DbSession, body: VerifyEmailResendRequest
+    request: Request, db: DbSession, body: VerifyEmailResendRequest, response: Response
 ) -> MessageResponse:
     """Invalidate the previous token and send a fresh verification link.
 
@@ -222,7 +225,7 @@ async def resend_verification(
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
 async def password_reset_request(
-    request: Request, body: PasswordResetRequest, db: DbSession
+    request: Request, body: PasswordResetRequest, db: DbSession, response: Response
 ) -> MessageResponse:
     """Always 202: never reveals whether an account exists (enumeration-safe)."""
     if not settings.PASSWORD_RESET_ENABLED:
@@ -238,7 +241,7 @@ async def password_reset_request(
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
 async def password_reset_confirm(
-    request: Request, body: PasswordResetConfirmRequest, db: DbSession
+    request: Request, body: PasswordResetConfirmRequest, db: DbSession, response: Response
 ):
     """Set a new password and revoke every existing session for the account."""
     await AccountSecurityService(db).reset_password(body.token, body.new_password)
@@ -254,7 +257,7 @@ async def password_reset_confirm(
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
 async def mfa_enroll(
-    request: Request, db: DbSession, current_user: CurrentUser
+    request: Request, db: DbSession, current_user: CurrentUser, response: Response
 ) -> MfaEnrollResponse:
     """Generate a pending TOTP secret and provisioning URI."""
     secret, uri = await MfaService(db).enroll(current_user)
@@ -272,6 +275,7 @@ async def mfa_activate(
     db: DbSession,
     current_user: CurrentUser,
     body: MfaCodeRequest,
+    response: Response,
 ) -> MfaActivateResponse:
     """Verify a code against the pending secret and return recovery codes."""
     codes = await MfaService(db).activate(current_user, body.code)
@@ -289,6 +293,7 @@ async def mfa_disable(
     db: DbSession,
     current_user: CurrentUser,
     body: MfaCodeRequest,
+    response: Response,
 ):
     """Verify the current factor, then turn off TOTP and drop recovery codes."""
     await MfaService(db).disable(current_user, body.code)

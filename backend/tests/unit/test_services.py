@@ -396,6 +396,48 @@ async def test_refresh_detects_reuse_and_revokes_family() -> None:
 
 
 @pytest.mark.asyncio
+async def test_refresh_losing_rotation_race_revokes_successor_and_family() -> None:
+    """The loser of a concurrent rotation must not leave a usable successor.
+
+    Both requests can mint successor rows before either claim lands; the loser
+    of ``mark_replaced`` has to revoke the successor it just created and then
+    trigger family revocation, exactly like explicit reuse.
+    """
+    session = FakeSession()
+    service = AuthService(session)
+    service._users = MagicMock()
+    service._tokens = MagicMock()
+    user = _make_user()
+    service._users.get = AsyncMock(return_value=user)
+    family_id = uuid.uuid4()
+    parent = RefreshToken(
+        user_id=user.id,
+        organization_id=ORG_ID,
+        token_hash="parent",
+        family_id=family_id,
+        expires_at=utcnow() + timedelta(days=1),
+    )
+    parent.id = uuid.uuid4()
+    service._tokens.get_any = AsyncMock(return_value=parent)
+    service._tokens.mark_replaced = AsyncMock(return_value=False)
+    service._tokens.revoke = AsyncMock()
+    service._tokens.revoke_family = AsyncMock(return_value=2)
+
+    with pytest.raises(AppError) as exc_info:
+        await service.refresh("a-valid-raw-token")
+
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.code == "auth.refresh_token_reuse"
+    successor = service._tokens.add.call_args.args[0]
+    service._tokens.revoke.assert_awaited_once()
+    assert service._tokens.revoke.await_args.args[0] == successor.id
+    service._tokens.revoke_family.assert_awaited_once()
+    assert service._tokens.revoke_family.await_args.args[0] == family_id
+    assert user.token_version == 1
+    assert session.committed is True
+
+
+@pytest.mark.asyncio
 async def test_change_password_requires_correct_current() -> None:
     session = FakeSession()
     service = AuthService(session)
