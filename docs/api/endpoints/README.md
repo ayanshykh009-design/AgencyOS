@@ -7,6 +7,7 @@ One file per endpoint group, e.g.:
 - `pipeline.md` — stages, close reasons, Kanban board, stage moves
 - `tasks.md` — task CRUD, completion, recurrence, reminders
 - `notes.md` — lead notes (body + pin)
+- `outreach.md` — message templates, lead attempts, follow-ups, manual queue
 - `dashboard.md` — aggregate analytics snapshot
 - `search.md` — unified search across leads, tasks, notes
 - `exports.md` — CSV/JSON lead export

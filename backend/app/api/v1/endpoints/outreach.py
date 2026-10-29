@@ -7,6 +7,7 @@ import uuid
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import CurrentUser, DbSession, require_role
+from app.core.permissions import Permission, require_permission
 from app.models.enums import OutreachChannel, OutreachStatus, UserRole
 from app.schemas.outreach import (
     FollowUpCreate,
@@ -27,6 +28,14 @@ from app.services.outreach_service import OutreachService
 router = APIRouter()
 
 _admin_only = require_role(UserRole.OWNER, UserRole.ADMIN)
+
+# Attempts, follow-ups and manual-queue tasks are lead-scoped CRM records (each
+# requires a ``lead_id``), so mutating them is a lead write. ``LEAD_WRITE``
+# already covers exactly the non-viewer write roles (owner/admin/manager/
+# member/sales_agent) and is what the AI tool layer requires for outreach
+# dispatch, so a separate outreach permission would only duplicate that
+# mapping. Reads stay authenticated-only, consistent with lead reads.
+_lead_write = require_permission(Permission.LEAD_WRITE)
 
 
 # -- message templates ---------------------------------------------------
@@ -132,6 +141,7 @@ async def list_lead_attempts(
     response_model=OutreachAttemptRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create an outreach attempt",
+    dependencies=[Depends(_lead_write)],
 )
 async def create_attempt(
     body: OutreachAttemptCreate, db: DbSession, current_user: CurrentUser
@@ -147,6 +157,7 @@ async def create_attempt(
     "/attempts/{attempt_id}",
     response_model=OutreachAttemptRead,
     summary="Update an outreach attempt",
+    dependencies=[Depends(_lead_write)],
 )
 async def update_attempt(
     attempt_id: uuid.UUID,
@@ -184,6 +195,7 @@ async def list_lead_follow_ups(
     response_model=FollowUpRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a follow-up",
+    dependencies=[Depends(_lead_write)],
 )
 async def create_follow_up(
     body: FollowUpCreate, db: DbSession, current_user: CurrentUser
@@ -197,6 +209,7 @@ async def create_follow_up(
     "/follow-ups/{follow_up_id}",
     response_model=FollowUpRead,
     summary="Update a follow-up",
+    dependencies=[Depends(_lead_write)],
 )
 async def update_follow_up(
     follow_up_id: uuid.UUID,
@@ -241,6 +254,7 @@ async def list_manual_tasks(
     response_model=ManualOutreachQueueRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a manual outreach task",
+    dependencies=[Depends(_lead_write)],
 )
 async def create_manual_task(
     body: ManualOutreachQueueCreate, db: DbSession, current_user: CurrentUser
@@ -267,6 +281,7 @@ async def get_manual_task(
     "/manual/{task_id}",
     response_model=ManualOutreachQueueRead,
     summary="Update a manual outreach task",
+    dependencies=[Depends(_lead_write)],
 )
 async def update_manual_task(
     task_id: uuid.UUID,

@@ -145,6 +145,7 @@ class OutreachService:
             if field in data:
                 setattr(attempt, field, data[field])
         await commit_with_retry(self._session)
+        await self._session.refresh(attempt)
         return attempt
 
     # -- follow-ups -----------------------------------------------------
@@ -182,6 +183,7 @@ class OutreachService:
             if field in data:
                 setattr(follow_up, field, data[field])
         await commit_with_retry(self._session)
+        await self._session.refresh(follow_up)
         return follow_up
 
     # -- manual queue ---------------------------------------------------
@@ -243,4 +245,5 @@ class OutreachService:
             if field in data:
                 setattr(task, field, data[field])
         await commit_with_retry(self._session)
+        await self._session.refresh(task)
         return task
