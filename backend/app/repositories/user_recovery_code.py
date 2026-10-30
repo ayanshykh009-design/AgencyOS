@@ -33,13 +33,16 @@ class UserRecoveryCodeRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def mark_used(self, code_id: uuid.UUID, *, now: datetime) -> None:
+    async def mark_used(self, code_id: uuid.UUID, *, now: datetime) -> bool:
+        """Atomically claim a recovery code. Returns True only if this request
+        transitioned it from unused to used (rowcount == 1)."""
         stmt = (
             update(UserRecoveryCode)
             .where(UserRecoveryCode.id == code_id, UserRecoveryCode.used_at.is_(None))
             .values(used_at=now)
         )
-        await self._session.execute(stmt)
+        result = await self._session.execute(stmt)
+        return (cast(CursorResult, result).rowcount or 0) == 1
 
     async def delete_all_for_user(self, user_id: uuid.UUID) -> int:
         stmt = delete(UserRecoveryCode).where(UserRecoveryCode.user_id == user_id)

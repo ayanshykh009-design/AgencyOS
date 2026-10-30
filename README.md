@@ -47,7 +47,7 @@ automation workflows.
 - **Unified error envelope** and structured exceptions — no leaked internals.
 - **Request IDs, security headers, Host allow-listing, and rate limiting.**
 - **Structured JSON logs** (prod) and optional **OpenTelemetry** traces.
-- **Fail-fast config validation** for `APP_ENV=production`.
+- **Fail-fast config validation** for deployed environments (staging/production).
 - **Argon2id password hashing** and JWT with issuer/audience validation.
 - **Non-root, multi-stage production images** (backend + Next.js standalone).
 - **CI pipeline** (`.github/workflows/ci.yml`): lint, typecheck, tests, compose.

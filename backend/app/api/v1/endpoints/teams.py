@@ -10,7 +10,7 @@ slowapi's ``@limiter.limit`` wrapper breaks FastAPI's forward-ref resolution.
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import settings
@@ -95,7 +95,9 @@ async def revoke_invite(
     summary="Resolve invite details for the acceptance screen",
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
-async def lookup_invite(request: Request, token: str, db: DbSession) -> TeamInviteLookup:
+async def lookup_invite(
+    request: Request, token: str, db: DbSession, response: Response
+) -> TeamInviteLookup:
     """Return non-sensitive invite details for a token (no session)."""
     service = TeamService(db)
     invite = await service.lookup_invite(token)
@@ -110,7 +112,9 @@ async def lookup_invite(request: Request, token: str, db: DbSession) -> TeamInvi
     summary="Accept an invite and create the account",
 )
 @limiter.limit(settings.RATE_LIMIT_STRICT)
-async def accept_invite(request: Request, body: TeamInviteAccept, db: DbSession) -> TeamInviteRead:
+async def accept_invite(
+    request: Request, body: TeamInviteAccept, db: DbSession, response: Response
+) -> TeamInviteRead:
     """Validate the token, create the user, and return the consumed invite."""
     service = TeamService(db)
     invite = await service.accept_invite(

@@ -195,7 +195,14 @@ class AuthService:
             raise self._email_verification_required()
 
         access, refresh, new_record = await self._issue_tokens(user, family_id=record.family_id)
-        await self._tokens.mark_replaced(record.id, new_record.id, now=now)
+        claimed = await self._tokens.mark_replaced(record.id, new_record.id, now=now)
+        if not claimed:
+            # Another request already rotated this token: reuse detected.
+            # Revoke the successor we just created, then trigger family
+            # revocation. ``_on_reuse_detected`` commits and always raises, so
+            # there is no fall-through path here.
+            await self._tokens.revoke(new_record.id, now=now)
+            await self._on_reuse_detected(record, now)
         await commit_with_retry(self._session)
         self._set_refresh_cookie(response, refresh)
         return await self._auth_response(user, access, refresh)
@@ -291,6 +298,11 @@ class AuthService:
             expires_at=utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         )
         self._tokens.add(record)
+        # Materialise the client-side UUID default before returning. Rotation
+        # links the old row to this successor via ``replaced_by`` and needs the
+        # real id; the reuse path also revokes this row by id, so it must be
+        # visible to the transaction rather than pending in the unit of work.
+        await self._session.flush()
         access = create_access_token(
             subject=str(user.id),
             extra_claims={"org": str(user.organization_id), "role": user.role},

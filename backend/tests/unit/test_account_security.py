@@ -5,6 +5,7 @@ authentication hardening pass. Like the rest of the unit suite, they swap the
 concrete repositories for lightweight fakes so the business rules are verified
 without a database.
 """
+import logging
 import uuid
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock
@@ -17,6 +18,7 @@ from app.core.errors import AppError
 from app.core.mfa import decrypt_mfa_secret, generate_secret
 from app.core.security import (
     create_access_token,
+    hash_opaque_token,
     hash_password,
     verify_password,
 )
@@ -31,6 +33,11 @@ from app.models.user_recovery_code import UserRecoveryCode
 from app.services.account_security_service import AccountSecurityService
 from app.services.base import utcnow
 from app.services.mfa_service import MfaService
+from app.services.resend_cooldown import (
+    CooldownStoreUnavailable,
+    EmailResendCooldown,
+    InMemoryCooldownBackend,
+)
 
 ORG_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 
@@ -121,13 +128,13 @@ async def test_verify_email_marks_user_verified_and_consumes_token() -> None:
     token = _auth_token(user_id=user.id)
     service._tokens.get_by_hash_any = AsyncMock(return_value=token)
     service._users.get_active_by_id_unscoped = AsyncMock(return_value=user)
-    service._tokens.mark_used = AsyncMock()
+    service._tokens.claim = AsyncMock(return_value=True)
 
     await service.verify_email("a-valid-raw-token")
 
     assert user.email_verified_at is not None
     assert user.email_verification_required is False
-    service._tokens.mark_used.assert_awaited_once()
+    service._tokens.claim.assert_awaited_once()
     assert session.committed is True
 
 
@@ -182,6 +189,8 @@ async def test_resend_verification_invalidates_previous_tokens() -> None:
     user = _make_user()
     service._tokens.invalidate_outstanding = AsyncMock()
     service.send_verification_email = AsyncMock()
+    # Explicit allow: the test asserts the token lifecycle, not the cooldown.
+    service._resend_cooldown = _CooldownStub(allowed=True)
 
     await service.resend_verification(user)
 
@@ -190,6 +199,370 @@ async def test_resend_verification_invalidates_previous_tokens() -> None:
     assert service._tokens.add.call_count == 1
     service.send_verification_email.assert_awaited_once()
     assert session.committed is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({"email_verified_at": utcnow()}, id="already-verified"),
+        pytest.param({"is_active": False}, id="inactive"),
+    ],
+)
+async def test_resend_by_email_ineligible_account_is_silent_and_side_effect_free(
+    overrides: dict[str, object],
+) -> None:
+    """Verified/inactive accounts must not learn they were matched.
+
+    No new token, no email, and — critically — no invalidation of any token
+    the account may still hold.
+    """
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._tokens = MagicMock()
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=_make_user(**overrides))
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+
+    result = await service.resend_verification_by_email("owner@example.com")
+
+    assert result is None
+    service._tokens.invalidate_outstanding.assert_not_awaited()
+    service._tokens.add.assert_not_called()
+    service.send_verification_email.assert_not_awaited()
+    assert not any(isinstance(obj, AuthToken) for obj in session.added)
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+async def test_resend_by_email_unknown_account_is_silent_and_side_effect_free() -> None:
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._tokens = MagicMock()
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=None)
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+
+    result = await service.resend_verification_by_email("ghost@example.com")
+
+    assert result is None
+    service._tokens.invalidate_outstanding.assert_not_awaited()
+    service._tokens.add.assert_not_called()
+    service.send_verification_email.assert_not_awaited()
+    assert not any(isinstance(obj, AuthToken) for obj in session.added)
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+async def test_resend_by_email_eligible_user_gets_fresh_token_and_email() -> None:
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._tokens = MagicMock()
+    service._users = MagicMock()
+    user = _make_user()
+    service._users.get_active_by_email = AsyncMock(return_value=user)
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+
+    result = await service.resend_verification_by_email("Owner@Example.com")
+
+    assert result is not None
+    assert "/verify-email?token=" in result
+    service._tokens.invalidate_outstanding.assert_awaited_once()
+    assert service._tokens.add.call_count == 1
+    staged = service._tokens.add.call_args.args[0]
+    assert isinstance(staged, AuthToken)
+    assert staged.user_id == user.id
+    assert staged.purpose == PURPOSE_EMAIL_VERIFICATION
+    # The link carries the raw token; only its digest is persisted.
+    raw_token = result.rsplit("token=", 1)[1]
+    assert staged.token_hash == hash_opaque_token(raw_token)
+    service.send_verification_email.assert_awaited_once_with(user, raw_token)
+    assert session.committed is True
+    # Requesting a new link must not silently verify the account.
+    assert user.email_verified_at is None
+
+
+@pytest.mark.asyncio
+async def test_resend_by_email_production_never_returns_raw_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "APP_ENV", "production")
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._tokens = MagicMock()
+    service._users = MagicMock()
+    user = _make_user()
+    service._users.get_active_by_email = AsyncMock(return_value=user)
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    # Isolate the dev-link contract from store availability: production refuses
+    # to boot without Redis, so a working store is the realistic precondition.
+    service._resend_cooldown = _CooldownStub(allowed=True)
+
+    result = await service.resend_verification_by_email("owner@example.com")
+
+    assert result is None
+    # The token is still generated and mailed; only the API-facing dev link is
+    # suppressed in production.
+    assert service._tokens.add.call_count == 1
+    service.send_verification_email.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# Per-email resend cooldown (R2)
+# ---------------------------------------------------------------------------
+
+
+class _CooldownStub:
+    """Cooldown double that records calls and can simulate a store failure."""
+
+    def __init__(
+        self, *, allowed: bool = True, error: Exception | None = None
+    ) -> None:
+        self.allowed = allowed
+        self.error = error
+        self.calls: list[str] = []
+
+    async def reserve(self, email: str) -> bool:
+        self.calls.append(email)
+        if self.error is not None:
+            raise self.error
+        return self.allowed
+
+
+@pytest.mark.asyncio
+async def test_resend_by_email_suppressed_request_has_no_side_effects() -> None:
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=_make_user())
+    service._tokens = MagicMock()
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    cooldown = _CooldownStub(allowed=False)
+    service._resend_cooldown = cooldown
+
+    result = await service.resend_verification_by_email(" Owner@Example.com ")
+
+    assert result is None
+    # The gate sees the normalized address and runs before the account lookup.
+    assert cooldown.calls == ["owner@example.com"]
+    service._users.get_active_by_email.assert_not_awaited()
+    service._tokens.invalidate_outstanding.assert_not_awaited()
+    service._tokens.add.assert_not_called()
+    service.send_verification_email.assert_not_awaited()
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+async def test_resend_by_email_store_failure_fails_closed() -> None:
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=_make_user())
+    service._tokens = MagicMock()
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    service._resend_cooldown = _CooldownStub(
+        error=CooldownStoreUnavailable("store down")
+    )
+
+    result = await service.resend_verification_by_email("owner@example.com")
+
+    assert result is None
+    service._users.get_active_by_email.assert_not_awaited()
+    service._tokens.invalidate_outstanding.assert_not_awaited()
+    service._tokens.add.assert_not_called()
+    service.send_verification_email.assert_not_awaited()
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("app_env", ["staging", "qa", "totally-unknown"])
+async def test_deployed_environment_never_returns_a_raw_token_link(
+    monkeypatch: pytest.MonkeyPatch, app_env: str
+) -> None:
+    """Staging (and unknown envs) must behave like production for dev links.
+
+    The resend still issues the token and sends the email — only the raw link is
+    withheld from the API response, so a deployed environment cannot hand a
+    single-use token to the caller.
+    """
+    monkeypatch.setattr(settings, "APP_ENV", app_env)
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=_make_user())
+    service._tokens = MagicMock()
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    service._resend_cooldown = _CooldownStub(allowed=True)
+
+    result = await service.resend_verification_by_email("owner@example.com")
+
+    assert result is None
+    assert service._tokens.add.call_count == 1
+    service.send_verification_email.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("app_env", ["development", "test"])
+async def test_local_environments_keep_the_dev_link(
+    monkeypatch: pytest.MonkeyPatch, app_env: str
+) -> None:
+    monkeypatch.setattr(settings, "APP_ENV", app_env)
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=_make_user())
+    service._tokens = MagicMock()
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    service._resend_cooldown = _CooldownStub(allowed=True)
+
+    result = await service.resend_verification_by_email("owner@example.com")
+
+    assert result is not None
+    assert "/verify-email?token=" in result
+
+
+@pytest.mark.parametrize("app_env", ["staging", "production", "qa", "totally-unknown"])
+def test_dev_url_is_hidden_in_deployed_environments(
+    monkeypatch: pytest.MonkeyPatch, app_env: str
+) -> None:
+    """The shared helper covers reset links too, not just verification."""
+    monkeypatch.setattr(settings, "APP_ENV", app_env)
+
+    assert (
+        AccountSecurityService._dev_url("https://app.example/verify-email?token=raw")
+        is None
+    )
+
+
+def test_dev_url_is_preserved_in_local_environments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "APP_ENV", "development")
+    url = "https://app.example/verify-email?token=raw"
+
+    assert AccountSecurityService._dev_url(url) == url
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "cooldown",
+    [
+        pytest.param(_CooldownStub(allowed=False), id="suppressed"),
+        pytest.param(
+            _CooldownStub(error=CooldownStoreUnavailable("store down")),
+            id="store-unavailable",
+        ),
+    ],
+)
+async def test_authenticated_resend_is_gated_before_any_side_effect(
+    cooldown: _CooldownStub,
+) -> None:
+    """The authenticated resend path shares the same gate.
+
+    Nothing may be invalidated, created, committed, or mailed when the attempt
+    is suppressed or the store is unavailable.
+    """
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._tokens = MagicMock()
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    service._resend_cooldown = cooldown
+    user = _make_user()
+
+    result = await service.resend_verification(user)
+
+    assert result is None
+    assert cooldown.calls == ["owner@example.com"]
+    service._tokens.invalidate_outstanding.assert_not_awaited()
+    service._tokens.add.assert_not_called()
+    service.send_verification_email.assert_not_awaited()
+    assert session.committed is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "account",
+    ["unknown", "verified", "inactive", "eligible"],
+)
+async def test_cooldown_is_consumed_identically_for_every_account_state(
+    account: str,
+) -> None:
+    """Unknown/verified/inactive/eligible addresses all burn the same attempt.
+
+    If only real, mailable accounts consumed the window, a second request could
+    reveal account state through the throttle. The second attempt must be
+    suppressed before the lookup for all four cases.
+    """
+    users = {
+        "unknown": None,
+        "verified": _make_user(email_verified_at=utcnow()),
+        "inactive": _make_user(is_active=False),
+        "eligible": _make_user(),
+    }
+    user = users[account]
+    session = FakeSession()
+    service = AccountSecurityService(session)
+    service._users = MagicMock()
+    service._users.get_active_by_email = AsyncMock(return_value=user)
+    service._tokens = MagicMock()
+    service._tokens.invalidate_outstanding = AsyncMock()
+    service.send_verification_email = AsyncMock()
+    service._resend_cooldown = EmailResendCooldown(
+        InMemoryCooldownBackend(), cooldown_seconds=60, secret="test-secret"
+    )
+
+    first = await service.resend_verification_by_email(" Owner@Example.com ")
+    second = await service.resend_verification_by_email("owner@example.com ")
+
+    assert second is None
+    # Only the first (allowed) attempt reached the account layer.
+    assert service._users.get_active_by_email.await_count == 1
+    if account == "eligible":
+        assert first is not None
+        service._tokens.invalidate_outstanding.assert_awaited_once()
+        assert service._tokens.add.call_count == 1
+        service.send_verification_email.assert_awaited_once()
+        assert session.committed is True
+    else:
+        assert first is None
+        service._tokens.invalidate_outstanding.assert_not_awaited()
+        service._tokens.add.assert_not_called()
+        service.send_verification_email.assert_not_awaited()
+        assert session.committed is False
+
+
+@pytest.mark.asyncio
+async def test_cooldown_diagnostics_never_log_the_address(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service = AccountSecurityService(FakeSession())
+    service._users = MagicMock()
+    service._tokens = MagicMock()
+    service.send_verification_email = AsyncMock()
+
+    service._resend_cooldown = _CooldownStub(allowed=False)
+    with caplog.at_level(logging.INFO, logger="agencyos.account_security"):
+        await service.resend_verification_by_email("owner@example.com")
+
+    service._resend_cooldown = _CooldownStub(
+        error=CooldownStoreUnavailable("store down")
+    )
+    with caplog.at_level(logging.ERROR, logger="agencyos.account_security"):
+        await service.resend_verification_by_email("second@example.com")
+
+    assert "owner@example.com" not in caplog.text
+    assert "second@example.com" not in caplog.text
+    assert "cooldown_suppressed" in caplog.text
+    assert "cooldown_store_unavailable" in caplog.text
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +622,7 @@ async def test_reset_password_sets_new_hash_and_revokes_sessions() -> None:
     token = _auth_token(user_id=user.id, purpose=PURPOSE_PASSWORD_RESET)
     service._tokens.get_by_hash_any = AsyncMock(return_value=token)
     service._users.get_active_by_id_unscoped = AsyncMock(return_value=user)
-    service._tokens.mark_used = AsyncMock()
+    service._tokens.claim = AsyncMock(return_value=True)
     service._refresh_tokens.revoke_all_for_user = AsyncMock()
     user.token_version = 3
 

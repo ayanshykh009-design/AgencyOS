@@ -22,6 +22,7 @@ from app.core.middleware import (
 )
 from app.core.observability import setup_telemetry
 from app.core.rate_limit import register_rate_limit
+from app.core.redis import close_redis
 
 logger = setup_logging()
 
@@ -37,8 +38,11 @@ async def lifespan(application: FastAPI):
     await verify_runtime_database_roles()
     setup_telemetry(application)
     logger.info("AgencyOS API starting (env=%s, debug=%s)", settings.APP_ENV, settings.APP_DEBUG)
-    yield
-    logger.info("AgencyOS API shutting down")
+    try:
+        yield
+    finally:
+        await close_redis()
+        logger.info("AgencyOS API shutting down")
 
 
 def create_app() -> FastAPI:

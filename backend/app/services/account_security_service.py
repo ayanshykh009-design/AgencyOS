@@ -36,6 +36,11 @@ from app.repositories.auth_token import AuthTokenRepository
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
 from app.services.base import commit_with_retry, utcnow
+from app.services.resend_cooldown import (
+    CooldownStoreUnavailable,
+    EmailResendCooldown,
+    normalize_email,
+)
 
 logger = logging.getLogger("agencyos.account_security")
 
@@ -43,11 +48,17 @@ logger = logging.getLogger("agencyos.account_security")
 class AccountSecurityService:
     """Email-verification and password-reset token lifecycle."""
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        *,
+        resend_cooldown: EmailResendCooldown | None = None,
+    ) -> None:
         self._session = session
         self._users = UserRepository(session)
         self._tokens = AuthTokenRepository(session)
         self._refresh_tokens = RefreshTokenRepository(session)
+        self._resend_cooldown = resend_cooldown or EmailResendCooldown()
 
     # -- email verification ---------------------------------------------
 
@@ -88,17 +99,65 @@ class AccountSecurityService:
         if user is None or not user.is_active:
             raise self._invalid_verification()
         await activate_org(self._session, user.organization_id)
+        # Atomic claim first: a concurrent verifier must fail before any
+        # account mutation is staged in this unit of work.
+        claimed = await self._tokens.claim(record.id, PURPOSE_EMAIL_VERIFICATION, now=now)
+        if not claimed:
+            raise self._invalid_verification()
         user.email_verified_at = now
         user.email_verification_required = False
-        await self._tokens.mark_used(record.id, now=now)
         await commit_with_retry(self._session)
         logger.info(
             "auth.email_verified user_id=%s org_id=%s", user.id, user.organization_id
         )
 
+    async def _resend_attempt_allowed(self, email: str) -> bool:
+        """Consume one per-address resend attempt, failing closed on store errors."""
+        try:
+            allowed = await self._resend_cooldown.reserve(normalize_email(email))
+        except CooldownStoreUnavailable:
+            logger.error("auth.resend.cooldown_store_unavailable", exc_info=True)
+            return False
+        if not allowed:
+            logger.info("auth.resend.cooldown_suppressed")
+        return allowed
+
     async def resend_verification(self, user: User) -> str | None:
         """Re-issue a verification token, invalidating any previous one."""
+        if not await self._resend_attempt_allowed(user.email):
+            return None
         now = utcnow()
+        await self._tokens.invalidate_outstanding(
+            user.id, PURPOSE_EMAIL_VERIFICATION, now=now
+        )
+        raw_token = self._create_token(user, PURPOSE_EMAIL_VERIFICATION)
+        await commit_with_retry(self._session)
+        await self.send_verification_email(user, raw_token)
+        return self._dev_url(self.verification_url(raw_token))
+
+    async def resend_verification_by_email(self, email: str) -> str | None:
+        """Pre-authentication resend: look up user by email, issue token if eligible.
+
+        Enumeration-safe: returns None for nonexistent, already-verified, or
+        ineligible accounts without revealing which case applied.
+
+        The per-address cooldown is consumed *first* and for every address, so
+        account state cannot influence whether the attempt is throttled. A
+        suppressed request touches no token and sends no email. If the shared
+        cooldown store is unavailable we fail closed: no resend is performed
+        rather than sending without the control in place.
+        """
+        normalized = normalize_email(email)
+        if not await self._resend_attempt_allowed(normalized):
+            return None
+
+        now = utcnow()
+        user = await self._users.get_active_by_email(normalized)
+        if user is None or user.email_verified_at is not None or not user.is_active:
+            # Burn comparable work to avoid timing-based enumeration.
+            verify_password_dummy("agencyos-verify-resend-timing")
+            return None
+        await activate_org(self._session, user.organization_id)
         await self._tokens.invalidate_outstanding(
             user.id, PURPOSE_EMAIL_VERIFICATION, now=now
         )
@@ -148,23 +207,25 @@ class AccountSecurityService:
     async def reset_password(self, raw_token: str, new_password: str) -> None:
         """Consume a reset token, set the new password, revoke all sessions."""
         now = utcnow()
-        record = self._usable(
-            await self._tokens.get_by_hash_any(hash_opaque_token(raw_token)),
-            PURPOSE_PASSWORD_RESET,
-            now,
-        )
-        if record is None:
+        record = await self._tokens.get_by_hash_any(hash_opaque_token(raw_token))
+        if record is None or record.purpose != PURPOSE_PASSWORD_RESET:
+            raise self._invalid_reset()
+        if record.expires_at <= now:
             raise self._invalid_reset()
         user = await self._users.get_active_by_id_unscoped(record.user_id)
         if user is None or not user.is_active:
             raise self._invalid_reset()
         await activate_org(self._session, user.organization_id)
+        # Atomic claim: only the request that successfully transitions the
+        # token from unused to used may mutate the account.
+        claimed = await self._tokens.claim(record.id, PURPOSE_PASSWORD_RESET, now=now)
+        if not claimed:
+            raise self._invalid_reset()
         user.password_hash = hash_password(new_password)
         user.token_version = (user.token_version or 0) + 1
         user.failed_login_attempts = 0
         user.locked_until = None
         await self._refresh_tokens.revoke_all_for_user(user.id, now=now)
-        await self._tokens.mark_used(record.id, now=now)
         await commit_with_retry(self._session)
         logger.info(
             "auth.password_reset user_id=%s org_id=%s", user.id, user.organization_id
@@ -204,8 +265,13 @@ class AccountSecurityService:
 
     @staticmethod
     def _dev_url(url: str) -> str | None:
-        """Surface the raw link only outside production (dev/test convenience)."""
-        return None if settings.APP_ENV == "production" else url
+        """Surface the raw link only in explicitly local development/test envs.
+
+        Deployed environments (staging, QA, production, unknown values) must
+        never hand a raw single-use token back to the caller; the link travels
+        by email only.
+        """
+        return url if settings.is_local_environment else None
 
     @staticmethod
     def _invalid_verification() -> AppError:

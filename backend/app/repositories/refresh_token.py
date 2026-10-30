@@ -73,13 +73,20 @@ class RefreshTokenRepository:
 
     async def mark_replaced(
         self, token_id: uuid.UUID, replaced_by: uuid.UUID, *, now: datetime
-    ) -> None:
-        """Rotate: revoke the old token and link it to its successor."""
-        await self.revoke(token_id, now=now)
+    ) -> bool:
+        """Atomically rotate: revoke the old token and link it to its successor.
+
+        Returns True only if this request transitioned the token from active to
+        replaced (rowcount == 1). A False result means another request already
+        rotated it (reuse detected).
+        """
         stmt = (
-            update(RefreshToken).where(RefreshToken.id == token_id).values(replaced_by=replaced_by)
+            update(RefreshToken)
+            .where(RefreshToken.id == token_id, RefreshToken.revoked_at.is_(None))
+            .values(revoked_at=now, replaced_by=replaced_by)
         )
-        await self._session.execute(stmt)
+        result = await self._session.execute(stmt)
+        return (cast(CursorResult, result).rowcount or 0) == 1
 
     async def revoke_all_for_user(self, user_id: uuid.UUID, *, now: datetime) -> int:
         """Revoke every outstanding token for a user; returns the count."""

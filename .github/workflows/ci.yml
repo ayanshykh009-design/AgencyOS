@@ -29,6 +29,17 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      # Real Redis so the R2 resend-cooldown tests prove atomic SET NX EX and
+      # cross-instance sharing instead of mocking the distributed guarantee.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -53,11 +64,20 @@ jobs:
           exit ${PIPESTATUS[0]}
         env:
           TEST_POSTGRES_URL: postgresql://agencyos:change-me@localhost:5432/agencyos
+          TEST_REDIS_URL: redis://localhost:6379/0
           # M11-B budgets are fail-closed (0 = block). The CI test suite executes
           # real AI runs, so configure a generous budget for the run environment
           # (mirrors a production deployment that has budgets set).
           AI_ORG_DAILY_TOKEN_BUDGET: "1000000"
           AI_ORG_DAILY_COST_BUDGET_USD: "1000.0"
+
+      # The module only skips when TEST_REDIS_URL is absent, so this step passing
+      # proves the atomic/cross-instance cooldown tests actually executed rather
+      # than being silently skipped inside the full suite.
+      - name: Resend cooldown atomicity (real Redis)
+        run: pytest -q tests/integration/test_resend_cooldown_redis.py
+        env:
+          TEST_REDIS_URL: redis://localhost:6379/0
 
   frontend:
     name: Frontend lint, typecheck, tests

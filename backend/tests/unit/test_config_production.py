@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.core.config import Settings
+from app.core.config import LOCAL_APP_ENVS, Settings
 
 
 def _prod_settings(**overrides) -> Settings:
@@ -62,6 +62,9 @@ def test_prod_accepts_safe_config():
         # A per-process memory:// limiter dilutes auth throttling across replicas.
         {"REDIS_URL": ""},
         {"REDIS_URL": "ftp://nope"},
+        # R2: the per-email resend cooldown must not be silently disabled.
+        {"EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS": 0},
+        {"EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS": 59},
     ],
 )
 def test_prod_rejects_unsafe_config(bad):
@@ -77,6 +80,85 @@ def test_validate_runtime_rejects_bad_redis_url():
 def test_validate_runtime_accepts_default():
     # Default (dev) configuration must pass the always-on runtime checks.
     assert Settings().validate_runtime() is None
+
+
+@pytest.mark.parametrize("app_env", ["staging", "qa", "production", "totally-unknown"])
+def test_deployed_environments_require_shared_redis(app_env: str) -> None:
+    """Only the explicit local allow-list may run without shared Redis.
+
+    Staging (and any unrecognised APP_ENV) must not silently fall back to the
+    per-process cooldown / memory rate limiter: the boot refuses instead.
+    """
+    with pytest.raises(RuntimeError, match="REDIS_URL must be set"):
+        Settings(APP_ENV=app_env, REDIS_URL="").validate_runtime()
+
+
+@pytest.mark.parametrize("app_env", sorted(LOCAL_APP_ENVS))
+def test_development_and_test_environments_do_not_require_redis(app_env: str) -> None:
+    """Explicit development/test environments keep the supported local fallback."""
+    assert Settings(APP_ENV=app_env, REDIS_URL="").validate_runtime() is None
+
+
+def test_staging_with_shared_redis_passes_runtime_validation() -> None:
+    assert (
+        Settings(APP_ENV="staging", REDIS_URL="redis://cache:6379/0").validate_runtime()
+        is None
+    )
+
+
+DEPLOYED_ENVS = ["staging", "qa", "production", "totally-unknown"]
+_TEST_ENC_KEY = "c2VjcmV0LW1hc3Rlci1rZXktZm9yLXRlc3Rpbmctb25seQ=="
+
+
+@pytest.mark.parametrize("app_env", DEPLOYED_ENVS)
+@pytest.mark.parametrize("cooldown", [0, 59])
+def test_deployed_environments_reject_short_resend_cooldown(
+    app_env: str, cooldown: int
+) -> None:
+    """Redis alone is not enough: the cooldown must be >= 60 when deployed.
+
+    The production-only check in ``validate_for_production`` used to be the sole
+    guard, so staging/QA could run with the control disabled. Runtime validation
+    (which runs on every boot) now enforces the policy for every deployed env.
+    """
+    with pytest.raises(
+        RuntimeError, match="EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS"
+    ):
+        Settings(
+            APP_ENV=app_env,
+            REDIS_URL="redis://cache:6379/0",
+            CREDENTIALS_ENC_KEY=_TEST_ENC_KEY,
+            EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS=cooldown,
+        ).validate_runtime()
+
+
+@pytest.mark.parametrize("app_env", DEPLOYED_ENVS)
+def test_deployed_environments_accept_the_minimum_resend_cooldown(app_env: str) -> None:
+    assert (
+        Settings(
+            APP_ENV=app_env,
+            REDIS_URL="redis://cache:6379/0",
+            CREDENTIALS_ENC_KEY=_TEST_ENC_KEY,
+            EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS=60,
+        ).validate_runtime()
+        is None
+    )
+
+
+@pytest.mark.parametrize("app_env", sorted(LOCAL_APP_ENVS))
+@pytest.mark.parametrize("cooldown", [0, 59, 60, 300])
+def test_local_environments_keep_the_configured_resend_cooldown(
+    app_env: str, cooldown: int
+) -> None:
+    """Development/test may disable or shorten the gate intentionally."""
+    assert (
+        Settings(
+            APP_ENV=app_env,
+            REDIS_URL="",
+            EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS=cooldown,
+        ).validate_runtime()
+        is None
+    )
 
 
 def test_production_flag_gate():

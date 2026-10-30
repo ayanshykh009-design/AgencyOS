@@ -73,8 +73,30 @@ Consume a verification token and mark the account verified. Pre-authentication.
 
 ### POST /api/v1/auth/verify-email/resend
 
-Invalidate any previous token and send a fresh link. Requires a session.
-`202 MessageResponse`. `404` when verification is disabled.
+Pre-authentication resend: send a fresh verification link for an email
+address. The body is `{"email": "..."}`; no session is required, so users
+blocked by the verification gate can still request a new link. Any previous
+token is invalidated. Enumeration-safe: always `202 MessageResponse` whether
+or not the account exists, is already verified, or verification is enabled.
+Rate-limited (`RATE_LIMIT_STRICT`).
+
+A per-address cooldown (`EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS`) allows at
+most one attempt per normalized address per window. It must be at least 60
+seconds in every deployed environment (staging, QA, production); only explicit
+development/test environments may set 0 to disable it. It is
+enforced with an atomic `SET NX EX` against the shared Redis store and applies
+before the account lookup, so unknown, verified, inactive and eligible
+addresses consume the window identically. A suppressed request invalidates no
+token, sends no email, and returns the same generic `202` body as any other
+non-delivering resend. If the shared store is unavailable the endpoint fails
+closed: it reports success generically but performs no resend. The Redis key is
+a keyed HMAC digest of the normalized address — raw addresses are never stored.
+
+The `dev_url` field (verification and password-reset responses) carries a raw
+single-use link only in explicitly local `development`/`test` environments. In
+every deployed environment — including `staging` — it is `null`, and a deployed
+process refuses to boot without `REDIS_URL`, since the per-address cooldown and
+the IP rate limiter both require shared state.
 
 ## Password reset
 
