@@ -7,3 +7,11 @@
    Design tokens (colors, typography) will be defined once the design
    system lands — keep global CSS minimal and component-scoped CSS out.
    ------------------------------------------------------------------ */
+
+/* Smooth in-page anchor scrolling for the legal pages' table of
+   contents. Disabled automatically for reduced-motion users. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}

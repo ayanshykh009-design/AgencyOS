@@ -2,6 +2,11 @@
 export const ROUTES = {
   home: "/",
   login: "/login",
+  pricing: "/pricing",
+  contact: "/contact",
+  demo: "/demo",
+  terms: "/terms",
+  privacy: "/privacy",
   mfa: "/mfa",
   verifyEmail: "/verify-email",
   forgotPassword: "/forgot-password",
