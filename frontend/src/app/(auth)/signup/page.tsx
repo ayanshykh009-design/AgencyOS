@@ -14,6 +14,7 @@ import { PasswordInput } from "@/components/auth/password-input";
 import { Field, TextInput } from "@/components/marketing/form-fields";
 import { ApiRequestError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
+import { setPendingVerificationEmail } from "@/lib/pending-verification";
 import {
   signupSchema,
   slugifyOrganization,
@@ -70,6 +71,9 @@ export default function SignupPage() {
         organizationSlug: values.organizationSlug,
       });
       if (result.email_verification_required) {
+        // Keep the just-registered address for the resend form on the
+        // verification screen (in-memory only; never persisted).
+        setPendingVerificationEmail(result.user?.email ?? values.email);
         router.replace(`${ROUTES.verifyEmail}?registered=1`);
         return;
       }

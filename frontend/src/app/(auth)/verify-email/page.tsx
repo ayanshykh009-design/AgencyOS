@@ -13,6 +13,7 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { Field, TextInput } from "@/components/marketing/form-fields";
 import { ApiRequestError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
+import { getPendingVerificationEmail, setPendingVerificationEmail } from "@/lib/pending-verification";
 import {
   isEmailVerificationDisabled,
   resendVerification,
@@ -58,7 +59,9 @@ function VerifyEmailInner() {
 
   const [status, setStatus] = useState<Status>(token ? "verifying" : "pending");
   const [verifyError, setVerifyError] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
+  // Prefill the resend form with the just-registered address, if any.
+  // In-memory only; never persisted, never logged.
+  const [email, setEmail] = useState(() => getPendingVerificationEmail() ?? "");
   const [emailError, setEmailError] = useState<string | undefined>(undefined);
   const [resending, setResending] = useState(false);
   const [resendSent, setResendSent] = useState(false);
@@ -71,7 +74,10 @@ function VerifyEmailInner() {
     if (!token || started.current) return;
     started.current = true;
     verifyEmail(token)
-      .then(() => setStatus("verified"))
+      .then(() => {
+        setPendingVerificationEmail(null);
+        setStatus("verified");
+      })
       .catch((err) => {
         setVerifyError(
           err instanceof ApiRequestError
@@ -176,7 +182,9 @@ function VerifyEmailInner() {
           </h1>
           <p className="mt-1 text-sm text-soft-gray">
             {justRegistered
-              ? "Your workspace is ready. Check your inbox for a verification link — open it to activate your account."
+              ? email
+                ? `Your workspace is ready. We sent a verification link to ${email} — open it to activate your account.`
+                : "Your workspace is ready. Check your inbox for a verification link — open it to activate your account."
               : "We sent a verification link to your email. Open it to activate your account."}
           </p>
           <ResendForm

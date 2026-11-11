@@ -152,3 +152,23 @@ Implemented exactly the five authorized routes on `feat/phase6-commercial-v1`; t
 - Slug field auto-derives from workspace name until the user edits it; backend pattern mirrored exactly (client never stricter than the API).
 - No onboarding routes were created. **Onboarding integration requirements for a later batch:** Sheet 2A screens 03/04 (onboarding 1/4–2/4), 07 (Team) and 08 (AI preferences) are designed but not implemented. Registration covers onboarding step 1. Step 2 (Business Profile: industry/size/goal/target/website/currency) has no backend model or endpoint as far as this batch's read-only audit found; steps 3–4 would need audited wiring to existing team/AI endpoints plus any missing profile persistence. A dedicated backend audit and founder scope decision are required before these screens are implemented.
 - Design reference: AGENCYOS_ALL_IN_ONE.pdf (Sheet 1 brand board/login, Sheet 2A screens 06/09/10/11, Sheet 2C components, exact printed tokens). The 3D Core Orbit render asset remains unavailable; the SVG Core Orbit from Batch 1 is reused.
+
+### Batch 2 — QA closure (2026-11-11)
+
+**Fixes**
+- Verification-email resend UX (founder-mandated closure item 1): signup now seeds the address used for the pending verification into an in-memory module store (`frontend/src/lib/pending-verification.ts`) sourced from the server-returned `AuthResponse.user.email`. `/verify-email` initializes its resend email field from that store and shows "We sent a verification link to {email}…"; the link expires with the session/reload (blank editable field), and the store is cleared on successful verification and on sign-out navigation. Nothing is persisted to storage, URLs or logs. 3 unit tests added.
+- SSR smoke tests (`frontend/src/app/(auth)/auth-ssr.test.tsx`): render the real page components via `react-dom/server` to static markup and assert honest initial states (no success copy before a real backend 204/202; correct layout/links). 5 tests added.
+
+**Gates re-run after the fixes**
+- `npm run typecheck` — pass. `npm run lint` — 0 errors (1 pre-existing warning: `postcss.config.mjs`). `npm test` — **30 files / 199 tests pass** (8 new). `npm run build` — pass; 37 routes; all five auth routes present.
+
+**Tested state (recorded precisely)**
+- Batch 2 report gates (typecheck/lint/test/build, 191 tests) ran on the **pre-commit working tree**. At commit time `git diff HEAD -- frontend` was empty — every frontend file Batch 2 added or changed was committed byte-identically as `6176d99`. The tested state therefore equals the commit for the frontend; the only uncommitted deltas were the 4 pre-existing backend/migration files, which the frontend gates do not touch.
+- QA-fix gates (this section, 199 tests) ran on the post-fix tree, committed as the Batch 2 QA closure commit.
+
+**Commit contents — verified** `6176d99` contains exactly the 15 authorized Batch 2 files; pre-existing unstaged edits (`backend/app/api/v1/endpoints/{conversations,pipeline}.py`, `backend/app/services/conversation_service.py`) and `database/migrations/0016_search_trigram_indexes.sql` remain modified/unstaged and uncommitted; all untracked user artifacts remain untracked; nothing else entered the commit.
+
+**What could NOT be executed in this environment (recorded, not hand-waved)**
+- **Browser-based authentication checks (signup → login → MFA → verify → forgot) and desktop/mobile visual QA: NOT EXECUTED.** The in-app browser namespace is unavailable in this session, the desktop window could not be captured, and the repo has no playwright/puppeteer/jsdom/@testing-library/happy-dom installed. No new dependencies were added. **Visual QA is UNVERIFIED**; hydration/interactivity (auto-advance, paste, accordion-like behaviors, loading-disabled buttons) is verified only statically + via SSR markup + build, not interactively.
+- **Live API integration checks: NOT EXECUTED.** Backend was not running (port 8000 refused). The backend venv is broken (its pinned CPython path no longer exists); with system Python (3.14) `pyotp` was absent (installed to `D:\tmp\pydeps`), after which `tests/conftest.py` import fails with `NameError: name 'Depends' is not defined` inside `backend/app/api/v1/endpoints/conversations.py` — the pre-existing, user-owned, unstaged security edit, deliberately not fixed or modified. The backend suite was therefore not run; the registration/OWNER/slug contract is covered only by frontend service tests against the mocked API contract and by code audit, not by a live database.
+- C: drive is nearly full (≈13 MB free); PyMuPDF/pydeps were installed to D: with `--no-cache-dir`. Space pressure is a real environment limitation.
