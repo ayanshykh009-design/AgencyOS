@@ -192,6 +192,7 @@ async def board(
     "/leads/{lead_id}/stage",
     response_model=LeadRead,
     summary="Move a lead onto a stage (closes it if the stage is won/lost)",
+    dependencies=[Depends(require_permission(Permission.LEAD_WRITE))],
 )
 async def move_lead(
     lead_id: uuid.UUID,
