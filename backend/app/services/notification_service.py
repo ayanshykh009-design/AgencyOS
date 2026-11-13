@@ -88,6 +88,15 @@ class NotificationService:
         action_url: str | None,
         metadata_: dict[str, Any],
     ) -> Notification:
+        """Create an inbox row — **trusted internal path only**.
+
+        Not exposed via HTTP: there is no notification-create route, because
+        every ``NotificationType`` is a system/worker/agent/approval origin
+        and a user-writable create surface would allow fabricating
+        privileged notifications. Internal services and the M6 delivery
+        worker (``app/communication/inapp_provider.py``) are the intended
+        callers; the caller vouches for the recipient and content.
+        """
         notification = Notification(
             organization_id=organization_id,
             user_id=user_id,
