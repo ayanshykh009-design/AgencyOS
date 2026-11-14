@@ -59,7 +59,10 @@ export default function DemoPage() {
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_300px]">
         {/* Form card */}
-        <section aria-labelledby="demo-form-heading" className="rounded-xl border border-line bg-graphite p-6 sm:p-8">
+        <section
+          aria-labelledby="demo-form-heading"
+          className="rounded-xl border border-line bg-graphite p-6 sm:p-8"
+        >
           <h2 id="demo-form-heading" className="sr-only">
             Demo request form
           </h2>
@@ -120,7 +123,12 @@ export default function DemoPage() {
                 </SelectInput>
               </Field>
 
-              <Field label="Main use case" id="demo-use-case" error={errors.useCase} className="sm:col-span-2">
+              <Field
+                label="Main use case"
+                id="demo-use-case"
+                error={errors.useCase}
+                className="sm:col-span-2"
+              >
                 <SelectInput
                   id="demo-use-case"
                   name="useCase"
@@ -135,7 +143,12 @@ export default function DemoPage() {
                 </SelectInput>
               </Field>
 
-              <Field label="Current business challenge" id="demo-challenge" error={errors.challenge} className="sm:col-span-2">
+              <Field
+                label="Current business challenge"
+                id="demo-challenge"
+                error={errors.challenge}
+                className="sm:col-span-2"
+              >
                 <TextAreaInput
                   id="demo-challenge"
                   name="challenge"
@@ -189,8 +202,14 @@ export default function DemoPage() {
             <CoreOrbit size={220} />
           </div>
 
-          <section aria-labelledby="demo-next-heading" className="rounded-xl border border-line bg-graphite p-6">
-            <h2 id="demo-next-heading" className="font-display text-base font-semibold text-off-white">
+          <section
+            aria-labelledby="demo-next-heading"
+            className="rounded-xl border border-line bg-graphite p-6"
+          >
+            <h2
+              id="demo-next-heading"
+              className="font-display text-base font-semibold text-off-white"
+            >
               What happens next
             </h2>
             <ol className="mt-4 flex flex-col gap-3">

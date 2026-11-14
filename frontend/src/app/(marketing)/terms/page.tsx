@@ -13,6 +13,10 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms of Service" sections={TERMS_SECTIONS} draftNotice={LEGAL_DRAFT_NOTICE} />
+    <LegalPage
+      title="Terms of Service"
+      sections={TERMS_SECTIONS}
+      draftNotice={LEGAL_DRAFT_NOTICE}
+    />
   );
 }

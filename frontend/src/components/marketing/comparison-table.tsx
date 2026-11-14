@@ -23,12 +23,7 @@ function Marker({ marker }: { marker: "included" | "basic" | "excluded" }) {
     );
   }
   return (
-    <span
-      className={cn(
-        "text-sm",
-        marker === "basic" ? "text-soft-gray" : "text-muted"
-      )}
-    >
+    <span className={cn("text-sm", marker === "basic" ? "text-soft-gray" : "text-muted")}>
       {MARKER_SYMBOLS[marker]}
       <span className="sr-only">{MARKER_LABELS[marker]}</span>
     </span>
@@ -63,10 +58,7 @@ export function ComparisonTable() {
                 {row.capability}
               </th>
               {row.markers.map((marker, index) => (
-                <td
-                  key={PLAN_COLUMN_LABELS[index]}
-                  className="py-3.5 text-center text-off-white"
-                >
+                <td key={PLAN_COLUMN_LABELS[index]} className="py-3.5 text-center text-off-white">
                   <Marker marker={marker} />
                 </td>
               ))}

@@ -56,9 +56,7 @@ export function LegalPage({
                   />
                 ))}
               </div>
-              <p className="sr-only">
-                {section.title}: content pending owner/legal review.
-              </p>
+              <p className="sr-only">{section.title}: content pending owner/legal review.</p>
             </section>
           ))}
 

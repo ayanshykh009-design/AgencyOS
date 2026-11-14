@@ -111,7 +111,11 @@ export default function SignupPage() {
         Set up your organization and owner account.
       </p>
 
-      <form onSubmit={handleSubmit} noValidate className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2"
+      >
         <Field label="Full name" id="full_name" error={fieldErrors.fullName}>
           <TextInput
             id="full_name"
@@ -138,7 +142,12 @@ export default function SignupPage() {
           />
         </Field>
 
-        <Field label="Password" id="password" error={fieldErrors.password} hint={fieldErrors.password ? undefined : "At least 8 characters."}>
+        <Field
+          label="Password"
+          id="password"
+          error={fieldErrors.password}
+          hint={fieldErrors.password ? undefined : "At least 8 characters."}
+        >
           <PasswordInput
             id="password"
             autoComplete="new-password"

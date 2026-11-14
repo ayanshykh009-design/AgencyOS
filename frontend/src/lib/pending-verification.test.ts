@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { getPendingVerificationEmail, setPendingVerificationEmail } from "@/lib/pending-verification";
+import {
+  getPendingVerificationEmail,
+  setPendingVerificationEmail,
+} from "@/lib/pending-verification";
 
 describe("pending-verification store", () => {
   it("is empty by default", () => {

@@ -99,8 +99,8 @@ export default function ForgotPasswordPage() {
             Reset unavailable
           </h1>
           <p className="mt-4 w-full rounded-lg border border-line bg-elevated px-4 py-4 text-sm leading-6 text-soft-gray">
-            Password reset is not enabled for this environment. Contact your administrator, or
-            sign in if you still have access.
+            Password reset is not enabled for this environment. Contact your administrator, or sign
+            in if you still have access.
           </p>
           <Link
             href={ROUTES.login}

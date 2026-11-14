@@ -191,11 +191,7 @@ export const DEMO_USE_CASES = [
   "Other",
 ] as const;
 
-export const DEMO_CONTACT_WINDOWS = [
-  "Weekday mornings",
-  "Weekday afternoons",
-  "Any time",
-] as const;
+export const DEMO_CONTACT_WINDOWS = ["Weekday mornings", "Weekday afternoons", "Any time"] as const;
 
 export const DEMO_NEXT_STEPS = [
   "We review your request",
@@ -232,5 +228,4 @@ export const PRIVACY_SECTIONS: LegalSection[] = [
   { id: "privacy-inquiries", title: "Privacy inquiries" },
 ];
 
-export const LEGAL_DRAFT_NOTICE =
-  "Layout only. Legal text and claims are supplied by the owner.";
+export const LEGAL_DRAFT_NOTICE = "Layout only. Legal text and claims are supplied by the owner.";

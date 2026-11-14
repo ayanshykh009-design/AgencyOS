@@ -44,20 +44,34 @@ describe("signupSchema", () => {
   });
 
   it("rejects a password shorter than 8 characters (backend rule)", () => {
-    const result = signupSchema.safeParse({ ...validSignup, password: "abc1234", confirmPassword: "abc1234" });
+    const result = signupSchema.safeParse({
+      ...validSignup,
+      password: "abc1234",
+      confirmPassword: "abc1234",
+    });
     expect(result.success).toBe(false);
   });
 
   it("rejects a password longer than 128 characters (backend rule)", () => {
     const long = "x".repeat(129);
-    const result = signupSchema.safeParse({ ...validSignup, password: long, confirmPassword: long });
+    const result = signupSchema.safeParse({
+      ...validSignup,
+      password: long,
+      confirmPassword: long,
+    });
     expect(result.success).toBe(false);
   });
 
   it("rejects mismatched confirmation", () => {
-    const result = signupSchema.safeParse({ ...validSignup, confirmPassword: "different-password" });
+    const result = signupSchema.safeParse({
+      ...validSignup,
+      confirmPassword: "different-password",
+    });
     expect(result.success).toBe(false);
-    const errors = validateForm(signupSchema, { ...validSignup, confirmPassword: "different-password" });
+    const errors = validateForm(signupSchema, {
+      ...validSignup,
+      confirmPassword: "different-password",
+    });
     expect(errors.confirmPassword).toBe("Passwords do not match");
   });
 
@@ -70,7 +84,9 @@ describe("signupSchema", () => {
 
   it("accepts a slug matching the backend pattern", () => {
     expect(SLUG_PATTERN.test("northwind-12")).toBe(true);
-    expect(signupSchema.safeParse({ ...validSignup, organizationSlug: "northwind-12" }).success).toBe(true);
+    expect(
+      signupSchema.safeParse({ ...validSignup, organizationSlug: "northwind-12" }).success
+    ).toBe(true);
   });
 
   it("requires explicit Terms and Privacy consent", () => {

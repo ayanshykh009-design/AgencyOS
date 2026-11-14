@@ -70,7 +70,17 @@ function MfaChallengeInner() {
     <AuthShell>
       <div className="flex flex-col items-center text-center">
         <span className="inline-flex items-center gap-1.5 rounded-full border border-info/40 bg-info/10 px-3 py-1 text-[11px] font-medium text-info">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -160,8 +170,15 @@ function MfaChallengeInner() {
 function MfaFallback() {
   return (
     <AuthShell>
-      <div className="flex flex-col items-center py-8 text-center" role="status" aria-label="Loading the challenge screen">
-        <span className="h-8 w-8 animate-spin rounded-full border-2 border-line border-t-silver" aria-hidden="true" />
+      <div
+        className="flex flex-col items-center py-8 text-center"
+        role="status"
+        aria-label="Loading the challenge screen"
+      >
+        <span
+          className="h-8 w-8 animate-spin rounded-full border-2 border-line border-t-silver"
+          aria-hidden="true"
+        />
         <p className="mt-4 text-sm text-soft-gray">Loading…</p>
       </div>
     </AuthShell>

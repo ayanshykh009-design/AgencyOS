@@ -32,7 +32,11 @@ const REACH_ICONS: Record<(typeof CONTACT_REACH_ITEMS)[number]["icon"], React.Re
   social: (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M2 8a6 6 0 0 1 12 0 6 6 0 0 1-12 0Z" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M2.5 6.5h11M2.5 9.5h11M8 2a10 10 0 0 0 0 12M8 2a10 10 0 0 1 0 12" stroke="currentColor" strokeWidth="1" />
+      <path
+        d="M2.5 6.5h11M2.5 9.5h11M8 2a10 10 0 0 0 0 12M8 2a10 10 0 0 1 0 12"
+        stroke="currentColor"
+        strokeWidth="1"
+      />
     </svg>
   ),
 };
@@ -82,7 +86,10 @@ export default function ContactPage() {
 
       <div className="mt-10 grid gap-8 lg:grid-cols-[1fr_320px]">
         {/* Form card */}
-        <section aria-labelledby="contact-form-heading" className="rounded-xl border border-line bg-graphite p-6 sm:p-8">
+        <section
+          aria-labelledby="contact-form-heading"
+          className="rounded-xl border border-line bg-graphite p-6 sm:p-8"
+        >
           <h2 id="contact-form-heading" className="sr-only">
             Contact form
           </h2>
@@ -143,7 +150,12 @@ export default function ContactPage() {
                 </SelectInput>
               </Field>
 
-              <Field label="Message" id="contact-message" error={errors.message} className="sm:col-span-2">
+              <Field
+                label="Message"
+                id="contact-message"
+                error={errors.message}
+                className="sm:col-span-2"
+              >
                 <TextAreaInput
                   id="contact-message"
                   name="message"
@@ -173,8 +185,14 @@ export default function ContactPage() {
         </section>
 
         {/* Other ways to reach us */}
-        <aside aria-labelledby="contact-reach-heading" className="rounded-xl border border-line bg-graphite p-6">
-          <h2 id="contact-reach-heading" className="font-display text-base font-semibold text-off-white">
+        <aside
+          aria-labelledby="contact-reach-heading"
+          className="rounded-xl border border-line bg-graphite p-6"
+        >
+          <h2
+            id="contact-reach-heading"
+            className="font-display text-base font-semibold text-off-white"
+          >
             Other ways to reach us
           </h2>
           <ul className="mt-4 flex flex-col gap-4">

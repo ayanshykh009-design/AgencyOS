@@ -13,12 +13,11 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { Field, TextInput } from "@/components/marketing/form-fields";
 import { ApiRequestError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
-import { getPendingVerificationEmail, setPendingVerificationEmail } from "@/lib/pending-verification";
 import {
-  isEmailVerificationDisabled,
-  resendVerification,
-  verifyEmail,
-} from "@/services/auth";
+  getPendingVerificationEmail,
+  setPendingVerificationEmail,
+} from "@/lib/pending-verification";
+import { isEmailVerificationDisabled, resendVerification, verifyEmail } from "@/services/auth";
 import { isAuthenticated } from "@/lib/session";
 import { validateForm, verificationResendSchema } from "@/lib/validation/auth";
 
@@ -26,7 +25,17 @@ type Status = "verifying" | "verified" | "expired" | "pending";
 
 function EnvelopeIcon() {
   return (
-    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      width="44"
+      height="44"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
       <path d="m3.5 7 8.5 6 8.5-6" />
     </svg>
@@ -35,7 +44,17 @@ function EnvelopeIcon() {
 
 function CheckIcon() {
   return (
-    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      width="44"
+      height="44"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="12" r="9.5" />
       <path d="m8.5 12.5 2.5 2.5 5-5.5" />
     </svg>
@@ -44,7 +63,17 @@ function CheckIcon() {
 
 function WarningIcon() {
   return (
-    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      width="44"
+      height="44"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="12" r="9.5" />
       <path d="M12 8v5" />
       <path d="M12 16.5h.01" />
@@ -119,7 +148,10 @@ function VerifyEmailInner() {
     <AuthShell>
       {status === "verifying" ? (
         <div className="flex flex-col items-center py-6 text-center">
-          <span className="h-8 w-8 animate-spin rounded-full border-2 border-line border-t-silver" aria-hidden="true" />
+          <span
+            className="h-8 w-8 animate-spin rounded-full border-2 border-line border-t-silver"
+            aria-hidden="true"
+          />
           <h1 className="mt-4 font-display text-xl font-semibold text-off-white">
             Verifying your email address…
           </h1>
@@ -242,15 +274,28 @@ function ResendForm({
   if (resendDisabled) {
     return (
       <p className="mt-6 w-full rounded-lg border border-line bg-elevated px-4 py-3 text-sm text-soft-gray">
-        Email verification is not enabled for this environment. You can keep using AgencyOS once
-        you sign in.
+        Email verification is not enabled for this environment. You can keep using AgencyOS once you
+        sign in.
       </p>
     );
   }
   if (resendSent) {
     return (
-      <p role="status" className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-success">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <p
+        role="status"
+        className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg border border-success/40 bg-success/10 px-4 py-3 text-sm text-success"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <path d="m4.5 12.5 5 5L19.5 7" />
         </svg>
         If an account exists and is unverified, we&apos;ve sent a new link.
@@ -291,8 +336,15 @@ function ResendForm({
 function VerifyEmailFallback() {
   return (
     <AuthShell>
-      <div className="flex flex-col items-center py-8 text-center" role="status" aria-label="Loading the verification screen">
-        <span className="h-8 w-8 animate-spin rounded-full border-2 border-line border-t-silver" aria-hidden="true" />
+      <div
+        className="flex flex-col items-center py-8 text-center"
+        role="status"
+        aria-label="Loading the verification screen"
+      >
+        <span
+          className="h-8 w-8 animate-spin rounded-full border-2 border-line border-t-silver"
+          aria-hidden="true"
+        />
         <p className="mt-4 text-sm text-soft-gray">Loading…</p>
       </div>
     </AuthShell>

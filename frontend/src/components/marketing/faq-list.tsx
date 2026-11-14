@@ -61,7 +61,10 @@ export function FaqList({ items }: { items: FaqItem[] }) {
       </ul>
 
       {/* Answer panel beneath the row */}
-      <div id={openItem ? `${faqId(openItem.question)}-panel` : undefined} className="min-h-[3.5rem] pt-3">
+      <div
+        id={openItem ? `${faqId(openItem.question)}-panel` : undefined}
+        className="min-h-[3.5rem] pt-3"
+      >
         {openItem ? (
           <p className="max-w-2xl text-sm leading-relaxed text-soft-gray">{openItem.answer}</p>
         ) : null}

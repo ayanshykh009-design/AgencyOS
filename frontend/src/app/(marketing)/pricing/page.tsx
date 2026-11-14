@@ -36,7 +36,10 @@ export default function PricingPage() {
 
       {/* Comparison */}
       <section aria-labelledby="compare-heading" className="mt-16">
-        <h2 id="compare-heading" className="text-xs font-semibold uppercase tracking-wider text-muted">
+        <h2
+          id="compare-heading"
+          className="text-xs font-semibold uppercase tracking-wider text-muted"
+        >
           Compare capabilities
         </h2>
         <div className="mt-4">

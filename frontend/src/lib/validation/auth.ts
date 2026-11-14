@@ -11,10 +11,7 @@ const PASSWORD_SHORT_MESSAGE = "Password must be at least 8 characters";
 const PASSWORD_LONG_MESSAGE = "Password must be at most 128 characters";
 
 const email = z.string().trim().min(1, REQUIRED_MESSAGE).email(EMAIL_MESSAGE).max(255);
-const password = z
-  .string()
-  .min(8, PASSWORD_SHORT_MESSAGE)
-  .max(128, PASSWORD_LONG_MESSAGE);
+const password = z.string().min(8, PASSWORD_SHORT_MESSAGE).max(128, PASSWORD_LONG_MESSAGE);
 
 export const loginSchema = z.object({
   email,

@@ -60,9 +60,7 @@ describe("pricing comparison", () => {
   });
 
   it("shows full CRM availability and Starter automation exclusion", () => {
-    const crm = COMPARISON_ROWS[0].markers.every(
-      (marker: PlanMarker) => marker === "included"
-    );
+    const crm = COMPARISON_ROWS[0].markers.every((marker: PlanMarker) => marker === "included");
     expect(crm).toBe(true);
     expect(COMPARISON_ROWS[1].markers).toEqual(["excluded", "included", "included"]);
     expect(COMPARISON_ROWS[2].markers).toEqual(["basic", "included", "included"]);
