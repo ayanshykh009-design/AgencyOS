@@ -11,7 +11,9 @@ import uuid
 from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import CurrentUser, DbSession
+from app.core.errors import AppError
 from app.core.permissions import Permission, require_permission
+from app.core.url_validation import is_safe_app_relative_url
 from app.models.enums import DeliveryChannel, DeliveryStatus
 from app.schemas.delivery import (
     DeliveryCancel,
@@ -72,6 +74,37 @@ async def create_delivery(
     db: DbSession,
     current_user: CurrentUser,
 ) -> DeliveryRead:
+    # Trust boundary: in-app (dashboard) deliveries materialize as
+    # notification inbox rows whose type (SYSTEM / APPROVAL_REQUEST / agent /
+    # workflow) and content come from the delivery payload. Only the trusted
+    # internal path (delivery worker, services) may enqueue them; a JWT user
+    # enqueuing one could fabricate a privileged notification in another
+    # user's inbox. Other channels are not shipped yet and fail closed in the
+    # service.
+    if body.channel is DeliveryChannel.DASHBOARD:
+        raise AppError(
+            code="delivery.channel_trusted_only",
+            message="In-app deliveries are enqueued by trusted internal paths only",
+            status_code=403,
+        )
+    # Trust boundary: the recipient is server-authoritative. An ordinary
+    # authenticated client may only enqueue for *itself*.
+    if body.recipient_user_id is not None and body.recipient_user_id != current_user.id:
+        raise AppError(
+            code="delivery.recipient_not_allowed",
+            message="Deliveries can only be enqueued for the requesting user",
+            status_code=403,
+        )
+    # Trust boundary: action_url must be an application-relative path, so a
+    # client-crafted link can never point outside the app (javascript:,
+    # https://attacker, protocol-relative //host, backslash or encoded
+    # variants).
+    if body.action_url is not None and not is_safe_app_relative_url(body.action_url):
+        raise AppError(
+            code="delivery.unsafe_action_url",
+            message="action_url must be an application-relative path",
+            status_code=422,
+        )
     service = DeliveryService(db)
     data = body.model_dump(exclude={"organization_id"})
     delivery = await service.enqueue(

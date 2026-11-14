@@ -711,14 +711,16 @@ async def test_add_lead_message_reopens_closed_conversation() -> None:
     conv = _closed_conversation()
     service._conversations.get_or_404 = AsyncMock(return_value=conv)
     service._messages.add = MagicMock()
+    service._messages.get_by_external_id = AsyncMock(return_value=None)
 
-    message = await service.add_message(
+    message = await service.record_inbound_lead_message(
         ORG_ID, conv.id, {"sender_type": "lead", "body": "Yes, let's talk!"}
     )
 
     assert conv.is_open is True
     assert conv.last_message_at is not None
     assert message.sender_type is ConversationSender.LEAD
+    assert message.sender_user_id is None
     assert session.committed is True
 
 
@@ -729,14 +731,17 @@ async def test_add_agent_message_does_not_reopen_conversation() -> None:
     service._conversations = MagicMock()
     service._messages = MagicMock()
     conv = _closed_conversation()
+    actor = _make_user()
     service._conversations.get_or_404 = AsyncMock(return_value=conv)
     service._messages.add = MagicMock()
 
-    await service.add_message(
-        ORG_ID, conv.id, {"sender_type": "agent", "body": "Following up"}
+    message = await service.add_message(
+        ORG_ID, conv.id, {"sender_type": "agent", "body": "Following up"}, actor=actor
     )
 
+    assert message.sender_user_id == actor.id
     assert conv.is_open is False
+    assert session.committed is True
 
 
 # ---------------------------------------------------------------------------

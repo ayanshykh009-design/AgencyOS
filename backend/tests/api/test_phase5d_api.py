@@ -97,7 +97,10 @@ def test_notifications_counts_requires_auth(client) -> None:
     assert res.status_code == 401
 
 
-def test_notifications_create_requires_auth(client) -> None:
+def test_notifications_create_is_trusted_internal_only(client) -> None:
+    """Notification creation has no HTTP surface at all: the old user-writable
+    ``POST`` route was removed (trusted workers/services create inbox rows).
+    The listing path still exists, so the method is simply not allowed."""
     res = client.post(
         "/api/v1/notifications",
         json={
@@ -107,7 +110,7 @@ def test_notifications_create_requires_auth(client) -> None:
             "body": "hello world",
         },
     )
-    assert res.status_code == 401
+    assert res.status_code == 405
 
 
 def test_notifications_read_requires_auth(client) -> None:
