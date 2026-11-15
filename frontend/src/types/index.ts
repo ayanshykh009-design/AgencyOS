@@ -275,7 +275,9 @@ export interface AgentRunRead {
   updated_at: string;
 }
 
-export type OutreachChannel = "email" | "linkedin";
+/** Channel used by outreach or a conversation thread (backend OutreachChannel). */
+export type OutreachChannel =
+  "email" | "whatsapp" | "contact_form" | "linkedin" | "instagram" | "facebook";
 
 /** Result of an n8n dispatch (backend DispatchResponse). */
 export interface DispatchResponse {
@@ -433,6 +435,82 @@ export interface NoteUpdateInput {
 }
 
 // ---------------------------------------------------------------------------
+// Conversations: lead message threads (Batch 3 — rendered inside Lead Detail
+// only). Types mirror backend app/schemas/conversation.py.
+// ---------------------------------------------------------------------------
+
+/** Who authored a conversation message (backend ConversationSender). */
+export type ConversationSender = "lead" | "agent" | "system";
+
+/** A conversation thread on a lead (backend ConversationRead). */
+export interface Conversation {
+  id: string;
+  organization_id: string;
+  lead_id: string;
+  channel: OutreachChannel;
+  external_thread_id: string | null;
+  subject: string | null;
+  is_open: boolean;
+  last_message_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Fields a client can set when creating a conversation (backend ConversationCreate). */
+export interface ConversationCreateInput {
+  lead_id: string;
+  channel: OutreachChannel;
+  external_thread_id?: string | null;
+  subject?: string | null;
+  is_open?: boolean;
+  /**
+   * Required by the backend schema, but ignored: the endpoint overwrites it
+   * with the authenticated principal's organization. Sent from the session
+   * user so the payload validates; the backend remains the tenant authority.
+   */
+  organization_id: string;
+}
+
+/** Partial conversation update (backend ConversationUpdate). */
+export interface ConversationUpdateInput {
+  subject?: string | null;
+  is_open?: boolean;
+}
+
+/** A message in a conversation thread (backend ConversationMessageRead). */
+export interface ConversationMessage {
+  id: string;
+  conversation_id: string;
+  organization_id: string;
+  sender_type: ConversationSender;
+  sender_user_id: string | null;
+  body: string;
+  external_id: string | null;
+  metadata: Record<string, unknown>;
+  sent_at: string | null;
+  created_at: string;
+}
+
+/** Fields a client can set when adding a message (backend ConversationMessageCreate). */
+export interface ConversationMessageCreateInput {
+  /** Thread the message belongs to; must match the URL path parameter (the
+   * backend requires it in the body and resolves the thread from the path). */
+  conversation_id: string;
+  /**
+   * Must be "agent": the backend rejects every other value with 403 and
+   * forces sender_user_id to the authenticated user and sent_at to the
+   * server clock. The client never chooses sender identity.
+   */
+  sender_type: "agent";
+  body: string;
+  /**
+   * Required by the backend schema, but ignored: the endpoint overwrites it
+   * with the authenticated principal's organization (see ConversationCreateInput).
+   */
+  organization_id: string;
+}
+
+// ---------------------------------------------------------------------------
 // Phase 4: Advanced search
 // ---------------------------------------------------------------------------
 
@@ -499,6 +577,9 @@ export interface TeamInviteCreateInput {
 
 export type AssignmentStrategy = "manual" | "round_robin" | "rules";
 
+/** How a specific lead assignment was made (backend AssignmentMethod). */
+export type AssignmentMethod = "manual" | "round_robin" | "rules" | "bulk" | "unassigned";
+
 /** The org's assignment rule (backend AssignmentRuleRead). */
 export interface AssignmentRule {
   id: string;
@@ -518,6 +599,19 @@ export interface AssignmentRuleWriteInput {
   strategy: AssignmentStrategy;
   enabled: boolean;
   target_user_ids: string[];
+}
+
+/** A single lead ownership-change record (backend AssignmentLogRead). */
+export interface AssignmentLogEntry {
+  id: string;
+  organization_id: string;
+  lead_id: string;
+  from_user_id: string | null;
+  to_user_id: string | null;
+  method: AssignmentMethod;
+  assigned_by_user_id: string | null;
+  reason: string | null;
+  created_at: string;
 }
 
 // ---------------------------------------------------------------------------

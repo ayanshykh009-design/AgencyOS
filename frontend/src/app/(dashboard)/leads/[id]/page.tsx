@@ -1,9 +1,11 @@
-// Lead detail: profile, contact info, assignment, notes, and tasks.
+// Lead detail: profile, contact info, assignment, notes, tasks, and conversations.
 "use client";
 
-import { useCallback, useEffect, use, useState } from "react";
+import { useCallback, useEffect, use, useRef, useState } from "react";
 
 import { LeadFormModal } from "@/components/leads/lead-form-modal";
+import { LeadAssignmentHistoryPanel } from "@/components/leads/lead-assignment-history-panel";
+import { LeadConversationsPanel } from "@/components/leads/lead-conversations-panel";
 import { LeadNotesPanel } from "@/components/leads/lead-notes-panel";
 import { LeadTasksPanel } from "@/components/leads/lead-tasks-panel";
 import { Badge, Button, ConfirmDialog, Field, PageHeader, Select, Spinner } from "@/components/ui";
@@ -12,6 +14,7 @@ import { ApiRequestError } from "@/lib/api-client";
 import { ROUTES } from "@/lib/constants";
 import { formatDate, formatUsd, leadName } from "@/lib/format";
 import { can } from "@/lib/permissions";
+import { createGenerationGuard, detailIdentityKey } from "@/lib/lead-detail-identity";
 import { assignLead } from "@/services/assignment";
 import { deleteLead, getLead, updateLead } from "@/services/leads";
 import { listUsers } from "@/services/users";
@@ -36,6 +39,23 @@ function statusTone(status: Lead["status"]): "green" | "red" | "blue" | "amber" 
 export default function LeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = useAuth();
   const { id: leadId } = use(params);
+
+  // Parent-level isolation: every piece of page state (lead, users, assignee,
+  // action handlers) is scoped to a composite identity. Changing the route
+  // lead, the user, or the organization remounts the inner view wholesale —
+  // stale data is never rendered and actions can never target a previous
+  // lead/principal.
+  if (!session) return null;
+  return (
+    <LeadDetailView
+      key={detailIdentityKey(session.user, leadId) ?? "unauthenticated"}
+      leadId={leadId}
+    />
+  );
+}
+
+function LeadDetailView({ leadId }: { leadId: string }) {
+  const session = useAuth();
   const [lead, setLead] = useState<Lead | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,21 +65,34 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
   const [busy, setBusy] = useState(false);
   const [assignee, setAssignee] = useState("");
 
+  // Generation guard: a slow response for a superseded request must not
+  // overwrite this view (the keyed remount also discards it).
+  const guardRef = useRef(createGenerationGuard());
+
   const load = useCallback(() => {
+    const generation = guardRef.current.capture();
     Promise.all([getLead(leadId), listUsers(100)])
       .then(([data, page]) => {
+        if (!guardRef.current.isCurrent(generation)) return;
         setLead(data);
         setUsers(page.items);
         setAssignee(data.owner_user_id ?? "");
       })
       .catch((err: unknown) => {
+        if (!guardRef.current.isCurrent(generation)) return;
         setError(err instanceof ApiRequestError ? err.message : "Failed to load lead");
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (guardRef.current.isCurrent(generation)) setLoading(false);
+      });
   }, [leadId]);
 
   useEffect(() => {
+    const guard = guardRef.current;
     load();
+    return () => {
+      guard.invalidate();
+    };
   }, [load]);
 
   if (!session) return null;
@@ -108,7 +141,9 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
     setBusy(true);
     setError(null);
     try {
-      const updated = await assignLead(currentLead.id, { user_id: assignee || undefined });
+      const updated = await assignLead(currentLead.id, {
+        user_id: assignee || undefined,
+      });
       setLead(updated);
     } catch (err: unknown) {
       setError(err instanceof ApiRequestError ? err.message : "Failed to assign lead");
@@ -204,8 +239,23 @@ export default function LeadDetailPage({ params }: { params: Promise<{ id: strin
         </section>
 
         <div className="flex flex-col gap-8 lg:col-span-2">
-          <LeadNotesPanel leadId={lead.id} />
-          <LeadTasksPanel leadId={lead.id} />
+          <LeadNotesPanel
+            key={`notes:${session.user.id}:${session.user.organization_id}:${lead.id}`}
+            leadId={lead.id}
+          />
+          <LeadTasksPanel
+            key={`tasks:${session.user.id}:${session.user.organization_id}:${lead.id}`}
+            leadId={lead.id}
+          />
+          <LeadConversationsPanel
+            key={`conversations:${session.user.id}:${session.user.organization_id}:${lead.id}`}
+            leadId={lead.id}
+          />
+          <LeadAssignmentHistoryPanel
+            key={`assignment:${session.user.id}:${session.user.organization_id}:${lead.id}`}
+            leadId={lead.id}
+            users={users}
+          />
         </div>
       </div>
 

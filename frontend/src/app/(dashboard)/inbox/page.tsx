@@ -110,6 +110,7 @@ export default function InboxPage() {
                     {!notification.is_read ? (
                       <span className="ml-2 inline-block h-2 w-2 rounded-full bg-blue-500 align-middle" />
                     ) : null}
+                    {!notification.is_read ? <span className="sr-only">(unread)</span> : null}
                   </p>
                   <p className="truncate text-sm text-gray-500">{notification.body}</p>
                 </TD>
