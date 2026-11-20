@@ -56,8 +56,8 @@ export default function MonitoringPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Monitoring</h1>
         <p className="text-sm text-gray-500">
-          Operational visibility into executions, workers, and automation. Data is
-          refreshed periodically; nothing here is sent externally.
+          Operational visibility into executions, workers, and automation. Data is refreshed
+          periodically; nothing here is sent externally.
         </p>
       </div>
 
@@ -130,14 +130,30 @@ function DeliveryStatisticsCard() {
       <CardHeader title="Delivery statistics" description="Delivery outbox metrics" />
       <CardBody>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-          <div><span className="font-semibold">{data.queued}</span> queued</div>
-          <div><span className="font-semibold">{data.processing}</span> processing</div>
-          <div><span className="font-semibold">{data.retrying}</span> retrying</div>
-          <div><span className="font-semibold">{data.delivered}</span> delivered</div>
-          <div><span className="font-semibold">{data.failed}</span> failed</div>
-          <div><span className="font-semibold">{data.cancelled}</span> cancelled</div>
-          <div><span className="font-semibold">{data.active}</span> active</div>
-          <div><span className="font-semibold">{data.terminal}</span> terminal</div>
+          <div>
+            <span className="font-semibold">{data.queued}</span> queued
+          </div>
+          <div>
+            <span className="font-semibold">{data.processing}</span> processing
+          </div>
+          <div>
+            <span className="font-semibold">{data.retrying}</span> retrying
+          </div>
+          <div>
+            <span className="font-semibold">{data.delivered}</span> delivered
+          </div>
+          <div>
+            <span className="font-semibold">{data.failed}</span> failed
+          </div>
+          <div>
+            <span className="font-semibold">{data.cancelled}</span> cancelled
+          </div>
+          <div>
+            <span className="font-semibold">{data.active}</span> active
+          </div>
+          <div>
+            <span className="font-semibold">{data.terminal}</span> terminal
+          </div>
         </div>
       </CardBody>
     </Card>

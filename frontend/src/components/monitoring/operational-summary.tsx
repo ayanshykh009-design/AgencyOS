@@ -242,7 +242,13 @@ export default function OperationalMonitoringPage() {
  * Execution statistics tab content.
  */
 function ExecutionStatisticsTab() {
-  const { data: executionStats, isLoading, error, refetch, isFetching } = useExecutionStatistics(24);
+  const {
+    data: executionStats,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useExecutionStatistics(24);
 
   if (isLoading) {
     return <div className="text-center py-8">Loading execution statistics...</div>;
@@ -421,7 +427,13 @@ function WorkerStatisticsTab() {
  * Automation lifecycle tab content.
  */
 function AutomationLifecycleTab() {
-  const { data: automationLifecycle, isLoading, error, refetch, isFetching } = useAutomationLifecycle();
+  const {
+    data: automationLifecycle,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useAutomationLifecycle();
 
   if (isLoading) {
     return <div className="text-center py-8">Loading automation lifecycle...</div>;

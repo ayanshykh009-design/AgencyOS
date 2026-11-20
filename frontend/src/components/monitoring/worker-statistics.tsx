@@ -27,8 +27,7 @@ import { MonitoringErrorState } from "@/components/monitoring/monitoring-error-s
 export function WorkerStatisticsDisplay() {
   const [hours, setHours] = useState<number>(24);
 
-  const { data: workerStats, isLoading, error, refetch, isFetching } =
-    useWorkerStatistics(hours);
+  const { data: workerStats, isLoading, error, refetch, isFetching } = useWorkerStatistics(hours);
 
   const handleHoursChange = (value: string) => {
     setHours(Number(value));
@@ -54,13 +53,11 @@ export function WorkerStatisticsDisplay() {
         <CardHeader title="Worker Statistics" description="Error loading statistics"></CardHeader>
         <CardBody>
           <MonitoringErrorState
-
             message={`Error loading worker statistics: ${error.message}`}
 
             onRetry={() => refetch()}
 
             retrying={isFetching}
-
           />
         </CardBody>
       </Card>

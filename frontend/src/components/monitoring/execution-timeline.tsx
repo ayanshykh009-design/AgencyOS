@@ -71,13 +71,11 @@ export function ExecutionTimelineDisplay() {
         <CardHeader title="Execution Timeline" description="Error loading timeline"></CardHeader>
         <CardBody>
           <MonitoringErrorState
-
             message={`Error loading execution timeline: ${error.message}`}
 
             onRetry={() => refetch()}
 
             retrying={isFetching}
-
           />
         </CardBody>
       </Card>

@@ -79,7 +79,9 @@ export function OperationalSummaryCard() {
               refetchAutomation();
               refetchQueue();
             }}
-            retrying={isFetchingExecutions || isFetchingWorkers || isFetchingAutomation || isFetchingQueue}
+            retrying={
+              isFetchingExecutions || isFetchingWorkers || isFetchingAutomation || isFetchingQueue
+            }
           />
         </CardContent>
       </Card>

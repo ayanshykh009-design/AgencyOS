@@ -27,8 +27,13 @@ import { MonitoringErrorState } from "@/components/monitoring/monitoring-error-s
 export function ExecutionStatisticsDisplay() {
   const [hours, setHours] = useState<number>(24);
 
-  const { data: executionStats, isLoading, error, refetch, isFetching } =
-    useExecutionStatistics(hours);
+  const {
+    data: executionStats,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useExecutionStatistics(hours);
 
   const handleHoursChange = (value: string) => {
     setHours(Number(value));

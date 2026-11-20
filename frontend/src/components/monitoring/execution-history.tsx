@@ -97,13 +97,11 @@ export function ExecutionHistoryDisplay() {
         <CardHeader title="Execution History" description="Error loading history"></CardHeader>
         <CardBody>
           <MonitoringErrorState
-
             message={`Error loading execution history: ${error.message}`}
 
             onRetry={() => refetch()}
 
             retrying={isFetching}
-
           />
         </CardBody>
       </Card>
