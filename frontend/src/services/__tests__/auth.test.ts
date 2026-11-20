@@ -1,7 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clearSession, getSession, isAuthenticated, setSession } from "@/lib/session";
-import { login, logout, refresh } from "@/services/auth";
+import {
+  EMAIL_VERIFICATION_DISABLED_DETAIL,
+  PASSWORD_RESET_DISABLED_DETAIL,
+  isEmailVerificationDisabled,
+  isPasswordResetDisabled,
+  login,
+  logout,
+  mfaVerify,
+  refresh,
+  register,
+} from "@/services/auth";
 import type { User } from "@/types";
 
 const USER: User = {
@@ -95,6 +105,146 @@ describe("auth service", () => {
     expect(getSession()?.accessToken).toBe("access-2");
     const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("/auth/refresh");
+  });
+
+  it("register posts to /auth/register, persists the session and carries no bearer header", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "access-reg",
+          token_type: "bearer",
+          expires_in: 3600,
+          user: USER,
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const result = await register({
+      email: "Owner@Example.com",
+      password: "S3cure!pass",
+      fullName: "  Owner  ",
+      organizationName: "  Northwind Studio  ",
+      organizationSlug: "northwind",
+    });
+
+    expect(result.access_token).toBe("access-reg");
+    expect(isAuthenticated()).toBe(true);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/auth/register");
+    expect((init as RequestInit).method).toBe("POST");
+    const body = JSON.parse(init.body as string);
+    expect(body).toEqual({
+      email: "Owner@Example.com",
+      password: "S3cure!pass",
+      full_name: "  Owner  ",
+      organization_name: "  Northwind Studio  ",
+      organization_slug: "northwind",
+    });
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+  });
+
+  it("register surfaces backend organization/email conflict codes untouched", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: { code: "organization.slug_taken", message: "Slug is already in use" },
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const attempt = register({
+      email: "owner@example.com",
+      password: "S3cure!pass",
+      fullName: "Owner",
+      organizationName: "Northwind",
+      organizationSlug: "northwind",
+    });
+
+    await expect(attempt).rejects.toMatchObject({ code: "organization.slug_taken" });
+    expect(isAuthenticated()).toBe(false);
+  });
+
+  it("mfaVerify completes a challenge and persists the session like a login", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "access-mfa",
+          token_type: "bearer",
+          expires_in: 3600,
+          user: USER,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    const result = await mfaVerify("challenge-token", "123456");
+
+    expect(result.access_token).toBe("access-mfa");
+    expect(isAuthenticated()).toBe(true);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/auth/mfa/verify");
+    const body = JSON.parse(init.body as string);
+    expect(body).toEqual({ mfa_token: "challenge-token", code: "123456" });
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
+  });
+
+  it("never writes tokens to browser storage", async () => {
+    const store: Record<string, string> = {};
+    const localStub = {
+      getItem: (key: string) => store[`local:${key}`] ?? null,
+      setItem: (key: string, value: string) => {
+        store[`local:${key}`] = value;
+      },
+      removeItem: (key: string) => {
+        delete store[`local:${key}`];
+      },
+      clear: () => Object.keys(store).forEach((key) => delete store[key]),
+      get length() {
+        return Object.keys(store).filter((key) => key.startsWith("local:")).length;
+      },
+      key: () => null,
+    };
+    const sessionStub = {
+      ...localStub,
+      getItem: (key: string) => store[`session:${key}`] ?? null,
+      setItem: (key: string, value: string) => {
+        store[`session:${key}`] = value;
+      },
+    };
+    vi.stubGlobal("localStorage", localStub);
+    vi.stubGlobal("sessionStorage", sessionStub);
+
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "access-123",
+          token_type: "bearer",
+          expires_in: 3600,
+          user: USER,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+
+    await login({ email: "owner@example.com", password: "S3cure!pass" });
+
+    const leaked = Object.entries(store).filter(([key]) =>
+      /access[-_]?token|refresh[-_]?token|agencyos\.refresh/i.test(key)
+    );
+    expect(leaked).toEqual([]);
+    expect(localStub.length).toBe(0);
+  });
+
+  it("detects the backend feature-off signals for reset and verification", () => {
+    expect(isPasswordResetDisabled(PASSWORD_RESET_DISABLED_DETAIL)).toBe(true);
+    expect(isPasswordResetDisabled("If that account exists, a reset email was sent")).toBe(false);
+    expect(isPasswordResetDisabled(undefined)).toBe(false);
+    expect(isEmailVerificationDisabled(EMAIL_VERIFICATION_DISABLED_DETAIL)).toBe(true);
+    expect(isEmailVerificationDisabled("Verification email sent")).toBe(false);
+    expect(isEmailVerificationDisabled(null)).toBe(false);
   });
 
   function setAuthenticated() {

@@ -15,15 +15,34 @@ import { useAutomationLifecycle } from "@/services/monitoring";
 import type { ExecutionStatisticsResponse } from "@/types/monitoring";
 import type { WorkerStatisticsResponse } from "@/types/monitoring";
 import type { AutomationLifecycleResponse } from "@/types/monitoring";
+import { MonitoringErrorState } from "@/components/monitoring/monitoring-error-state";
 
 /**
  * Operational summary card component for the main dashboard.
  * Shows key operational metrics in a compact format.
  */
 export function OperationalSummaryCard() {
-  const { data: executionStats, isLoading: isLoadingExecutions } = useExecutionStatistics(1);
-  const { data: workerStats, isLoading: isLoadingWorkers } = useWorkerStatistics(1);
-  const { data: automationLifecycle, isLoading: isLoadingAutomation } = useAutomationLifecycle();
+  const {
+    data: executionStats,
+    isLoading: isLoadingExecutions,
+    error: executionError,
+    refetch: refetchExecutions,
+    isFetching: isFetchingExecutions,
+  } = useExecutionStatistics(1);
+  const {
+    data: workerStats,
+    isLoading: isLoadingWorkers,
+    error: workerError,
+    refetch: refetchWorkers,
+    isFetching: isFetchingWorkers,
+  } = useWorkerStatistics(1);
+  const {
+    data: automationLifecycle,
+    isLoading: isLoadingAutomation,
+    error: automationError,
+    refetch: refetchAutomation,
+    isFetching: isFetchingAutomation,
+  } = useAutomationLifecycle();
 
   if (isLoadingExecutions || isLoadingWorkers || isLoadingAutomation) {
     return (
@@ -34,6 +53,29 @@ export function OperationalSummaryCard() {
         </CardHeader>
         <CardContent>
           <div className="text-center py-4">Loading...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const firstError = executionError || workerError || automationError;
+  if (firstError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Operational Summary</CardTitle>
+          <CardDescription>Could not load operational data</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MonitoringErrorState
+            message={`Error loading operational summary: ${firstError.message}`}
+            onRetry={() => {
+              refetchExecutions();
+              refetchWorkers();
+              refetchAutomation();
+            }}
+            retrying={isFetchingExecutions || isFetchingWorkers || isFetchingAutomation}
+          />
         </CardContent>
       </Card>
     );
@@ -200,10 +242,25 @@ export default function OperationalMonitoringPage() {
  * Execution statistics tab content.
  */
 function ExecutionStatisticsTab() {
-  const { data: executionStats, isLoading } = useExecutionStatistics(24);
+  const {
+    data: executionStats,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useExecutionStatistics(24);
 
   if (isLoading) {
     return <div className="text-center py-8">Loading execution statistics...</div>;
+  }
+  if (error) {
+    return (
+      <MonitoringErrorState
+        message={`Error loading execution statistics: ${error.message}`}
+        onRetry={() => refetch()}
+        retrying={isFetching}
+      />
+    );
   }
 
   return (
@@ -259,10 +316,19 @@ function ExecutionStatisticsTab() {
  * Worker statistics tab content.
  */
 function WorkerStatisticsTab() {
-  const { data: workerStats, isLoading } = useWorkerStatistics(24);
+  const { data: workerStats, isLoading, error, refetch, isFetching } = useWorkerStatistics(24);
 
   if (isLoading) {
     return <div className="text-center py-8">Loading worker statistics...</div>;
+  }
+  if (error) {
+    return (
+      <MonitoringErrorState
+        message={`Error loading worker statistics: ${error.message}`}
+        onRetry={() => refetch()}
+        retrying={isFetching}
+      />
+    );
   }
 
   return (
@@ -361,10 +427,25 @@ function WorkerStatisticsTab() {
  * Automation lifecycle tab content.
  */
 function AutomationLifecycleTab() {
-  const { data: automationLifecycle, isLoading } = useAutomationLifecycle();
+  const {
+    data: automationLifecycle,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useAutomationLifecycle();
 
   if (isLoading) {
     return <div className="text-center py-8">Loading automation lifecycle...</div>;
+  }
+  if (error) {
+    return (
+      <MonitoringErrorState
+        message={`Error loading automation lifecycle: ${error.message}`}
+        onRetry={() => refetch()}
+        retrying={isFetching}
+      />
+    );
   }
 
   return (

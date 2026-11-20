@@ -26,6 +26,7 @@ import type {
   AutomationLifecycleResponse,
   HeartbeatVisibilityResponse,
   ExecutionTimelineResponse,
+  DeliveryStatisticsResponse,
   ExecutionHistoryResponse,
   QueueStatusResponse,
   MonitoringInformationResponse,
@@ -54,6 +55,7 @@ export const monitoringKeys = {
   }) => [...monitoringKeys.all, "execution-history", params] as const,
   queueStatus: () => [...monitoringKeys.all, "queue-status"] as const,
   monitoringInformation: () => [...monitoringKeys.all, "monitoring-information"] as const,
+  deliveryStats: () => [...monitoringKeys.all, "delivery-stats"] as const,
 };
 
 // API functions
@@ -68,6 +70,14 @@ export const getOperationalSummary = () => {
 };
 
 /**
+ * Get delivery outbox statistics (admin-gated).
+ * Requires AUTOMATION_MANAGE permission.
+ */
+export const getDeliveryStatistics = () => {
+  return apiFetch<DeliveryStatisticsResponse>(`${API_BASE}/delivery-statistics`);
+};
+
+/**
  * Get execution statistics for the specified time window.
  * Requires AUTOMATION_READ permission.
  */
@@ -77,7 +87,7 @@ export const getExecutionStatistics = (hours: number = 24) => {
 
 /**
  * Get worker health and activity statistics.
- * Requires AUTOMATION_READ permission.
+ * Requires AUTOMATION_MANAGE permission.
  */
 export const getWorkerStatistics = (hours: number = 24) => {
   return apiFetch<WorkerStatisticsResponse>(`${API_BASE}/worker-statistics?hours=${hours}`);
@@ -85,7 +95,7 @@ export const getWorkerStatistics = (hours: number = 24) => {
 
 /**
  * Get schedule dispatch statistics.
- * Requires AUTOMATION_READ permission.
+ * Requires AUTOMATION_MANAGE permission.
  */
 export const getScheduleStatistics = (hours: number = 24) => {
   return apiFetch<ScheduleStatisticsResponse>(`${API_BASE}/schedule-statistics?hours=${hours}`);
@@ -93,7 +103,7 @@ export const getScheduleStatistics = (hours: number = 24) => {
 
 /**
  * Get retention worker statistics.
- * Requires AUTOMATION_READ permission.
+ * Requires AUTOMATION_MANAGE permission.
  */
 export const getRetentionStatistics = (hours: number = 24) => {
   return apiFetch<RetentionStatisticsResponse>(`${API_BASE}/retention-statistics?hours=${hours}`);
@@ -109,7 +119,7 @@ export const getAutomationLifecycle = () => {
 
 /**
  * Get worker heartbeat visibility for monitoring.
- * Requires AUTOMATION_READ permission.
+ * Requires AUTOMATION_MANAGE permission.
  */
 export const getHeartbeatVisibility = (filters?: {
   worker_type?: string;
@@ -218,6 +228,15 @@ export const useOperationalSummary = () => {
     queryFn: getOperationalSummary,
     refetchInterval: 30000, // Refresh every 30 seconds
     staleTime: 15000, // Consider data stale after 15 seconds
+  });
+};
+
+export const useDeliveryStatistics = () => {
+  return useQuery({
+    queryKey: monitoringKeys.deliveryStats(),
+    queryFn: getDeliveryStatistics,
+    refetchInterval: 30000,
+    staleTime: 15000,
   });
 };
 

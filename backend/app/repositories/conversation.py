@@ -115,5 +115,24 @@ class ConversationMessageRepository:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_by_external_id(
+        self,
+        organization_id: uuid.UUID,
+        conversation_id: uuid.UUID,
+        external_id: str,
+    ) -> ConversationMessage | None:
+        """Find a previously stored provider message (for idempotent ingest)."""
+        stmt = (
+            select(ConversationMessage)
+            .where(
+                ConversationMessage.organization_id == organization_id,
+                ConversationMessage.conversation_id == conversation_id,
+                ConversationMessage.external_id == external_id,
+            )
+            .limit(1)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalars().first()
+
     def add(self, message: ConversationMessage) -> None:
         self._session.add(message)

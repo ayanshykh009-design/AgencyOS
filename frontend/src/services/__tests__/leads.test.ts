@@ -116,7 +116,7 @@ describe("leads service", () => {
     expect(url).toContain(`/leads/${LEAD.id}`);
   });
 
-  it("createLead POSTs the payload with auth header", async () => {
+  it("createLead POSTs the payload with auth header and session org", async () => {
     fetchMock.mockResolvedValue(jsonResponse(LEAD));
 
     const created = await createLead({ email: "ada@example.com", first_name: "Ada" });
@@ -125,7 +125,13 @@ describe("leads service", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("/leads");
     expect(init.method).toBe("POST");
-    expect((init.body as string) ?? "").toContain('"email":"ada@example.com"');
+    const body = (init.body as string) ?? "";
+    expect(body).toContain('"email":"ada@example.com"');
+    // Backend LeadCreate requires organization_id; the frontend sends the
+    // session user's org (the endpoint overwrites it with the authenticated
+    // principal's org — the client cannot choose a tenant).
+    const payload = JSON.parse(body) as Record<string, unknown>;
+    expect(payload.organization_id).toBe(USER.organization_id);
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer access-123");
   });
 

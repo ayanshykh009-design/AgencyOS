@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 
 import { useExecutionHistory } from "@/services/monitoring";
 import type { ExecutionHistoryEntry } from "@/types/monitoring";
+import { MonitoringErrorState } from "@/components/monitoring/monitoring-error-state";
 
 /**
  * Execution history display component.
@@ -36,6 +37,8 @@ export function ExecutionHistoryDisplay() {
     data: historyData,
     isLoading,
     error,
+    refetch,
+    isFetching,
   } = useExecutionHistory({
     page,
     page_size: pageSize,
@@ -93,9 +96,13 @@ export function ExecutionHistoryDisplay() {
       <Card>
         <CardHeader title="Execution History" description="Error loading history"></CardHeader>
         <CardBody>
-          <div className="text-center py-8 text-destructive">
-            Error loading execution history: {error.message}
-          </div>
+          <MonitoringErrorState
+            message={`Error loading execution history: ${error.message}`}
+
+            onRetry={() => refetch()}
+
+            retrying={isFetching}
+          />
         </CardBody>
       </Card>
     );

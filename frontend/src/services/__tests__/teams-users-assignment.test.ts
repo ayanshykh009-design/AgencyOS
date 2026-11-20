@@ -13,6 +13,7 @@ import {
   assignLead,
   assignUnassignedLeads,
   getAssignmentRule,
+  listAssignmentHistory,
   upsertAssignmentRule,
 } from "@/services/assignment";
 import type { TeamInvite, User } from "@/types";
@@ -247,5 +248,44 @@ describe("assignment service", () => {
     expect(url).toContain("/assignment/leads/lead-1/assign");
     expect(init.method).toBe("POST");
     expect((init.body as string) ?? "").toContain(`"user_id":"${USER.id}"`);
+  });
+
+  it("listAssignmentHistory GETs the lead's history with pagination", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        items: [
+          {
+            id: "log-1",
+            organization_id: USER.organization_id,
+            lead_id: "lead-1",
+            from_user_id: null,
+            to_user_id: USER.id,
+            method: "manual",
+            assigned_by_user_id: USER.id,
+            reason: "Requested by owner",
+            created_at: "2026-08-03T00:00:00Z",
+          },
+        ],
+        total: 1,
+      })
+    );
+
+    const page = await listAssignmentHistory("lead-1", { limit: 25, offset: 5 });
+
+    expect(page.total).toBe(1);
+    expect(page.items[0].method).toBe("manual");
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/assignment/leads/lead-1/history?");
+    expect(url).toContain("limit=25");
+    expect(url).toContain("offset=5");
+  });
+
+  it("listAssignmentHistory omits empty query params", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ items: [], total: 0 }));
+
+    await listAssignmentHistory("lead-1");
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://localhost:8000/api/v1/assignment/leads/lead-1/history");
   });
 });

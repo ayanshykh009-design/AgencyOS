@@ -7,3 +7,33 @@
    Design tokens (colors, typography) will be defined once the design
    system lands — keep global CSS minimal and component-scoped CSS out.
    ------------------------------------------------------------------ */
+
+/* Smooth in-page anchor scrolling for the legal pages' table of
+   contents. Disabled automatically for reduced-motion users. */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Calm, slow Core Orbit rotation for the authentication backdrop.
+   Falls back to a static orbit for reduced-motion users. */
+@keyframes agencyos-orbit-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.auth-orbit {
+  animation: agencyos-orbit-spin 120s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-orbit {
+    animation: none;
+  }
+}

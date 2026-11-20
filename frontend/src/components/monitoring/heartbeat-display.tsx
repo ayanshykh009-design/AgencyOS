@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 
 import { useHeartbeatVisibility } from "@/services/monitoring";
+import { MonitoringErrorState } from "@/components/monitoring/monitoring-error-state";
 
 /**
  * Heartbeat visibility display component.
@@ -34,6 +35,8 @@ export function HeartbeatVisibilityDisplay() {
     data: heartbeatData,
     isLoading,
     error,
+    refetch,
+    isFetching,
   } = useHeartbeatVisibility({
     worker_type: workerType || undefined,
     stale_within_seconds: staleWithinSeconds,
@@ -107,9 +110,11 @@ export function HeartbeatVisibilityDisplay() {
         {isLoading && <div className="text-center py-8">Loading heartbeat data...</div>}
 
         {error && (
-          <div className="text-center py-8 text-destructive">
-            Error loading heartbeat data: {error.message}
-          </div>
+          <MonitoringErrorState
+            message={`Error loading heartbeat data: ${error.message}`}
+            onRetry={() => refetch()}
+            retrying={isFetching}
+          />
         )}
 
         {heartbeatData && (
