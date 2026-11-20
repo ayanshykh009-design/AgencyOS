@@ -744,6 +744,35 @@ async def test_add_agent_message_does_not_reopen_conversation() -> None:
     assert session.committed is True
 
 
+@pytest.mark.asyncio
+async def test_update_conversation_refreshes_session_after_commit() -> None:
+    # Regression: serializing an updated Conversation (ConversationRead has
+    # from_attributes=True) reads ``updated_at``, whose server_onupdate is a
+    # FetchedValue. In an async session that attribute is not populated by
+    # the UPDATE statement, so without an explicit refresh Pydantic triggers a
+    # lazy load and raises MissingGreenlet (HTTP 500 on Close/Reopen). The
+    # service must refresh the row after commit, mirroring LeadService.
+    session = FakeSession()
+    service = ConversationService(session)
+    service._conversations = MagicMock()
+    conv = _closed_conversation()
+    conv.is_open = True
+    service._conversations.get_or_404 = AsyncMock(return_value=conv)
+
+    refresh_calls: list[object] = []
+
+    async def _refresh(instance: object) -> None:
+        refresh_calls.append(instance)
+
+    session.refresh = _refresh  # type: ignore[assignment]
+
+    updated = await service.update(ORG_ID, conv.id, {"is_open": False})
+
+    assert updated is conv
+    assert session.committed is True
+    assert refresh_calls == [conv], refresh_calls
+
+
 # ---------------------------------------------------------------------------
 # ImportService
 # ---------------------------------------------------------------------------

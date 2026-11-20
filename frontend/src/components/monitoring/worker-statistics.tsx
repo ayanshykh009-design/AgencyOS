@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 
 import { useWorkerStatistics } from "@/services/monitoring";
+import { MonitoringErrorState } from "@/components/monitoring/monitoring-error-state";
 
 /**
  * Worker statistics display component.
@@ -26,7 +27,8 @@ import { useWorkerStatistics } from "@/services/monitoring";
 export function WorkerStatisticsDisplay() {
   const [hours, setHours] = useState<number>(24);
 
-  const { data: workerStats, isLoading, error } = useWorkerStatistics(hours);
+  const { data: workerStats, isLoading, error, refetch, isFetching } =
+    useWorkerStatistics(hours);
 
   const handleHoursChange = (value: string) => {
     setHours(Number(value));
@@ -51,9 +53,15 @@ export function WorkerStatisticsDisplay() {
       <Card>
         <CardHeader title="Worker Statistics" description="Error loading statistics"></CardHeader>
         <CardBody>
-          <div className="text-center py-8 text-destructive">
-            Error loading worker statistics: {error.message}
-          </div>
+          <MonitoringErrorState
+
+            message={`Error loading worker statistics: ${error.message}`}
+
+            onRetry={() => refetch()}
+
+            retrying={isFetching}
+
+          />
         </CardBody>
       </Card>
     );

@@ -9,16 +9,41 @@ import { useExecutionStatistics } from "@/services/monitoring";
 import { useWorkerStatistics } from "@/services/monitoring";
 import { useAutomationLifecycle } from "@/services/monitoring";
 import { useQueueStatus } from "@/services/monitoring";
+import { MonitoringErrorState } from "@/components/monitoring/monitoring-error-state";
 
 /**
  * Operational summary card component for the main dashboard.
  * Shows key operational metrics in a compact format for quick visibility.
  */
 export function OperationalSummaryCard() {
-  const { data: executionStats, isLoading: isLoadingExecutions } = useExecutionStatistics(1);
-  const { data: workerStats, isLoading: isLoadingWorkers } = useWorkerStatistics(1);
-  const { data: automationLifecycle, isLoading: isLoadingAutomation } = useAutomationLifecycle();
-  const { data: queueStatus, isLoading: isLoadingQueue } = useQueueStatus();
+  const {
+    data: executionStats,
+    isLoading: isLoadingExecutions,
+    error: executionError,
+    refetch: refetchExecutions,
+    isFetching: isFetchingExecutions,
+  } = useExecutionStatistics(1);
+  const {
+    data: workerStats,
+    isLoading: isLoadingWorkers,
+    error: workerError,
+    refetch: refetchWorkers,
+    isFetching: isFetchingWorkers,
+  } = useWorkerStatistics(1);
+  const {
+    data: automationLifecycle,
+    isLoading: isLoadingAutomation,
+    error: automationError,
+    refetch: refetchAutomation,
+    isFetching: isFetchingAutomation,
+  } = useAutomationLifecycle();
+  const {
+    data: queueStatus,
+    isLoading: isLoadingQueue,
+    error: queueError,
+    refetch: refetchQueue,
+    isFetching: isFetchingQueue,
+  } = useQueueStatus();
 
   const isLoading =
     isLoadingExecutions || isLoadingWorkers || isLoadingAutomation || isLoadingQueue;
@@ -32,6 +57,30 @@ export function OperationalSummaryCard() {
         </CardHeader>
         <CardContent>
           <div className="text-center py-4 text-muted-foreground text-sm">Loading...</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const firstError = executionError || workerError || automationError || queueError;
+  if (firstError) {
+    return (
+      <Card className="h-full">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg">Operational Summary</CardTitle>
+          <CardDescription className="text-xs">Could not load operational metrics</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <MonitoringErrorState
+            message={`Error loading operational summary: ${firstError.message}`}
+            onRetry={() => {
+              refetchExecutions();
+              refetchWorkers();
+              refetchAutomation();
+              refetchQueue();
+            }}
+            retrying={isFetchingExecutions || isFetchingWorkers || isFetchingAutomation || isFetchingQueue}
+          />
         </CardContent>
       </Card>
     );

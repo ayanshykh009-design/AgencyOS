@@ -65,6 +65,7 @@ export const config = {
     "/founder/:path*",
     "/operational-monitoring/:path*",
     "/worker-monitoring/:path*",
+    "/monitoring/:path*",
     "/settings/:path*",
     "/login/:path*",
   ],

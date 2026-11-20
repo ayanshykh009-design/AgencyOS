@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
@@ -54,6 +55,21 @@ def _resolve_sent_at(value: Any) -> datetime:
     return value
 
 
+def _is_duplicate_open_conversation(exc: IntegrityError) -> bool:
+    """True only when ``exc`` is the known partial-unique open-thread violation.
+
+    We deliberately inspect the constraint name rather than treating every
+    IntegrityError as a duplicate, so unrelated database errors keep their
+    normal (500) handling and are not masked as 409s.
+    """
+    orig = getattr(exc, "orig", None)
+    constraint = getattr(orig, "constraint_name", None)
+    if constraint == "uq_conversations_open_per_channel":
+        return True
+    text = str(orig) if orig is not None else str(exc)
+    return "uq_conversations_open_per_channel" in text
+
+
 class ConversationService:
     """Owns conversation rules and the transaction boundary."""
 
@@ -97,7 +113,18 @@ class ConversationService:
             is_open=bool(data.get("is_open", True)),
         )
         self._conversations.add(conversation)
-        await commit_with_retry(self._session)
+        try:
+            await commit_with_retry(self._session)
+        except IntegrityError as exc:
+            await self._session.rollback()
+            if _is_duplicate_open_conversation(exc):
+                raise AppError(
+                    code="conversation.duplicate_open",
+                    message="An open conversation already exists for this lead and channel",
+                    status_code=409,
+                ) from None
+            raise
+        await self._session.refresh(conversation)
         return conversation
 
     async def update(
@@ -111,6 +138,7 @@ class ConversationService:
             if field in data:
                 setattr(conversation, field, data[field])
         await commit_with_retry(self._session)
+        await self._session.refresh(conversation)
         return conversation
 
     # -- messages -------------------------------------------------------

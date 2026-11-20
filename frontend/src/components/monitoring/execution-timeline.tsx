@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 
 import { useExecutionTimeline } from "@/services/monitoring";
 import type { ExecutionTimelineEvent } from "@/types/monitoring";
+import { MonitoringErrorState } from "@/components/monitoring/monitoring-error-state";
 
 /**
  * Execution timeline display component.
@@ -33,6 +34,8 @@ export function ExecutionTimelineDisplay() {
     data: timelineData,
     isLoading,
     error,
+    refetch,
+    isFetching,
   } = useExecutionTimeline({
     hours,
     status: statusFilter !== "all" ? statusFilter : undefined,
@@ -67,9 +70,15 @@ export function ExecutionTimelineDisplay() {
       <Card>
         <CardHeader title="Execution Timeline" description="Error loading timeline"></CardHeader>
         <CardBody>
-          <div className="text-center py-8 text-destructive">
-            Error loading execution timeline: {error.message}
-          </div>
+          <MonitoringErrorState
+
+            message={`Error loading execution timeline: ${error.message}`}
+
+            onRetry={() => refetch()}
+
+            retrying={isFetching}
+
+          />
         </CardBody>
       </Card>
     );

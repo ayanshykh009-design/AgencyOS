@@ -44,6 +44,7 @@ const PROTECTED_FAMILIES = [
   "founder",
   "operational-monitoring",
   "worker-monitoring",
+  "monitoring",
   "settings",
 ] as const;
 
