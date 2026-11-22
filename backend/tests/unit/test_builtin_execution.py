@@ -418,3 +418,20 @@ def test_on_step_reports_failed_and_stops() -> None:
 
     assert calls[-1] == ("failed", 2, "s2")
     assert ("completed", 2, "s2") not in calls
+
+
+def test_module_docstring_example_is_a_valid_definition() -> None:
+    """B6-F-08: the documented builtin example must satisfy the real validator."""
+    import json
+    import textwrap
+
+    from app.services import builtin_execution
+
+    doc = builtin_execution.__doc__ or ""
+    lines = doc.splitlines()
+    start = next(i for i, line in enumerate(lines) if line.strip() == "{")
+    end = next(i for i in range(start, len(lines)) if lines[i].strip() == "}")
+    example = textwrap.dedent("\n".join(lines[start : end + 1]))
+    definition = json.loads(example)
+
+    validate_builtin_definition(definition)

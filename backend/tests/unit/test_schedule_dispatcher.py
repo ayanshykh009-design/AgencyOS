@@ -1,9 +1,12 @@
 """Unit tests: schedule dispatcher business rules (app.services.schedule_dispatcher)."""
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from app.core.errors import AppError
 from app.core.metrics import read_counter, reset
@@ -32,10 +35,14 @@ class FakeSavepoint:
 
 
 class FakeSession:
+    def __init__(self) -> None:
+        self.commits = 0
+
     async def rollback(self) -> None:
         self.rolled_back = True
 
     async def commit(self) -> None:
+        self.commits += 1
         self.committed = True
 
     def begin_nested(self) -> FakeSavepoint:
@@ -251,3 +258,81 @@ async def test_batch_limit_passed_to_repository() -> None:
     dispatcher, _ = _dispatcher(triggers=[])
     await dispatcher.dispatch_due(now=NOW, limit=7)
     dispatcher._trigger_repo.list_enabled_schedules.assert_awaited_once_with(7)
+
+
+# --- Savepoint commit regressions (B6-F-05) -----------------------------------
+
+
+async def test_queue_uses_commit_false_and_dispatcher_commits_once() -> None:
+    """B6-F-05: no inner commit per trigger; exactly one final batch commit."""
+    dispatcher, session = _dispatcher(
+        triggers=[_trigger(), _trigger(id=uuid.UUID("00000000-0000-0000-0000-000000000703"))]
+    )
+
+    stats = await dispatcher.dispatch_due(now=NOW)
+
+    assert stats["queued"] == 2
+    assert dispatcher._execution_service.queue.await_count == 2
+    for call in dispatcher._execution_service.queue.await_args_list:
+        assert call.kwargs["commit"] is False
+    assert session.commits == 1
+
+
+async def test_queue_failure_still_commits_batch_once() -> None:
+    """AppError rolls back only its savepoint; the surviving work still commits once."""
+    session = FakeSession()
+    dispatcher = ScheduleDispatcher(session)  # type: ignore[arg-type]
+    trigger_repo = MagicMock()
+    trigger_repo.list_enabled_schedules = AsyncMock(
+        return_value=[
+            _trigger(),
+            _trigger(id=uuid.UUID("00000000-0000-0000-0000-000000000703")),
+        ]
+    )
+    trigger_repo.reserve_last_fired = AsyncMock(return_value=True)
+    dispatcher._trigger_repo = trigger_repo
+    automation_control = MagicMock()
+    automation_control.is_enabled = AsyncMock(return_value=True)
+    dispatcher._automation_control = automation_control
+
+    execution = MagicMock()
+    execution.id = EXECUTION_ID
+    calls = {"n": 0}
+
+    async def _queue(*args: object, **kwargs: object) -> MagicMock:
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise AppError(code="workflow.not_active", message="not active", status_code=400)
+        return execution
+
+    execution_service = MagicMock()
+    execution_service.queue = AsyncMock(side_effect=_queue)
+    dispatcher._execution_service = execution_service
+
+    stats = await dispatcher.dispatch_due(now=NOW)
+
+    assert stats == {"scanned": 2, "queued": 1, "failed": 1, "skipped": 0, "conflicts": 0}
+    assert session.savepoint_rolled_back is True
+    assert session.commits == 1
+    assert not hasattr(session, "rolled_back")
+
+
+async def test_final_commit_failure_rolls_back_whole_batch(monkeypatch, caplog) -> None:
+    """A failed final commit rolls back the batch and its success telemetry."""
+    dispatcher, session = _dispatcher(triggers=[_trigger()])
+    reset()
+
+    async def _boom(_session: object) -> None:
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr("app.services.schedule_dispatcher.commit_with_retry", _boom)
+
+    with caplog.at_level(logging.INFO, logger="agencyos.automation.schedule"):
+        with pytest.raises(RuntimeError, match="commit failed"):
+            await dispatcher.dispatch_due(now=NOW)
+
+    assert session.rolled_back is True
+    assert session.commits == 0
+    assert read_counter("schedule_dispatch_success") == 0
+    assert read_counter("queue_success") == 0
+    assert "workflow_queued" not in caplog.text

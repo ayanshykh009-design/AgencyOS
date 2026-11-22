@@ -59,14 +59,19 @@ describe("workflow-triggers service", () => {
     clearSession();
   });
 
-  it("listWorkflowTriggers encodes workflow + enabled filters", async () => {
+  it("listWorkflowTriggers encodes workflow + type + enabled filters", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ items: [TRIGGER], total: 1 }));
 
-    const page = await listWorkflowTriggers({ workflowId: TRIGGER.workflow_id, enabled: true });
+    const page = await listWorkflowTriggers({
+      workflowId: TRIGGER.workflow_id,
+      triggerType: "event",
+      enabled: true,
+    });
 
     expect(page.total).toBe(1);
     const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain(`workflow_id=${TRIGGER.workflow_id}`);
+    expect(url).toContain("trigger_type=event");
     expect(url).toContain("enabled=true");
   });
 

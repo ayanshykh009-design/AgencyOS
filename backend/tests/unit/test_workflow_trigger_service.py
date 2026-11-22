@@ -204,3 +204,105 @@ async def test_listing_delegates() -> None:
     assert await service.count_by_workflow(ORG_ID, WORKFLOW_ID) == 1
     assert await service.count_all_by_org(ORG_ID) == 1
     assert await service.get_by_event_type(ORG_ID, "lead_created") == triggers
+
+
+# --- Nested-route ownership regressions (B6-F-03) -----------------------------
+
+
+OTHER_WORKFLOW_ID = uuid.UUID("00000000-0000-0000-0000-000000000502")
+OTHER_ORG_ID = uuid.UUID("00000000-0000-0000-0000-000000000002")
+
+
+class _PathAwareRepo:
+    """Repo double that enforces the same org+workflow filter as production."""
+
+    def __init__(self) -> None:
+        trigger = MagicMock()
+        trigger.id = TRIGGER_ID
+        trigger.organization_id = ORG_ID
+        trigger.workflow_id = WORKFLOW_ID
+        trigger.trigger_type = WorkflowTriggerType.MANUAL
+        trigger.event_type = None
+        trigger.schedule_cron = None
+        trigger.enabled = True
+        self.trigger = trigger
+        self.calls: list[tuple] = []
+        self.add = MagicMock()
+        self.flush = AsyncMock()
+        self.get_or_404 = AsyncMock()
+        self.delete = AsyncMock(return_value=False)
+
+    async def get_for_workflow(
+        self, organization_id: uuid.UUID, workflow_id: uuid.UUID, trigger_id: uuid.UUID
+    ) -> MagicMock | None:
+        self.calls.append((organization_id, workflow_id, trigger_id))
+        if (
+            organization_id == self.trigger.organization_id
+            and workflow_id == self.trigger.workflow_id
+            and trigger_id == self.trigger.id
+        ):
+            return self.trigger
+        return None
+
+
+
+def _path_aware_service() -> tuple[WorkflowTriggerService, _PathAwareRepo]:
+    service = _service()
+    repo = _PathAwareRepo()
+    service._repo = repo  # type: ignore[assignment]
+    return service, repo
+
+
+async def test_nested_update_rejects_mismatched_path_workflow() -> None:
+    service, repo = _path_aware_service()
+
+    with pytest.raises(AppError) as exc_info:
+        await service.update(
+            ORG_ID,
+            TRIGGER_ID,
+            WorkflowTriggerUpdate(enabled=False),
+            workflow_id=OTHER_WORKFLOW_ID,
+        )
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.code == "workflow_trigger.not_found"
+    repo.get_or_404.assert_not_awaited()
+    assert repo.trigger.enabled is True
+    assert service._session.commits == 0
+
+
+async def test_nested_delete_rejects_mismatched_path_workflow() -> None:
+    service, repo = _path_aware_service()
+
+    with pytest.raises(AppError) as exc_info:
+        await service.delete(ORG_ID, TRIGGER_ID, workflow_id=OTHER_WORKFLOW_ID)
+
+    assert exc_info.value.status_code == 404
+    repo.get_or_404.assert_not_awaited()
+    repo.delete.assert_not_awaited()
+
+
+async def test_nested_update_rejects_cross_org_trigger() -> None:
+    service, repo = _path_aware_service()
+
+    with pytest.raises(AppError) as exc_info:
+        await service.update(
+            OTHER_ORG_ID,
+            TRIGGER_ID,
+            WorkflowTriggerUpdate(enabled=False),
+            workflow_id=WORKFLOW_ID,
+        )
+
+    assert exc_info.value.status_code == 404
+    assert repo.calls == [(OTHER_ORG_ID, WORKFLOW_ID, TRIGGER_ID)]
+
+
+async def test_nested_update_and_delete_accept_owning_workflow() -> None:
+    service, repo = _path_aware_service()
+
+    updated = await service.update(
+        ORG_ID, TRIGGER_ID, WorkflowTriggerUpdate(enabled=False), workflow_id=WORKFLOW_ID
+    )
+    assert updated.enabled is False
+    await service.delete(ORG_ID, TRIGGER_ID, workflow_id=WORKFLOW_ID)
+    repo.delete.assert_awaited_once_with(ORG_ID, TRIGGER_ID)

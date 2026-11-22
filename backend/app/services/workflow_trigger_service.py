@@ -93,6 +93,19 @@ class WorkflowTriggerService:
     ) -> WorkflowTrigger:
         return await self._repo.get_or_404(organization_id, trigger_id)
 
+    async def get_for_workflow(
+        self, organization_id: uuid.UUID, workflow_id: uuid.UUID, trigger_id: uuid.UUID
+    ) -> WorkflowTrigger:
+        """Resolve a trigger only when it belongs to both the org and workflow."""
+        trigger = await self._repo.get_for_workflow(organization_id, workflow_id, trigger_id)
+        if trigger is None:
+            raise AppError(
+                code="workflow_trigger.not_found",
+                message="Workflow trigger not found",
+                status_code=404,
+            )
+        return trigger
+
     async def create(self, data: WorkflowTriggerCreate) -> WorkflowTrigger:
         org_id = data.organization_id
         if org_id is None:
@@ -148,8 +161,14 @@ class WorkflowTriggerService:
         organization_id: uuid.UUID,
         trigger_id: uuid.UUID,
         data: WorkflowTriggerUpdate,
+        *,
+        workflow_id: uuid.UUID | None = None,
     ) -> WorkflowTrigger:
-        trigger = await self._repo.get_or_404(organization_id, trigger_id)
+        trigger = (
+            await self.get_for_workflow(organization_id, workflow_id, trigger_id)
+            if workflow_id is not None
+            else await self._repo.get_or_404(organization_id, trigger_id)
+        )
 
         if data.name is not None:
             trigger.name = data.name
@@ -181,8 +200,17 @@ class WorkflowTriggerService:
         await commit_with_retry(self._session)
         return trigger
 
-    async def delete(self, organization_id: uuid.UUID, trigger_id: uuid.UUID) -> bool:
-        await self._repo.get_or_404(organization_id, trigger_id)
+    async def delete(
+        self,
+        organization_id: uuid.UUID,
+        trigger_id: uuid.UUID,
+        *,
+        workflow_id: uuid.UUID | None = None,
+    ) -> bool:
+        if workflow_id is not None:
+            await self.get_for_workflow(organization_id, workflow_id, trigger_id)
+        else:
+            await self._repo.get_or_404(organization_id, trigger_id)
         return await self._repo.delete(organization_id, trigger_id)
 
     async def enable(self, organization_id: uuid.UUID, trigger_id: uuid.UUID) -> WorkflowTrigger:

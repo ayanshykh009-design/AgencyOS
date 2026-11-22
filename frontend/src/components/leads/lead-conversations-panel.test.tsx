@@ -6,12 +6,21 @@
 // results, replying, thread switching) is covered by the conversations
 // service tests; full DOM interaction testing is not available in this repo's
 // test environment (node-only, no jsdom/testing-library dependency).
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { LeadConversationsPanel } from "@/components/leads/lead-conversations-panel";
-import { clearSession, setSession } from "@/lib/session";
+import type { Session } from "@/lib/session";
 import type { User } from "@/types";
+
+const state = vi.hoisted(() => ({
+  session: null as Session | null,
+}));
+
+// SSR renders must not read the browser session store: the server snapshot is
+// always null so hydration markup agrees. Mock the hook directly, matching the
+// convention used by the Batch 5/Batch 6 SSR tests.
+vi.mock("@/hooks/use-auth", () => ({ useAuth: () => state.session }));
 
 const OWNER: User = {
   id: "11111111-1111-1111-1111-111111111111",
@@ -27,11 +36,11 @@ const OWNER: User = {
 
 describe("lead conversations panel — initial render", () => {
   afterEach(() => {
-    clearSession();
+    state.session = null;
   });
 
   it("renders the honest loading state and never fabricates conversations", () => {
-    setSession({ accessToken: "access-123", expiresIn: 3600, user: OWNER });
+    state.session = { accessToken: "access-123", expiresIn: 3600, user: OWNER };
 
     const html = renderToStaticMarkup(<LeadConversationsPanel leadId="lead-1" />);
 
@@ -43,7 +52,7 @@ describe("lead conversations panel — initial render", () => {
   });
 
   it("renders nothing without an authenticated session", () => {
-    clearSession();
+    state.session = null;
 
     const html = renderToStaticMarkup(<LeadConversationsPanel leadId="lead-1" />);
 

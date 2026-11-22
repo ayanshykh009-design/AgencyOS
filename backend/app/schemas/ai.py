@@ -67,3 +67,19 @@ class DispatchResponse(BaseModel):
     workflow: str
     status: int
     data: dict[str, Any] = Field(default_factory=dict)
+
+
+class AICapabilitiesRead(BaseModel):
+    """Non-secret capability booleans used to render truthful disabled states.
+
+    Every field is derived server-side from deployment flags, the per-org AI
+    kill switch, and budget configuration. No API keys, hostnames, model
+    configuration, organization identifiers, or user data are exposed.
+    """
+
+    agent_runtime_enabled: bool
+    founder_assistant_enabled: bool
+    intelligence_triage_enabled: bool
+    intelligence_narrative_enabled: bool
+    ai_execution_enabled: bool
+    ai_budget_configured: bool

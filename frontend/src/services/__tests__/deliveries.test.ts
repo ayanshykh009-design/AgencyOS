@@ -145,10 +145,12 @@ describe("deliveries service", () => {
     let [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain(`/deliveries/${DELIVERY.id}/retry`);
     expect(init.method).toBe("POST");
+    expect(init.body).toBe("{}");
 
     await cancelDelivery(DELIVERY.id);
     [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(url).toContain(`/deliveries/${DELIVERY.id}/cancel`);
     expect(init.method).toBe("POST");
+    expect(init.body).toBe("{}");
   });
 });

@@ -139,11 +139,16 @@ class WorkflowExecutionService:
         *,
         requested_by_user_id: uuid.UUID | None = None,
         bypass_pending_cap: bool = False,
+        commit: bool = True,
     ) -> WorkflowExecution:
         """Queue a workflow execution for the worker.
 
         ``bypass_pending_cap`` is set by the API when the caller holds
         ``EXECUTION_MANAGE``; the cap otherwise bounds un-drained work per org.
+
+        ``commit=False`` leaves the transaction open (flush only) so callers
+        that own an outer savepoint — the schedule dispatcher — can commit the
+        whole batch exactly once. The default preserves every other caller.
         """
         await self._automation_control.block_queue_if_paused()
 
@@ -206,7 +211,11 @@ class WorkflowExecutionService:
         try:
             await self._repo.flush()
         except IntegrityError as exc:
-            await self._session.rollback()
+            # With commit=False the schedule dispatcher owns the surrounding
+            # savepoint. A full session rollback here would discard the whole
+            # batch; re-raising lets begin_nested() roll back only this item.
+            if commit:
+                await self._session.rollback()
             raise AppError(
                 code="execution.duplicate_idempotency_key"
                 if data.idempotency_key
@@ -224,7 +233,10 @@ class WorkflowExecutionService:
             trigger_id=str(data.trigger_id) if data.trigger_id else None,
             actor=str(requested_by_user_id) if requested_by_user_id else None,
         )
-        await commit_with_retry(self._session)
+        if commit:
+            await commit_with_retry(self._session)
+        else:
+            await self._repo.flush()
         get_counter(
             "execution_queued_total",
             description="Workflow executions queued for the worker",
@@ -240,6 +252,10 @@ class WorkflowExecutionService:
         *,
         actor_user_id: uuid.UUID | None = None,
     ) -> WorkflowExecution:
+        # Kill switch first: a paused operator must not let a manual or worker
+        # start move a queued execution into RUNNING before any state change.
+        await self._automation_control.block_queue_if_paused()
+
         execution = await self._repo.get_or_404(organization_id, execution_id)
         if execution.status != ExecutionStatus.QUEUED:
             raise AppError(

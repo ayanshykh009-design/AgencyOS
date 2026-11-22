@@ -139,17 +139,21 @@ class AIService:
     async def is_ai_enabled(self, organization_id: uuid.UUID) -> bool:
         """Return whether AI execution is allowed for the organization.
 
-        Fail closed: a missing organization or malformed settings denies AI.
-        The default (no ``ai.kill_switch`` key present) is enabled.
+        A missing organization or non-dict ``settings`` fails closed. A missing
+        ``settings.ai`` override keeps the new-org default (enabled), while
+        malformed non-dict ``settings.ai`` also fails closed. An explicit
+        ``ai.kill_switch`` is authoritative.
         """
         from app.repositories.organization import OrganizationRepository
 
         org = await OrganizationRepository(self._session).get(organization_id)
         if org is None or not isinstance(org.settings, dict):
             return False
-        ai = org.settings.get("ai")
-        if not isinstance(ai, dict):
+        if "ai" not in org.settings:
             return True
+        ai = org.settings["ai"]
+        if not isinstance(ai, dict):
+            return False
         return not bool(ai.get("kill_switch", False))
 
     async def assert_ai_enabled(self, organization_id: uuid.UUID) -> None:

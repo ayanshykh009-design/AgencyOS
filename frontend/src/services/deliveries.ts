@@ -51,13 +51,18 @@ export async function listDeliveryEvents(
 }
 
 export async function retryDelivery(deliveryId: string): Promise<Delivery> {
+  // FastAPI requires the empty DeliveryRetry body object even though it has
+  // no fields; omitting it produces a 422 "Field required" response.
   return apiFetch<Delivery>(`/deliveries/${deliveryId}/retry`, {
     method: "POST",
+    body: JSON.stringify({}),
   });
 }
 
 export async function cancelDelivery(deliveryId: string): Promise<Delivery> {
+  // Same contract as retry: DeliveryCancel is an empty but required body.
   return apiFetch<Delivery>(`/deliveries/${deliveryId}/cancel`, {
     method: "POST",
+    body: JSON.stringify({}),
   });
 }

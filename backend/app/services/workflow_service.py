@@ -140,6 +140,20 @@ class WorkflowService:
     ) -> Workflow:
         workflow = await self._repo.get_or_404(organization_id, workflow_id)
 
+        # Status is a lifecycle transition, not a generic patch field. Keep
+        # ``WorkflowUpdate.status`` parseable for backwards compatibility, but
+        # never apply it here: callers must use activate/pause/archive so the
+        # state machine and its audit events cannot be bypassed.
+        if data.status is not None:
+            raise AppError(
+                code="workflow.status_change_not_allowed",
+                message=(
+                    "Cannot change workflow status through update; "
+                    "use the activate, pause, or archive endpoint"
+                ),
+                status_code=400,
+            )
+
         if data.name is not None:
             workflow.name = data.name
         if data.description is not None:
@@ -150,8 +164,6 @@ class WorkflowService:
             workflow.execution_mode = data.execution_mode
         if data.config is not None:
             workflow.config = data.config
-        if data.status is not None:
-            workflow.status = data.status
 
         self._validate_builtin(workflow.definition, workflow.execution_mode)
 
@@ -336,15 +348,31 @@ class WorkflowService:
     async def create_trigger(
         self, organization_id: uuid.UUID, data: WorkflowTriggerCreate
     ) -> object:
-        return await self._trigger_service.create(data)
+        # The authenticated org is authoritative: never trust a client-provided
+        # organization_id, even when an upstream endpoint pre-fills it.
+        return await self._trigger_service.create(
+            data.model_copy(update={"organization_id": organization_id})
+        )
 
     async def update_trigger(
         self,
         organization_id: uuid.UUID,
         trigger_id: uuid.UUID,
         data: WorkflowTriggerUpdate,
+        *,
+        workflow_id: uuid.UUID | None = None,
     ) -> object:
-        return await self._trigger_service.update(organization_id, trigger_id, data)
+        return await self._trigger_service.update(
+            organization_id, trigger_id, data, workflow_id=workflow_id
+        )
 
-    async def delete_trigger(self, organization_id: uuid.UUID, trigger_id: uuid.UUID) -> None:
-        await self._trigger_service.delete(organization_id, trigger_id)
+    async def delete_trigger(
+        self,
+        organization_id: uuid.UUID,
+        trigger_id: uuid.UUID,
+        *,
+        workflow_id: uuid.UUID | None = None,
+    ) -> None:
+        await self._trigger_service.delete(
+            organization_id, trigger_id, workflow_id=workflow_id
+        )

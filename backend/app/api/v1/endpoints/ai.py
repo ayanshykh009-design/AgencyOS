@@ -19,6 +19,7 @@ from app.core.rate_limit import limiter
 from app.models.enums import AgentRunStatus, AgentRunTrigger
 from app.schemas.agent_run import AgentRunRead
 from app.schemas.ai import (
+    AICapabilitiesRead,
     BrainRunRequest,
     DispatchRequest,
     DispatchResponse,
@@ -181,3 +182,36 @@ async def dispatch(
     service = AIService(db)
     data = await service.dispatch(workflow=body.workflow, payload=body.payload)
     return DispatchResponse(workflow=body.workflow, status=200, data=data)
+
+
+@router.get(
+    "/capabilities",
+    response_model=AICapabilitiesRead,
+    summary="Get non-secret AI capability flags for the current organization",
+)
+@limiter.limit(settings.RATE_LIMIT_DEFAULT)
+async def get_ai_capabilities(
+    request: Request,
+    db: DbSession,
+    current_user: CurrentUser,
+    response: Response,
+) -> AICapabilitiesRead:
+    """Return boolean capability state used to render truthful disabled states.
+
+    The organization is derived from the authenticated user, so no org ID is
+    accepted from the client. Every field is a boolean: no API keys, hostnames,
+    model configuration, or user data are returned. Any authenticated user may
+    read this non-secret state; mutation routes keep their own permissions.
+    """
+    ai_execution_enabled = await AIService(db).is_ai_enabled(current_user.organization_id)
+    return AICapabilitiesRead(
+        agent_runtime_enabled=settings.AGENT_RUNTIME_ENABLED,
+        founder_assistant_enabled=settings.FOUNDER_ASSISTANT_ENABLED,
+        intelligence_triage_enabled=settings.INTELLIGENCE_TRIAGE_ENABLED,
+        intelligence_narrative_enabled=settings.INTELLIGENCE_NARRATIVE_ENABLED,
+        ai_execution_enabled=ai_execution_enabled,
+        ai_budget_configured=(
+            settings.AI_ORG_DAILY_TOKEN_BUDGET > 0
+            or settings.AI_ORG_DAILY_COST_BUDGET_USD > 0
+        ),
+    )

@@ -1,16 +1,15 @@
 // React hook exposing the current auth session with reactive updates.
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 import { getSession, subscribe, type Session } from "@/lib/session";
 
+/** Server and pre-hydration clients must agree that no session exists yet. */
+function getServerSession(): null {
+  return null;
+}
+
 export function useAuth(): Session | null {
-  const [session, setSessionState] = useState<Session | null>(() => getSession());
-
-  useEffect(() => {
-    return subscribe(() => setSessionState(getSession()));
-  }, []);
-
-  return session;
+  return useSyncExternalStore(subscribe, getSession, getServerSession);
 }

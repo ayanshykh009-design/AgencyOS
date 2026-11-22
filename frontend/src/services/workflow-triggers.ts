@@ -9,6 +9,7 @@ import type {
 
 export interface WorkflowTriggerQuery {
   workflowId?: string;
+  triggerType?: "manual" | "event" | "schedule";
   enabled?: boolean;
   limit?: number;
   offset?: number;
@@ -19,6 +20,7 @@ export async function listWorkflowTriggers(
 ): Promise<Page<WorkflowTrigger>> {
   const params = new URLSearchParams();
   if (query.workflowId) params.set("workflow_id", query.workflowId);
+  if (query.triggerType) params.set("trigger_type", query.triggerType);
   if (query.enabled !== undefined) params.set("enabled", String(query.enabled));
   if (query.limit !== undefined) params.set("limit", String(query.limit));
   if (query.offset !== undefined) params.set("offset", String(query.offset));

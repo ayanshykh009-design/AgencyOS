@@ -11,7 +11,7 @@ Definition format (stored in ``workflows.definition`` when
     {
       "steps": [
         {"type": "copy", "id": "lead", "from": "input.lead", "to": "lead"},
-        {"type": "set", "id": "greeting",
+        {"type": "set", "id": "greeting", "key": "greeting",
          "value": "Hello {{ lead.first_name }}"},
         {"type": "condition", "id": "segment",
          "if": {"path": "lead.score", "op": "gte", "value": 50},

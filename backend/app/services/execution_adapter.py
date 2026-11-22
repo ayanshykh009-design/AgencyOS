@@ -43,6 +43,8 @@ def adapter_error_payload(exc: Exception) -> dict[str, Any]:
     messages are truncated.
     """
     if isinstance(exc, N8nHttpError):
+        # N8nHttpError.diagnostics contains only fixed, non-sensitive values;
+        # arbitrary provider response bodies are never persisted or returned.
         payload: dict[str, Any] = {
             "error": "adapter_error",
             "message": str(exc),
@@ -74,6 +76,7 @@ class ExecutionAdapter(ABC):
         input_data: dict[str, Any],
         config: dict[str, Any],
         definition: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Execute the workflow and return the result payload."""
         ...
@@ -97,16 +100,36 @@ class N8nAdapter(ExecutionAdapter):
         input_data: dict[str, Any],
         config: dict[str, Any],
         definition: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         webhook_path = config.get("webhook_path", f"/webhook/workflow-{workflow_id}")
+        # Workflow and execution identity are authoritative from the adapter
+        # arguments; the worker supplies org/actor/idempotency from the stored
+        # execution. Including them in the body keeps them under the HMAC.
+        dispatch_metadata: dict[str, Any] = {
+            "organization_id": "",
+            "workflow_id": str(workflow_id),
+            "execution_id": str(execution_id),
+        }
+        for key in ("organization_id", "actor_id", "idempotency_key"):
+            value = (metadata or {}).get(key)
+            if value not in (None, ""):
+                dispatch_metadata[key] = str(value)
+
         payload = {
             "execution_id": str(execution_id),
             "workflow_id": str(workflow_id),
             "input": input_data,
         }
+        for key in ("organization_id", "actor_id", "idempotency_key"):
+            if dispatch_metadata.get(key):
+                payload[key] = dispatch_metadata[key]
+
         logger.info("Dispatching to n8n: %s", webhook_path)
-        result = await self._client.trigger_webhook(webhook_path, payload)
-        logger.info("n8n response for execution %s: %s", execution_id, result)
+        result = await self._client.trigger_webhook(
+            webhook_path, payload, metadata=dispatch_metadata
+        )
+        logger.info("n8n dispatch completed for execution %s", execution_id)
         return result
 
 
@@ -144,7 +167,10 @@ class BuiltinAdapter(ExecutionAdapter):
         input_data: dict[str, Any],
         config: dict[str, Any],
         definition: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        # Builtin execution is local and declarative; dispatch metadata is not
+        # used, but the parameter is accepted for a uniform adapter contract.
         definition = definition or {}
         get_counter(
             "builtin_execution_started",

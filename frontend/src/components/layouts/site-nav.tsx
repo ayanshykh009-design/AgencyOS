@@ -54,7 +54,7 @@ const NAV_GROUPS: Array<{ label: string; items: NavItem[] }> = [
       { href: ROUTES.triggers, label: "Triggers", permission: "automation_read" },
       { href: ROUTES.executions, label: "Executions", permission: "automation_read" },
       { href: ROUTES.deliveries, label: "Deliveries", permission: "delivery_read" },
-      { href: ROUTES.credentials, label: "Credentials", permission: "credential_read" },
+      { href: ROUTES.credentials, label: "Credentials", permission: "credential_manage" },
     ],
   },
   {
@@ -73,7 +73,7 @@ function NavLinks({ user, onNavigate }: { user: User; onNavigate?: () => void })
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:gap-6">
       {NAV_GROUPS.map((group) => (
         <div key={group.label} className="lg:contents">
-          <span className="hidden px-1 text-xs uppercase tracking-wide text-gray-400 lg:inline-block lg:normal-case">
+          <span className="hidden px-1 text-xs uppercase tracking-wide text-gray-600 lg:inline-block lg:normal-case">
             {group.label}
           </span>
           {group.items

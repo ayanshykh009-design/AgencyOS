@@ -4,6 +4,7 @@ import { clearSession, setSession } from "@/lib/session";
 import {
   cancelWorkflowExecution,
   getWorkflowExecution,
+  listExecutionEvents,
   listWorkflowExecutions,
   queueWorkflowExecution,
   retryWorkflowExecution,
@@ -127,5 +128,28 @@ describe("workflow-executions service", () => {
     await cancelWorkflowExecution(EXECUTION.id);
     [url] = fetchMock.mock.calls[2] as [string, RequestInit];
     expect(url).toContain("/cancel");
+  });
+
+  it("listExecutionEvents wraps the existing events endpoint without inventing fields", async () => {
+    const event = {
+      id: "77777777-7777-7777-7777-777777777777",
+      execution_id: EXECUTION.id,
+      attempt: 1,
+      event_type: "step_completed",
+      metadata: { step: "notify", status: "ok" },
+      occurred_at: "2026-08-01T00:00:00Z",
+      created_at: "2026-08-01T00:00:00Z",
+    };
+    fetchMock.mockResolvedValue(jsonResponse({ items: [event], total: 1 }));
+
+    const page = await listExecutionEvents(EXECUTION.id, { limit: 25, offset: 5 });
+
+    expect(page.total).toBe(1);
+    expect(page.items[0]).toEqual(event);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain(`/workflow-executions/${EXECUTION.id}/events`);
+    expect(url).toContain("limit=25");
+    expect(url).toContain("offset=5");
+    expect(init.method ?? "GET").toBe("GET");
   });
 });

@@ -35,7 +35,7 @@
     "prettier": "^3.4.2",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
-    "vitest": "4.1.10"
+    "vitest": "4.1.12"
   },
   "overrides": {
     "brace-expansion@<2": "1.1.21",
@@ -43,6 +43,7 @@
     "js-yaml": "4.3.2",
     "nanoid": "3.3.18",
     "postcss-selector-parser": "6.1.5",
-    "source-map-js": "1.2.2"
+    "source-map-js": "1.2.2",
+    "vite": "8.2.4"
   }
 }

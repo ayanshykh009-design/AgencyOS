@@ -55,6 +55,23 @@ class WorkflowTriggerRepository:
             )
         return trigger
 
+    async def get_for_workflow(
+        self, organization_id: uuid.UUID, workflow_id: uuid.UUID, trigger_id: uuid.UUID
+    ) -> WorkflowTrigger | None:
+        """Org- and workflow-scoped lookup for nested trigger routes.
+
+        Both the tenant and the path workflow are part of the filter, so a
+        trigger that belongs to a different workflow (or org) is indistinguishable
+        from a missing one and cannot be mutated through a mismatched path.
+        """
+        stmt = select(WorkflowTrigger).where(
+            WorkflowTrigger.organization_id == organization_id,
+            WorkflowTrigger.workflow_id == workflow_id,
+            WorkflowTrigger.id == trigger_id,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def list(
         self,
         organization_id: uuid.UUID,

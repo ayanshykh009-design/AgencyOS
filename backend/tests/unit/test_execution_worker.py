@@ -13,6 +13,7 @@ from app.workers.execution_worker import ExecutionWorker
 ORG_ID = uuid.UUID("00000000-0000-0000-0000-000000000001")
 WORKFLOW_ID = uuid.UUID("00000000-0000-0000-0000-000000000501")
 EXECUTION_ID = uuid.UUID("00000000-0000-0000-0000-000000000601")
+ACTOR_ID = uuid.UUID("00000000-0000-0000-0000-000000000411")
 
 
 class FakeSession:
@@ -50,6 +51,8 @@ def _execution(**overrides: object) -> MagicMock:
     execution.workflow_id = WORKFLOW_ID
     execution.status = ExecutionStatus.QUEUED
     execution.input = {"lead_id": "x"}
+    execution.requested_by_user_id = None
+    execution.idempotency_key = None
     execution.attempts = 0
     execution.max_attempts = 3
     for key, value in overrides.items():
@@ -450,7 +453,12 @@ async def test_process_queued_passes_workflow_definition_to_adapter(monkeypatch)
         definition=definition,
     )
     session = _patch_worker(
-        monkeypatch, queued=[_execution()], workflow=workflow, adapter_output={"ok": True}
+        monkeypatch,
+        queued=[
+            _execution(requested_by_user_id=ACTOR_ID, idempotency_key="idem-1")
+        ],
+        workflow=workflow,
+        adapter_output={"ok": True},
     )
 
     await ExecutionWorker.process_queued(batch_size=10)
@@ -458,6 +466,11 @@ async def test_process_queued_passes_workflow_definition_to_adapter(monkeypatch)
     _, kwargs = session.adapter.execute.await_args
     assert kwargs["definition"] == definition
     assert kwargs["input_data"] == {"lead_id": "x"}
+    assert kwargs["metadata"] == {
+        "organization_id": str(ORG_ID),
+        "actor_id": str(ACTOR_ID),
+        "idempotency_key": "idem-1",
+    }
 
 
 async def test_process_queued_batch_fetches_workflows(monkeypatch) -> None:
@@ -857,3 +870,40 @@ async def test_process_queued_records_phase_telemetry(monkeypatch) -> None:
     snapshot = read_histogram("execution_worker_phase_seconds")
     assert snapshot.count == 1
     assert snapshot.sum >= 0
+
+
+async def test_run_loop_skips_work_phases_when_worker_disabled(monkeypatch) -> None:
+    """B6-F-06: EXECUTION_WORKER_ENABLED=false skips queue/schedule but heartbeats."""
+    monkeypatch.setattr(
+        "app.workers.execution_worker.settings.EXECUTION_WORKER_ENABLED", False
+    )
+    monkeypatch.setattr(
+        "app.workers.execution_worker.settings.EXECUTION_POLL_INTERVAL_SECONDS", 5
+    )
+
+    sweep = AsyncMock(return_value={"retried": 0, "processed": 0, "timed_out": 0})
+    schedule_tick = AsyncMock(return_value=0)
+    heartbeat = AsyncMock()
+    monkeypatch.setattr(ExecutionWorker, "sweep", sweep)
+    monkeypatch.setattr(ExecutionWorker, "schedule_tick", schedule_tick)
+    monkeypatch.setattr(ExecutionWorker, "heartbeat", heartbeat)
+
+    sleeps = 0
+
+    async def _fake_sleep(_seconds: float) -> None:
+        nonlocal sleeps
+        sleeps += 1
+        if sleeps >= 2:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr("app.workers.execution_worker.asyncio.sleep", _fake_sleep)
+
+    with pytest.raises(KeyboardInterrupt):
+        await ExecutionWorker.run_loop()
+
+    sweep.assert_not_awaited()
+    schedule_tick.assert_not_awaited()
+    # Two loop iterations plus the shutdown heartbeat on KeyboardInterrupt.
+    assert heartbeat.await_count == 3
+    assert heartbeat.await_args.kwargs["loop_ok"] is False
+    assert sleeps == 2

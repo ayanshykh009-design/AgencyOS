@@ -1,20 +1,27 @@
-// Credentials: manage encrypted integration secrets.
-// The backend only returns a preview of each value, never the secret.
+// Credentials: admin-only, write-only vault view.
+//
+// The backend only returns a value preview. This UI never renders secrets,
+// never offers plaintext secret entry, and makes no claim of client-side
+// encryption. Create/replace stay disabled pending a founder decision
+// (B6-D-01) rather than faking a working encrypted-value flow.
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 
 import {
+  AutomationListState,
+  DisabledActionReason,
+  actionDisabledReason,
+  formatUtcOrNever,
+} from "@/components/automation/automation-states";
+import {
   Badge,
   Button,
-  ConfirmDialog,
-  EmptyState,
-  Field,
-  Input,
+  Card,
+  CardBody,
+  CardHeader,
   Modal,
   PageHeader,
-  Select,
-  Spinner,
   Table,
   TBody,
   TD,
@@ -24,139 +31,157 @@ import {
 } from "@/components/ui";
 import { useAuth } from "@/hooks/use-auth";
 import { ApiRequestError } from "@/lib/api-client";
-import { CREDENTIAL_TYPE_LABELS, formatDateTime } from "@/lib/format";
-import { can } from "@/lib/permissions";
-import {
-  createCredential,
-  deleteCredential,
-  listCredentials,
-  rotateCredential,
-} from "@/services/credentials";
-import type { Credential, CredentialType } from "@/types";
+import { CREDENTIAL_TYPE_LABELS } from "@/lib/format";
+import { canManageCredentials } from "@/lib/batch6-permissions";
+import { deleteCredential, listCredentials, rotateCredential } from "@/services/credentials";
+import type { Credential, UserRole } from "@/types";
+
+export const CREDENTIAL_WRITE_UNAVAILABLE =
+  "Credential creation and value replacement are unavailable in this UI. The backend stores values encrypted server-side; this page performs no client-side encryption.";
+
+/** Exported for static-markup tests: denied roles see no action buttons. */
+export function CredentialActions({
+  role,
+  busy,
+  onRotate,
+  onDelete,
+}: {
+  role: UserRole;
+  busy: boolean;
+  onRotate: () => void;
+  onDelete: () => void;
+}) {
+  if (!canManageCredentials(role)) return null;
+  const writeReason = actionDisabledReason(
+    false,
+    "Requires a founder decision on the encrypted-value entry flow."
+  );
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <Button variant="outline" disabled onClick={() => undefined} title={writeReason ?? undefined}>
+        Replace value
+      </Button>
+      <Button variant="outline" disabled={busy} onClick={onRotate}>
+        Rotate
+      </Button>
+      <Button variant="danger" disabled={busy} onClick={onDelete}>
+        Delete
+      </Button>
+    </div>
+  );
+}
 
 export default function CredentialsPage() {
   const session = useAuth();
   const [credentials, setCredentials] = useState<Credential[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Credential | null>(null);
 
-  const [name, setName] = useState("");
-  const [credentialType, setCredentialType] = useState<CredentialType>("n8n_api_key");
-  const [encryptedValue, setEncryptedValue] = useState("");
-  const [valuePreview, setValuePreview] = useState("");
-  const [description, setDescription] = useState("");
-  const [createError, setCreateError] = useState<string | null>(null);
-
-  const load = useCallback(() => {
-    listCredentials({ limit: 200 })
+  const fetchCredentials = useCallback(() => {
+    return listCredentials({ limit: 200 })
       .then((page) => {
         setCredentials(page.items);
         setError(null);
       })
       .catch((err: unknown) => {
+        setCredentials([]);
         setError(err instanceof ApiRequestError ? err.message : "Failed to load credentials");
       })
       .finally(() => setLoading(false));
   }, []);
 
+  const reload = useCallback(() => {
+    setLoading(true);
+    return fetchCredentials();
+  }, [fetchCredentials]);
+
   useEffect(() => {
-    load();
-  }, [load]);
+    if (session) void fetchCredentials();
+  }, [fetchCredentials, session]);
 
   if (!session) return null;
-  const canWrite = can(session.user.role, "credential_write");
-  const canDelete = can(session.user.role, "credential_delete");
+  const role = session.user.role;
+  const canManage = canManageCredentials(role);
 
-  const handleCreate = () => {
-    if (!name.trim() || !encryptedValue.trim() || !valuePreview.trim()) {
-      setCreateError("Name, value, and preview are required");
-      return;
-    }
-    setBusy(true);
-    setCreateError(null);
-    createCredential({
-      name: name.trim(),
-      credential_type: credentialType,
-      encrypted_value: encryptedValue,
-      value_preview: valuePreview.trim(),
-      description: description.trim() || undefined,
-    })
+  const rotate = (credential: Credential) => {
+    setBusyId(credential.id);
+    rotateCredential(credential.id)
       .then(() => {
-        setCreating(false);
-        setName("");
-        setEncryptedValue("");
-        setValuePreview("");
-        setDescription("");
-        setCredentialType("n8n_api_key");
-        load();
+        setError(null);
+        return reload();
       })
       .catch((err: unknown) => {
-        setCreateError(
-          err instanceof ApiRequestError ? err.message : "Failed to create credential"
-        );
+        setError(err instanceof ApiRequestError ? err.message : "Failed to rotate credential");
       })
-      .finally(() => setBusy(false));
+      .finally(() => setBusyId(null));
   };
 
-  const handleDelete = () => {
+  const confirmDelete = () => {
     if (!deleteTarget) return;
-    setBusy(true);
-    deleteCredential(deleteTarget.id)
+    const target = deleteTarget;
+    setBusyId(target.id);
+    deleteCredential(target.id)
       .then(() => {
         setDeleteTarget(null);
-        load();
+        setError(null);
+        return reload();
       })
       .catch((err: unknown) => {
         setError(err instanceof ApiRequestError ? err.message : "Failed to delete credential");
         setDeleteTarget(null);
       })
-      .finally(() => setBusy(false));
-  };
-
-  const handleRotate = (credential: Credential) => {
-    setBusy(true);
-    rotateCredential(credential.id)
-      .then(() => {
-        setError(null);
-        load();
-      })
-      .catch((err: unknown) => {
-        setError(err instanceof ApiRequestError ? err.message : "Failed to rotate credential");
-      })
-      .finally(() => setBusy(false));
+      .finally(() => setBusyId(null));
   };
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Credentials"
-        description="Encrypted secrets used by workflow integrations. Values are write-only."
+        description="Admin-only, write-only view of integration credentials. Values are never displayed."
         actions={
-          canWrite ? <Button onClick={() => setCreating(true)}>New credential</Button> : undefined
+          canManage ? (
+            <Button disabled title={CREDENTIAL_WRITE_UNAVAILABLE}>
+              New credential
+            </Button>
+          ) : undefined
         }
       />
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      <AutomationListState
+        denied={!canManage}
+        deniedMessage="You do not have permission to view credentials."
+        loading={loading}
+        loadingLabel="Loading credentials…"
+        error={error}
+        onRetry={() => void reload()}
+        empty={credentials.length === 0}
+        emptyTitle="No credentials"
+        emptyDescription="No credentials are registered for this organization."
+      />
 
-      {loading ? (
-        <Spinner label="Loading credentials…" />
-      ) : credentials.length === 0 ? (
-        <EmptyState
-          title="No credentials"
-          description="Add an API key or n8n credential to enable integrations."
-        />
-      ) : (
+      {canManage ? (
+        <Card>
+          <CardHeader title="Secret entry unavailable" />
+          <CardBody>
+            <p className="text-sm text-gray-600">{CREDENTIAL_WRITE_UNAVAILABLE}</p>
+            <DisabledActionReason reason="Existing credentials can be rotated or deleted below." />
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {canManage && !loading && !error && credentials.length > 0 ? (
         <Table>
           <THead>
             <tr>
               <TH>Name</TH>
               <TH>Type</TH>
-              <TH>Value</TH>
-              <TH>Created</TH>
-              <TH />
+              <TH>Value preview</TH>
+              <TH>Key version</TH>
+              <TH>Last rotated (UTC)</TH>
+              <TH>Updated (UTC)</TH>
+              <TH>Actions</TH>
             </tr>
           </THead>
           <TBody>
@@ -167,115 +192,51 @@ export default function CredentialsPage() {
                   <Badge tone="purple">{CREDENTIAL_TYPE_LABELS[credential.credential_type]}</Badge>
                 </TD>
                 <TD className="font-mono text-xs text-gray-500">{credential.value_preview}</TD>
-                <TD className="text-xs text-gray-400">{formatDateTime(credential.created_at)}</TD>
-                <TD className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    {canWrite ? (
-                      <Button
-                        variant="outline"
-                        onClick={() => handleRotate(credential)}
-                        disabled={busy}
-                        title="Re-encrypt with the current key version"
-                      >
-                        Rotate
-                      </Button>
-                    ) : null}
-                    {canDelete ? (
-                      <Button variant="danger" onClick={() => setDeleteTarget(credential)}>
-                        Delete
-                      </Button>
-                    ) : null}
-                  </div>
+                <TD className="font-mono text-xs text-gray-600">{credential.key_version}</TD>
+                <TD className="text-xs text-gray-600">
+                  {formatUtcOrNever(credential.last_rotated_at)}
+                </TD>
+                <TD className="text-xs text-gray-600">{formatUtcOrNever(credential.updated_at)}</TD>
+                <TD>
+                  <CredentialActions
+                    role={role}
+                    busy={busyId === credential.id}
+                    onRotate={() => rotate(credential)}
+                    onDelete={() => setDeleteTarget(credential)}
+                  />
                 </TD>
               </TRow>
             ))}
           </TBody>
         </Table>
-      )}
+      ) : null}
 
-      <Modal
-        open={creating}
-        title="New credential"
-        onClose={() => setCreating(false)}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setCreating(false)} disabled={busy}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreate} disabled={busy}>
-              {busy ? "Creating…" : "Create"}
-            </Button>
-          </>
-        }
-      >
-        <div className="flex flex-col gap-4">
-          <Field label="Name" htmlFor="cred-name" required>
-            <Input
-              id="cred-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. n8n production API key"
-            />
-          </Field>
-          <Field label="Type" htmlFor="cred-type">
-            <Select
-              id="cred-type"
-              value={credentialType}
-              onChange={(e) => setCredentialType(e.target.value as CredentialType)}
-            >
-              <option value="n8n_api_key">n8n API key</option>
-              <option value="api_key">API key</option>
-              <option value="basic_auth">Basic auth</option>
-            </Select>
-          </Field>
-          <Field
-            label="Encrypted value"
-            htmlFor="cred-value"
-            required
-            hint="Stored encrypted; never returned by the API."
-          >
-            <Input
-              id="cred-value"
-              type="password"
-              value={encryptedValue}
-              onChange={(e) => setEncryptedValue(e.target.value)}
-              placeholder="Paste the secret"
-            />
-          </Field>
-          <Field
-            label="Value preview"
-            htmlFor="cred-preview"
-            required
-            hint="Short hint shown in listings, e.g. abc…123"
-          >
-            <Input
-              id="cred-preview"
-              value={valuePreview}
-              onChange={(e) => setValuePreview(e.target.value)}
-              placeholder="e.g. abcd…wxyz"
-            />
-          </Field>
-          <Field label="Description" htmlFor="cred-desc">
-            <Input
-              id="cred-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional"
-            />
-          </Field>
-          {createError ? <p className="text-sm text-red-600">{createError}</p> : null}
-        </div>
-      </Modal>
-
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        title="Delete credential"
-        message={`Delete "${deleteTarget?.name}"? This cannot be undone.`}
-        confirmLabel="Delete"
-        busy={busy}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
-      />
+      {deleteTarget ? (
+        <Modal
+          open
+          title="Delete credential"
+          onClose={() => setDeleteTarget(null)}
+          width="sm"
+          footer={
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => setDeleteTarget(null)}
+                disabled={busyId !== null}
+              >
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={confirmDelete} disabled={busyId !== null}>
+                Delete
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-gray-600">
+            Delete &ldquo;{deleteTarget.name}&rdquo;? This cannot be undone.
+          </p>
+        </Modal>
+      ) : null}
     </div>
   );
 }

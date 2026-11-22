@@ -23,6 +23,7 @@ EXECUTION_ID = uuid.UUID("00000000-0000-0000-0000-000000000601")
 class FakeSession:
     def __init__(self) -> None:
         self.commits = 0
+        self.rollbacks = 0
 
     def add(self, obj: object) -> None:
         pass
@@ -37,7 +38,7 @@ class FakeSession:
         self.commits += 1
 
     async def rollback(self) -> None:
-        pass
+        self.rollbacks += 1
 
 
 def _service() -> WorkflowExecutionService:
@@ -229,6 +230,21 @@ async def test_queue_maps_integrity_error() -> None:
         await service.queue(_queue())
 
     assert exc_info.value.code == "execution.create_failed"
+    assert service._session.rollbacks == 1
+
+
+async def test_queue_integrity_error_with_commit_false_preserves_outer_savepoint() -> None:
+    """B6-FINAL-03: commit=False must not roll back the dispatcher's whole batch."""
+    service = _service()
+    workflow = MagicMock(status=WorkflowStatus.ACTIVE)
+    service._workflow_repo.get = AsyncMock(return_value=workflow)
+    service._repo.flush = AsyncMock(side_effect=IntegrityError("", {}, Exception()))
+
+    with pytest.raises(AppError) as exc_info:
+        await service.queue(_queue(), commit=False)
+
+    assert exc_info.value.code == "execution.create_failed"
+    assert service._session.rollbacks == 0
 
 
 async def test_start_requires_queued_state() -> None:
@@ -807,3 +823,65 @@ async def test_record_events_delegates_to_batch_writer() -> None:
     kwargs = service._events.record_many.await_args.kwargs
     assert kwargs["attempt"] == 2
     assert kwargs["events"] == events
+
+
+# --- Lifecycle / transaction regressions (B6-F-04, B6-F-05) -------------------
+
+
+async def test_start_blocks_when_automation_paused() -> None:
+    """B6-F-04: manual start must not transition while the kill switch is paused."""
+    service = _service()
+    service._automation_control.block_queue_if_paused = AsyncMock(
+        side_effect=AppError(
+            code="automation.paused.queue_blocked",
+            message="paused",
+            status_code=409,
+        )
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        await service.start(ORG_ID, EXECUTION_ID)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.code == "automation.paused.queue_blocked"
+    service._repo.get_or_404.assert_not_called()
+    service._repo.mark_started.assert_not_called()
+    assert service._session.commits == 0
+
+
+async def test_start_checks_kill_switch_before_state_transition() -> None:
+    """B6-F-04: the guard runs before the first state-changing operation."""
+    service = _service()
+    calls: list[str] = []
+
+    async def _guard() -> None:
+        calls.append("guard")
+
+    async def _get_or_404(org_id, execution_id):
+        calls.append("read")
+        return _execution()
+
+    async def _mark_started(org_id, execution_id):
+        calls.append("transition")
+        return _execution(status=ExecutionStatus.RUNNING, attempts=1)
+
+    service._automation_control.block_queue_if_paused = AsyncMock(side_effect=_guard)
+    service._repo.get_or_404 = AsyncMock(side_effect=_get_or_404)
+    service._repo.mark_started = AsyncMock(side_effect=_mark_started)
+
+    await service.start(ORG_ID, EXECUTION_ID)
+
+    assert calls == ["guard", "read", "transition"]
+
+
+async def test_queue_with_commit_false_flushes_without_committing() -> None:
+    """B6-F-05: dispatcher callers can flush inside a savepoint, no inner commit."""
+    service = _service()
+    workflow = MagicMock(status=WorkflowStatus.ACTIVE)
+    service._workflow_repo.get = AsyncMock(return_value=workflow)
+
+    await service.queue(_queue(), commit=False)
+
+    assert service._session.commits == 0
+    assert service._repo.flush.await_count >= 1
+    service._repo.flush.assert_awaited()

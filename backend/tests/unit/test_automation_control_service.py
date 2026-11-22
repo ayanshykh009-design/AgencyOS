@@ -156,7 +156,8 @@ async def test_pause_disables_automation_and_audits() -> None:
     assert entry.user_id == USER_ID
     assert entry.metadata_ == {"before": True, "after": False, "reason": "Deploy freeze"}
     assert read_counter("automation_paused_total") == 1
-    assert service._session.commits == 2
+    # B6-F-07: settings change and audit entry share one atomic commit.
+    assert service._session.commits == 1
 
 
 async def test_pause_when_already_paused_raises_409() -> None:
@@ -185,7 +186,8 @@ async def test_resume_re_enables_automation_and_audits() -> None:
     assert entry.event_type == ActivityEventType.AUTOMATION_RESUMED
     assert entry.metadata_ == {"before": False, "after": True}
     assert read_counter("automation_resumed_total") == 1
-    assert service._session.commits == 2
+    # B6-F-07: settings change and audit entry share one atomic commit.
+    assert service._session.commits == 1
 
 
 async def test_resume_when_already_resumed_raises_409() -> None:

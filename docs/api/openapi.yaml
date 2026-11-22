@@ -8184,12 +8184,31 @@ paths:
       parameters:
       - name: X-AgencyOS-Webhook
         in: header
-        required: false
+        required: true
+        description: 'Shared webhook secret (WEBHOOK_SECRET).'
         schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: X-Agencyos-Webhook
+          type: string
+      - name: X-AgencyOS-Timestamp
+        in: header
+        required: true
+        description: 'Unix timestamp in seconds, bounded by WEBHOOK_TIMESTAMP_SKEW_SECONDS.'
+        schema:
+          type: string
+          pattern: '^[0-9]{1,20}$'
+      - name: X-AgencyOS-Nonce
+        in: header
+        required: true
+        description: 'Single-use nonce, 8-128 URL-safe characters (A-Za-z0-9_-).'
+        schema:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{8,128}$'
+      - name: X-AgencyOS-Signature
+        in: header
+        required: true
+        description: 'Hex HMAC-SHA256 of "<timestamp>.<nonce>." followed by the exact raw request body.'
+        schema:
+          type: string
+          pattern: '^[0-9a-fA-F]{64}$'
       requestBody:
         required: true
         content:
@@ -8205,12 +8224,22 @@ paths:
                 type: object
                 additionalProperties: true
                 title: Response Ingest Lead Api V1 Webhooks Leads Post
+        '400':
+          description: 'Missing organization_slug (webhook.missing_org) or invalid lead body.'
+        '401':
+          description: 'Missing/invalid shared secret (webhook.invalid_secret) or signature (webhook.invalid_signature).'
+        '404':
+          description: 'Unknown organization_slug (webhook.unknown_org).'
+        '409':
+          description: 'Duplicate webhook nonce (webhook.replay_detected).'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+        '503':
+          description: 'Webhook secret not configured (webhook.not_configured) or replay guard unavailable (webhook.replay_unavailable).'
 components:
   schemas:
     ActivityEventType:

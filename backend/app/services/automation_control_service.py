@@ -119,8 +119,9 @@ class AutomationControlService:
             updated_by_user_id=user_id,
         )
 
-        await commit_with_retry(self._session)
-
+        # Settings change and audit entry share one transaction: a failed
+        # commit rolls both back, so the kill switch can never be paused
+        # without its audit record.
         self._logs.add(
             ActivityLog(
                 organization_id=organization_id,
@@ -164,8 +165,7 @@ class AutomationControlService:
         await self._repo.delete(KEY_PAUSED_AT)
         await self._repo.delete(KEY_PAUSED_REASON)
 
-        await commit_with_retry(self._session)
-
+        # One commit for the settings change and its audit entry.
         self._logs.add(
             ActivityLog(
                 organization_id=organization_id,

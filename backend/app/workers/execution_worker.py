@@ -201,6 +201,20 @@ class ExecutionWorker:
                                     input_data=execution.input,
                                     config=workflow.config,
                                     definition=workflow.definition,
+                                    metadata={
+                                        "organization_id": str(
+                                            execution.organization_id
+                                        ),
+                                        "actor_id": (
+                                            str(execution.requested_by_user_id)
+                                            if execution.requested_by_user_id
+                                            else None
+                                        ),
+                                        "idempotency_key": (
+                                            execution.idempotency_key
+                                            or str(execution.id)
+                                        ),
+                                    },
                                 ),
                                 timeout=settings.EXECUTION_TIMEOUT_SECONDS,
                             )
@@ -369,6 +383,8 @@ class ExecutionWorker:
         Queue phases run on every iteration at ``EXECUTION_POLL_INTERVAL_SECONDS``;
         the schedule phase additionally runs only when its own cadence has
         elapsed, and its failures are contained so the queue is never delayed.
+        When ``EXECUTION_WORKER_ENABLED`` is false all work phases are skipped,
+        but heartbeat and polling continue so the flag can be flipped at runtime.
         Restart-safety relies on persisted DB state only (``last_fired_at`` +
         atomic reservations), so a crash mid-sweep leaves no orphan work.
         """
@@ -382,28 +398,34 @@ class ExecutionWorker:
             while True:
                 loop_ok = True
                 last_error: str | None = None
-                try:
-                    stats = await cls.sweep()
-                    if any(stats.values()):
-                        logger.info("execution worker sweep: %s", stats)
-                except Exception:
-                    loop_ok = False
-                    last_error = "sweep failed"
-                    logger.exception("execution worker sweep failed")
-
-                if settings.SCHEDULE_DISPATCHER_ENABLED and (
-                    time.monotonic() - last_schedule_sweep
-                    >= settings.SCHEDULE_POLL_INTERVAL_SECONDS
-                ):
-                    last_schedule_sweep = time.monotonic()
+                # EXECUTION_WORKER_ENABLED is the deployment-level off switch:
+                # skip every queue/schedule phase but keep reporting liveness
+                # and polling so a runtime re-enable takes effect promptly.
+                if settings.EXECUTION_WORKER_ENABLED:
                     try:
-                        queued = await cls.schedule_tick()
-                        if queued:
-                            logger.info("schedule dispatcher queued %s execution(s)", queued)
+                        stats = await cls.sweep()
+                        if any(stats.values()):
+                            logger.info("execution worker sweep: %s", stats)
                     except Exception:
                         loop_ok = False
-                        last_error = "schedule tick failed"
-                        logger.exception("schedule dispatcher tick failed")
+                        last_error = "sweep failed"
+                        logger.exception("execution worker sweep failed")
+
+                    if settings.SCHEDULE_DISPATCHER_ENABLED and (
+                        time.monotonic() - last_schedule_sweep
+                        >= settings.SCHEDULE_POLL_INTERVAL_SECONDS
+                    ):
+                        last_schedule_sweep = time.monotonic()
+                        try:
+                            queued = await cls.schedule_tick()
+                            if queued:
+                                logger.info("schedule dispatcher queued %s execution(s)", queued)
+                        except Exception:
+                            loop_ok = False
+                            last_error = "schedule tick failed"
+                            logger.exception("schedule dispatcher tick failed")
+                else:
+                    logger.debug("execution worker disabled by EXECUTION_WORKER_ENABLED")
 
                 await cls.heartbeat(loop_ok=loop_ok, last_error=last_error)
                 await asyncio.sleep(settings.EXECUTION_POLL_INTERVAL_SECONDS)

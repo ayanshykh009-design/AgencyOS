@@ -291,6 +291,23 @@ export interface OrganizationAISettings {
   provider: string;
   model: string;
   overridden: boolean;
+  /** Per-organization AI execution kill switch (true disables AI execution). */
+  kill_switch: boolean;
+}
+
+/**
+ * Non-secret, backend-derived capability booleans (backend AICapabilitiesRead).
+ * The browser never receives keys, hostnames, model config, or org identifiers
+ * from this surface. `null` at the call site means the state could not be
+ * verified, so capability-dependent actions must fail closed.
+ */
+export interface AICapabilities {
+  agent_runtime_enabled: boolean;
+  founder_assistant_enabled: boolean;
+  intelligence_triage_enabled: boolean;
+  intelligence_narrative_enabled: boolean;
+  ai_execution_enabled: boolean;
+  ai_budget_configured: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -652,9 +669,35 @@ export interface WorkflowUpdateInput {
   name?: string;
   description?: string | null;
   definition?: Record<string, unknown>;
-  status?: WorkflowStatus;
   execution_mode?: "n8n" | "builtin";
   config?: Record<string, unknown>;
+}
+
+/**
+ * An append-only technical timeline entry for a workflow execution
+ * (backend `ExecutionEventRead` from `GET /workflow-executions/{id}/events`).
+ */
+export interface WorkflowExecutionEvent {
+  id: string;
+  execution_id: string;
+  attempt: number;
+  event_type:
+    | "queued"
+    | "started"
+    | "adapter_dispatched"
+    | "adapter_returned"
+    | "step_started"
+    | "step_completed"
+    | "step_failed"
+    | "retrying"
+    | "succeeded"
+    | "failed"
+    | "cancelled"
+    | "timed_out"
+    | "timeout_guard";
+  metadata: Record<string, unknown>;
+  occurred_at: string;
+  created_at: string;
 }
 
 /** A workflow trigger (backend WorkflowTriggerRead). */

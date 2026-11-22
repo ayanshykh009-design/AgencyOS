@@ -5,10 +5,12 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { proposalDecisionDisabledReason } from "@/lib/ai-capabilities";
 import { ApiRequestError } from "@/lib/api-client";
-import { can } from "@/lib/permissions";
+import { canManageFounder, canViewFounder } from "@/lib/batch5-permissions";
+import { getAICapabilities } from "@/services/ai";
 import { decideFounderProposal, listFounderProposals } from "@/services/founder";
-import type { FounderProposal, FounderProposalStatus } from "@/types";
+import type { AICapabilities, FounderProposal, FounderProposalStatus } from "@/types";
 
 const STATUSES: Array<FounderProposalStatus | "all"> = [
   "all",
@@ -22,23 +24,19 @@ const STATUSES: Array<FounderProposalStatus | "all"> = [
 
 export default function FounderProposalsPage() {
   const session = useAuth();
+  const canView = !!session && canViewFounder(session.user.role);
+  const canManage = !!session && canManageFounder(session.user.role);
   const [proposals, setProposals] = useState<FounderProposal[]>([]);
   const [status, setStatus] = useState<FounderProposalStatus | "all">("all");
+  // null means unverified: proposal decisions fail closed.
+  const [capabilities, setCapabilities] = useState<AICapabilities | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const canManage = !!session && can(session.user.role, "founder_manage");
-
-  async function refresh() {
-    const page = await listFounderProposals({
-      status: status === "all" ? undefined : status,
-      limit: 100,
-    });
-    setProposals(page.items);
-  }
+  const decisionDisabledReason = proposalDecisionDisabledReason(capabilities);
 
   useEffect(() => {
-    if (!session) return;
+    if (!canView) return;
     let cancelled = false;
     listFounderProposals({
       status: status === "all" ? undefined : status,
@@ -51,12 +49,20 @@ export default function FounderProposalsPage() {
         if (!cancelled)
           setError(err instanceof ApiRequestError ? err.message : "Failed to load proposals");
       });
+    getAICapabilities()
+      .then((surface) => {
+        if (!cancelled) setCapabilities(surface);
+      })
+      .catch(() => {
+        if (!cancelled) setCapabilities(null);
+      });
     return () => {
       cancelled = true;
     };
-  }, [session, status]);
+  }, [canView, status]);
 
   async function onDecide(proposal: FounderProposal, approve: boolean) {
+    if (!canManage || decisionDisabledReason) return;
     setBusyId(proposal.id);
     setError(null);
     try {
@@ -73,6 +79,13 @@ export default function FounderProposalsPage() {
   }
 
   if (!session) return null;
+  if (!canView) {
+    return (
+      <p className="text-sm text-gray-600">
+        You do not have permission to view founder proposals. Contact an administrator.
+      </p>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -93,6 +106,12 @@ export default function FounderProposalsPage() {
       </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
+
+      {canManage && decisionDisabledReason ? (
+        <p className="text-sm text-amber-700">
+          Proposal decisions are currently disabled: {decisionDisabledReason}
+        </p>
+      ) : null}
 
       {proposals.length === 0 ? (
         <p className="text-sm text-gray-500">No proposals match this filter.</p>
@@ -116,31 +135,54 @@ export default function FounderProposalsPage() {
                 {p.justification ? (
                   <p className="mt-2 text-sm text-gray-600">{p.justification}</p>
                 ) : null}
-                {!terminal && canManage ? (
-                  <div className="mt-3 flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      onClick={() => onDecide(p, true)}
-                      disabled={busyId === p.id}
-                      className="text-green-700"
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => onDecide(p, false)}
-                      disabled={busyId === p.id}
-                      className="text-red-700"
-                    >
-                      Deny
-                    </Button>
-                  </div>
+                {!terminal ? (
+                  <ProposalDecisionControls
+                    canManage={canManage}
+                    disabledReason={decisionDisabledReason}
+                    busy={busyId === p.id}
+                    onDecide={(approve) => onDecide(p, approve)}
+                  />
                 ) : null}
               </li>
             );
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** Decisions require founder_manage and an enabled org AI execution path. */
+export function ProposalDecisionControls({
+  canManage,
+  disabledReason,
+  busy,
+  onDecide,
+}: {
+  canManage: boolean;
+  disabledReason: string | null;
+  busy: boolean;
+  onDecide: (approve: boolean) => void;
+}) {
+  if (!canManage || disabledReason) return null;
+  return (
+    <div className="mt-3 flex items-center gap-2">
+      <Button
+        variant="ghost"
+        onClick={() => onDecide(true)}
+        disabled={busy}
+        className="text-green-700"
+      >
+        Approve
+      </Button>
+      <Button
+        variant="ghost"
+        onClick={() => onDecide(false)}
+        disabled={busy}
+        className="text-red-700"
+      >
+        Deny
+      </Button>
     </div>
   );
 }
