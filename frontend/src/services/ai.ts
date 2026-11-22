@@ -1,6 +1,7 @@
 // AI service: brain runs, tool manifest, n8n dispatch, and per-org AI settings.
 import { apiFetch } from "@/lib/api-client";
 import type {
+  AICapabilities,
   AgentRunRead,
   BrainRunResponse,
   DispatchResponse,
@@ -58,6 +59,14 @@ export async function dispatchDraft(
     method: "POST",
     body: JSON.stringify({ workflow, payload }),
   });
+}
+
+/**
+ * Read the backend-authoritative, non-secret capability surface. A failed fetch
+ * must be treated as "unverified" by callers, never as "available".
+ */
+export async function getAICapabilities(): Promise<AICapabilities> {
+  return apiFetch<AICapabilities>("/ai/capabilities");
 }
 
 export async function getAISettings(): Promise<OrganizationAISettings> {

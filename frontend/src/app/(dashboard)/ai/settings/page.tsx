@@ -5,10 +5,11 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { aiCapabilityNotices } from "@/lib/ai-capabilities";
 import { ApiRequestError } from "@/lib/api-client";
 import { can } from "@/lib/permissions";
-import { getAISettings, updateAISettings } from "@/services/ai";
-import type { OrganizationAISettings } from "@/types";
+import { getAICapabilities, getAISettings, updateAISettings } from "@/services/ai";
+import type { AICapabilities, OrganizationAISettings } from "@/types";
 
 const PROVIDERS = [
   { value: "openai", label: "OpenAI" },
@@ -22,6 +23,8 @@ const PROVIDERS = [
 export default function AISettingsPage() {
   const session = useAuth();
   const [settings, setSettings] = useState<OrganizationAISettings | null>(null);
+  // null means unverified: notices stay honest and no availability is implied.
+  const [capabilities, setCapabilities] = useState<AICapabilities | null>(null);
   const [provider, setProvider] = useState("openai");
   const [model, setModel] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -33,10 +36,11 @@ export default function AISettingsPage() {
   useEffect(() => {
     if (!canManage) return;
     let cancelled = false;
-    getAISettings()
-      .then((aiSettings) => {
+    Promise.all([getAISettings(), getAICapabilities().catch(() => null)])
+      .then(([aiSettings, aiCapabilities]) => {
         if (cancelled) return;
         setSettings(aiSettings);
+        setCapabilities(aiCapabilities);
         setProvider(aiSettings.provider);
         setModel(aiSettings.model);
       })
@@ -90,6 +94,8 @@ export default function AISettingsPage() {
     return <p>You do not have permission to manage AI settings. Contact an administrator.</p>;
   }
 
+  const notices = aiCapabilityNotices(capabilities);
+
   return (
     <div className="flex max-w-xl flex-col gap-8">
       <section>
@@ -136,6 +142,23 @@ export default function AISettingsPage() {
 
         {message ? <p className="mt-3 text-sm text-green-700">{message}</p> : null}
         {error ? <p className="mt-3 text-red-600">{error}</p> : null}
+      </section>
+
+      <section className="rounded-lg border bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-medium">Capability status</h2>
+        <p className="mt-1 text-xs text-gray-500">
+          Read-only deployment and organization state. Saving a provider/model override does not
+          enable a disabled capability.
+        </p>
+        {notices.length === 0 ? (
+          <p className="mt-2 text-sm text-gray-600">No capability blockers reported.</p>
+        ) : (
+          <ul className="mt-2 flex flex-col gap-1 text-sm text-amber-700">
+            {notices.map((notice) => (
+              <li key={notice}>{notice}</li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   );

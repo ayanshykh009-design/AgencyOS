@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import CurrentUser, DbSession
+from app.core.permissions import Permission, require_permission
 from app.schemas.conversation import (
     ConversationCreate,
     ConversationMessageCreate,
@@ -18,11 +19,15 @@ from app.services.conversation_service import ConversationService
 
 router = APIRouter()
 
+_read = Depends(require_permission(Permission.LEAD_READ))
+_write = Depends(require_permission(Permission.LEAD_WRITE))
+
 
 @router.get(
     "/open",
     response_model=list[ConversationRead],
     summary="List open conversations",
+    dependencies=[_read],
 )
 async def list_open(
     db: DbSession,
@@ -41,6 +46,7 @@ async def list_open(
     "/leads/{lead_id}",
     response_model=list[ConversationRead],
     summary="List conversations for a lead",
+    dependencies=[_read],
 )
 async def list_for_lead(
     lead_id: uuid.UUID, db: DbSession, current_user: CurrentUser
@@ -55,6 +61,7 @@ async def list_for_lead(
     response_model=ConversationRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a conversation",
+    dependencies=[_write],
 )
 async def create_conversation(
     body: ConversationCreate, db: DbSession, current_user: CurrentUser
@@ -70,6 +77,7 @@ async def create_conversation(
     "/{conversation_id}",
     response_model=ConversationRead,
     summary="Get a conversation",
+    dependencies=[_read],
 )
 async def get_conversation(
     conversation_id: uuid.UUID, db: DbSession, current_user: CurrentUser
@@ -83,6 +91,7 @@ async def get_conversation(
     "/{conversation_id}",
     response_model=ConversationRead,
     summary="Update a conversation",
+    dependencies=[_write],
 )
 async def update_conversation(
     conversation_id: uuid.UUID,
@@ -103,6 +112,7 @@ async def update_conversation(
     "/{conversation_id}/messages",
     response_model=list[ConversationMessageRead],
     summary="List messages in a conversation",
+    dependencies=[_read],
 )
 async def list_messages(
     conversation_id: uuid.UUID,
@@ -123,6 +133,7 @@ async def list_messages(
     response_model=ConversationMessageRead,
     status_code=status.HTTP_201_CREATED,
     summary="Add a message to a conversation",
+    dependencies=[_write],
 )
 async def add_message(
     conversation_id: uuid.UUID,
@@ -133,5 +144,7 @@ async def add_message(
     service = ConversationService(db)
     data = body.model_dump()
     data["organization_id"] = current_user.organization_id
-    message = await service.add_message(current_user.organization_id, conversation_id, data)
+    message = await service.add_message(
+        current_user.organization_id, conversation_id, data, actor=current_user
+    )
     return ConversationMessageRead.model_validate(message)

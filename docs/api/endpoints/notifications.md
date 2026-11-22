@@ -1,8 +1,16 @@
 # Notifications
 
 Per-user in-app inbox; M6 delivery workers create and deliver inbox rows. All
-endpoints are JWT-authenticated. Reads require `notification_read`; creation
-requires `notification_write`.
+endpoints are JWT-authenticated. Reads (and mark-read mutations) require
+`notification_read`.
+
+**There is no notification-create endpoint.** Every `NotificationType` is a
+system/worker/agent/approval origin; inbox rows are created exclusively by
+trusted internal paths (the M6 delivery worker via the in-app provider, and
+internal services through `NotificationService.create`). The previous
+`POST /api/v1/notifications` route was removed: a user-writable create
+surface would let any authenticated member fabricate privileged
+SYSTEM/approval notifications in another user's inbox.
 
 ## GET /api/v1/notifications
 

@@ -13,6 +13,30 @@ const nextConfig = {
   reactStrictMode: true,
   // Required by the production multi-stage Docker build (docker/frontend/Dockerfile.prod).
   output: "standalone",
+  async redirects() {
+    return [
+      {
+        source: "/operational-monitoring",
+        destination: "/monitoring",
+        permanent: true,
+      },
+      {
+        source: "/operational-monitoring/:path*",
+        destination: "/monitoring",
+        permanent: true,
+      },
+      {
+        source: "/worker-monitoring",
+        destination: "/monitoring",
+        permanent: true,
+      },
+      {
+        source: "/worker-monitoring/:path*",
+        destination: "/monitoring",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

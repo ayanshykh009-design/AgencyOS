@@ -89,6 +89,18 @@ export interface RetentionStatisticsResponse {
   workers_pruned: number;
 }
 
+/** Delivery outbox statistics (backend DeliveryStatisticsResponse). */
+export interface DeliveryStatisticsResponse {
+  queued: number;
+  processing: number;
+  retrying: number;
+  delivered: number;
+  failed: number;
+  cancelled: number;
+  active: number;
+  terminal: number;
+}
+
 /** Current automation pause state (subset of backend current_status). */
 export interface AutomationCurrentStatus {
   enabled: boolean;

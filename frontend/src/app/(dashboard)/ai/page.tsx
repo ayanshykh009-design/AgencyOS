@@ -6,10 +6,13 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { aiRunDisabledReason } from "@/lib/ai-capabilities";
 import { ApiRequestError } from "@/lib/api-client";
+import { canCancelAIRun, canDispatchDraft, canRunAI, canViewAI } from "@/lib/batch5-permissions";
 import {
   cancelAgentRun,
   dispatchDraft,
+  getAICapabilities,
   getAISettings,
   getAgentRun,
   listAITools,
@@ -17,6 +20,7 @@ import {
 } from "@/services/ai";
 import { listLeads } from "@/services/leads";
 import type {
+  AICapabilities,
   AgentRunRead,
   AgentRunStatus,
   Lead,
@@ -49,11 +53,57 @@ function responseFromRun(run: AgentRunRead | null): string | null {
   return null;
 }
 
+/**
+ * Run/Cancel affordances extracted with explicit permission + capability props
+ * so their rendered (including disabled) states can be verified in SSR tests.
+ */
+export function AIRunControls({
+  canRun,
+  canCancel,
+  busy,
+  hasRun,
+  nonTerminal,
+  disabledReason,
+  onRun,
+  onCancel,
+}: {
+  canRun: boolean;
+  canCancel: boolean;
+  busy: boolean;
+  hasRun: boolean;
+  nonTerminal: boolean;
+  disabledReason: string | null;
+  onRun: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-3">
+        <Button onClick={onRun} disabled={busy || !canRun || nonTerminal}>
+          {busy ? "Running…" : hasRun ? "Re-run AI" : "Run AI"}
+        </Button>
+        {canCancel && nonTerminal ? (
+          <Button onClick={onCancel} disabled={busy} variant="ghost">
+            Cancel
+          </Button>
+        ) : null}
+      </div>
+      {!canRun && disabledReason ? (
+        <p className="text-sm text-amber-700">{disabledReason}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export default function AIPage() {
   const session = useAuth();
+  const canView = !!session && canViewAI(session.user.role);
+  const role = session?.user.role;
   const [leads, setLeads] = useState<Lead[]>([]);
   const [tools, setTools] = useState<ToolManifestEntry[]>([]);
   const [settings, setSettings] = useState<OrganizationAISettings | null>(null);
+  // null means the capability surface could not be verified: fail closed.
+  const [capabilities, setCapabilities] = useState<AICapabilities | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [leadId, setLeadId] = useState("");
@@ -68,14 +118,22 @@ export default function AIPage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    if (!session) return;
+    if (!canView) return;
     let cancelled = false;
-    Promise.all([listLeads({ limit: 50 }), listAITools(), getAISettings()])
-      .then(([leadPage, toolList, aiSettings]) => {
+    Promise.all([
+      listLeads({ limit: 50 }),
+      listAITools(),
+      getAISettings(),
+      // A failure here leaves capabilities null, which disables every
+      // capability-dependent action while the rest of the workspace still loads.
+      getAICapabilities().catch(() => null),
+    ])
+      .then(([leadPage, toolList, aiSettings, aiCapabilities]) => {
         if (cancelled) return;
         setLeads(leadPage.items);
         setTools(toolList);
         setSettings(aiSettings);
+        setCapabilities(aiCapabilities);
         setError(null);
       })
       .catch((err: unknown) => {
@@ -85,7 +143,7 @@ export default function AIPage() {
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [canView]);
 
   // Poll the run to completion once a run id exists.
   useEffect(() => {
@@ -130,6 +188,10 @@ export default function AIPage() {
       setError("Select a lead first");
       return;
     }
+    if (!canRun) {
+      setError(capabilityReason ?? "Your role does not have permission to run AI.");
+      return;
+    }
     setBusy(true);
     setRun(null);
     setRunId(null);
@@ -153,7 +215,7 @@ export default function AIPage() {
   }
 
   async function onCancel() {
-    if (!runId) return;
+    if (!runId || !canCancel) return;
     setBusy(true);
     try {
       const updated = await cancelAgentRun(runId);
@@ -168,7 +230,7 @@ export default function AIPage() {
 
   async function onDispatch() {
     const response = responseFromRun(run);
-    if (!response) return;
+    if (!response || !canDispatch) return;
     setBusy(true);
     setDispatchMsg(null);
     try {
@@ -187,6 +249,22 @@ export default function AIPage() {
 
   const response = responseFromRun(run);
   const status = run?.status;
+  // Capability state is null until the backend confirms it; every derived
+  // action flag therefore starts false.
+  const capabilityReason = aiRunDisabledReason(capabilities);
+  const permissionCanRun = !!role && canRunAI(role);
+  const canRun = canView && permissionCanRun && capabilityReason === null;
+  const canCancel = canView && !!role && canCancelAIRun(role);
+  const canDispatch = canView && !!role && canDispatchDraft(role);
+  const nonTerminal = runId !== null && status != null && !TERMINAL.has(status);
+
+  if (!canView) {
+    return (
+      <p className="text-sm text-gray-600">
+        You do not have permission to run AI. Contact an administrator.
+      </p>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -253,16 +331,16 @@ export default function AIPage() {
             </div>
           ) : null}
 
-          <div className="flex items-center gap-3">
-            <Button onClick={onRun} disabled={busy || (status != null && !TERMINAL.has(status))}>
-              {busy ? "Running…" : runId ? "Re-run AI" : "Run AI"}
-            </Button>
-            {runId && status != null && !TERMINAL.has(status) ? (
-              <Button onClick={onCancel} disabled={busy} variant="ghost">
-                Cancel
-              </Button>
-            ) : null}
-          </div>
+          <AIRunControls
+            canRun={canRun}
+            canCancel={canCancel}
+            busy={busy}
+            hasRun={runId !== null}
+            nonTerminal={nonTerminal}
+            disabledReason={permissionCanRun ? capabilityReason : null}
+            onRun={onRun}
+            onCancel={onCancel}
+          />
         </div>
       </section>
 
@@ -300,12 +378,20 @@ export default function AIPage() {
             ) : null}
 
             {response && goal !== "research_lead" ? (
-              <div className="flex items-center gap-3">
-                <Button onClick={onDispatch} disabled={busy} variant="ghost">
-                  Dispatch to n8n
-                </Button>
-                {dispatchMsg ? <span className="text-sm text-gray-600">{dispatchMsg}</span> : null}
-              </div>
+              canDispatch ? (
+                <div className="flex items-center gap-3">
+                  <Button onClick={onDispatch} disabled={busy} variant="ghost">
+                    Dispatch to n8n
+                  </Button>
+                  {dispatchMsg ? (
+                    <span className="text-sm text-gray-600">{dispatchMsg}</span>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600">
+                  You do not have permission to dispatch drafts. Contact an administrator.
+                </p>
+              )
             ) : null}
           </div>
         </section>

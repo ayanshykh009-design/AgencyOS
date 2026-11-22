@@ -31,10 +31,12 @@ ENDPOINTS_DIR = (
 # aliased imports (``rl.limit``) are covered too. ``limiter.exempt`` is excluded
 # because it removes the limit and never injects headers.
 LIMITER_DECORATORS = frozenset({"limit", "shared_limit"})
-# Baseline inventory at the time of the R7 fix: 13 auth routes, 5 AI routes,
-# 2 agent routes, 2 team routes. Guarding the count keeps a broken scanner
+# Current inventory: 13 auth routes, 6 AI routes (the Batch 5 capability
+# endpoint added one), 2 agent routes, 2 team routes = 23. The R7 baseline was
+# 22 (5 AI routes); keep the floor at the current count so a lost decorator on
+# any one route cannot pass silently. Guarding the count keeps a broken scanner
 # (which would trivially report "no offenders") from passing.
-MIN_LIMITED_HANDLERS = 22
+MIN_LIMITED_HANDLERS = 23
 
 
 def _call_attr(node: ast.expr) -> str | None:
@@ -209,9 +211,9 @@ async def list_things(request: Request, response: Response):
 def test_scanner_flags_a_real_handler_when_the_parameter_is_removed() -> None:
     """Controlled mutation of the real source: the guard catches the R7 defect.
 
-    ``ai.py`` previously omitted the parameter on all five handlers. Removing it
-    from the current file (in memory only) must make the scanner report that
-    handler, proving the guard is not vacuously green.
+    ``ai.py`` previously omitted the parameter on all of its rate-limited
+    handlers. Removing it from the current file (in memory only) must make the
+    scanner report that handler, proving the guard is not vacuously green.
     """
     source = (ENDPOINTS_DIR / "ai.py").read_text(encoding="utf-8")
     assert "response: Response" in source
@@ -222,7 +224,7 @@ def test_scanner_flags_a_real_handler_when_the_parameter_is_removed() -> None:
     assert len(offenders) == 1
     assert "get_ai_settings" in offenders[0]
     assert "response" in offenders[0]
-    assert len(inventory) == 5
+    assert len(inventory) == 6
 
 
 def test_scanner_covers_aliased_limiter_decorators() -> None:

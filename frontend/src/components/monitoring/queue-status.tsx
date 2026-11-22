@@ -19,6 +19,7 @@ import {
 
 import { useQueueStatus } from "@/services/monitoring";
 import type { QueueStatusResponse } from "@/types/monitoring";
+import { MonitoringErrorState } from "@/components/monitoring/monitoring-error-state";
 
 /**
  * Queue status display component.
@@ -33,6 +34,7 @@ export function QueueStatusDisplay() {
     isLoading,
     error,
     refetch,
+    isFetching,
   } = useQueueStatus({
     enabled: autoRefresh,
     refetchInterval: autoRefresh ? refreshInterval : undefined,
@@ -62,12 +64,11 @@ export function QueueStatusDisplay() {
       <Card>
         <CardHeader title="Queue Status" description="Error loading queue status"></CardHeader>
         <CardBody>
-          <div className="text-center py-8 text-destructive">
-            Error loading queue status: {error.message}
-            <Button variant="outline" className="mt-4" onClick={() => refetch()}>
-              Retry
-            </Button>
-          </div>
+          <MonitoringErrorState
+            message={`Error loading queue status: ${error.message}`}
+            onRetry={() => refetch()}
+            retrying={isFetching}
+          />
         </CardBody>
       </Card>
     );

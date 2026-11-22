@@ -21,7 +21,7 @@ export function Field({ label, htmlFor, error, hint, required, className, childr
         </label>
       ) : null}
       {children}
-      {hint && !error ? <p className="text-xs text-gray-400">{hint}</p> : null}
+      {hint && !error ? <p className="text-xs text-gray-600">{hint}</p> : null}
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>
   );

@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 
 import { useExecutionStatistics } from "@/services/monitoring";
+import { MonitoringErrorState } from "@/components/monitoring/monitoring-error-state";
 
 /**
  * Execution statistics display component.
@@ -26,7 +27,13 @@ import { useExecutionStatistics } from "@/services/monitoring";
 export function ExecutionStatisticsDisplay() {
   const [hours, setHours] = useState<number>(24);
 
-  const { data: executionStats, isLoading, error } = useExecutionStatistics(hours);
+  const {
+    data: executionStats,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useExecutionStatistics(hours);
 
   const handleHoursChange = (value: string) => {
     setHours(Number(value));
@@ -54,9 +61,11 @@ export function ExecutionStatisticsDisplay() {
           description="Error loading statistics"
         ></CardHeader>
         <CardBody>
-          <div className="text-center py-8 text-destructive">
-            Error loading execution statistics: {error.message}
-          </div>
+          <MonitoringErrorState
+            message={`Error loading execution statistics: ${error.message}`}
+            onRetry={() => refetch()}
+            retrying={isFetching}
+          />
         </CardBody>
       </Card>
     );

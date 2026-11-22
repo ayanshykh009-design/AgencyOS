@@ -1,6 +1,7 @@
 """Unit tests: execution adapter selection and dispatch payload shape."""
 from __future__ import annotations
 
+import logging
 import uuid
 from unittest.mock import AsyncMock, MagicMock
 
@@ -56,13 +57,15 @@ def test_adapter_error_payload_empty_exception_uses_class_name() -> None:
     assert payload["message"] == "ValueError"
 
 
-def test_adapter_error_payload_n8n_diagnostics() -> None:
-    error = N8nHttpError(status_code=500, body="db unavailable", url="https://n8n/x")
+def test_adapter_error_payload_n8n_diagnostics_never_keep_raw_body() -> None:
+    raw_body = "token=db-unavailable host=internal.n8n.local"
+    error = N8nHttpError(status_code=500, body=raw_body, url="https://n8n/x")
     payload = adapter_error_payload(error)
 
     assert payload["provider"] == "n8n"
     assert payload["status_code"] == 500
-    assert payload["body"] == "db unavailable"
+    assert payload["body"] == "<redacted provider response>"
+    assert raw_body not in str(payload)
     assert payload["error"] == "adapter_error"
 
 
@@ -101,6 +104,56 @@ async def test_n8n_adapter_uses_custom_webhook_path() -> None:
         config={"webhook_path": "/webhook/custom"},
     )
     assert client.trigger_webhook.await_args.args[0] == "/webhook/custom"
+
+
+async def test_n8n_adapter_sends_signed_org_actor_and_idempotency_metadata() -> None:
+    client = MagicMock()
+    client.trigger_webhook = AsyncMock(return_value={})
+    adapter = N8nAdapter(client)
+
+    await adapter.execute(
+        workflow_id=WORKFLOW_ID,
+        execution_id=EXECUTION_ID,
+        input_data={"lead_id": "x"},
+        config={},
+        metadata={
+            "organization_id": "org-1",
+            "actor_id": "actor-1",
+            "idempotency_key": "idem-1",
+        },
+    )
+
+    _, payload = client.trigger_webhook.await_args.args
+    metadata = client.trigger_webhook.await_args.kwargs["metadata"]
+    assert metadata == {
+        "organization_id": "org-1",
+        "workflow_id": str(WORKFLOW_ID),
+        "execution_id": str(EXECUTION_ID),
+        "actor_id": "actor-1",
+        "idempotency_key": "idem-1",
+    }
+    # Metadata is also in the canonical payload covered by the HMAC.
+    assert payload["organization_id"] == "org-1"
+    assert payload["actor_id"] == "actor-1"
+    assert payload["idempotency_key"] == "idem-1"
+
+
+async def test_n8n_adapter_does_not_log_raw_provider_response(caplog) -> None:
+    raw_response = "provider-secret-response-marker"
+    client = MagicMock()
+    client.trigger_webhook = AsyncMock(return_value={"debug": raw_response})
+    adapter = N8nAdapter(client)
+
+    with caplog.at_level(logging.INFO, logger="agencyos.automation.adapter"):
+        result = await adapter.execute(
+            workflow_id=WORKFLOW_ID,
+            execution_id=EXECUTION_ID,
+            input_data={},
+            config={},
+        )
+
+    assert result == {"debug": raw_response}
+    assert raw_response not in caplog.text
 
 
 async def test_builtin_adapter_runs_definition() -> None:

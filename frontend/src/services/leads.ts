@@ -1,5 +1,6 @@
 // Leads service: search/filter/sort/paginate, create, update, soft-delete.
 import { apiFetch } from "@/lib/api-client";
+import { getSession } from "@/lib/session";
 import type { Lead, LeadCreateInput, LeadStatus, LeadUpdateInput, Page } from "@/types";
 
 export interface LeadQuery {
@@ -37,9 +38,15 @@ export async function getLead(leadId: string): Promise<Lead> {
 }
 
 export async function createLead(input: LeadCreateInput): Promise<Lead> {
+  // The backend LeadCreate schema requires organization_id (a legacy contract
+  // field), but the endpoint overwrites it with the authenticated principal's
+  // organization — the client never controls tenant scoping. We send the
+  // session user's own org so the payload validates.
+  const organizationId = getSession()?.user.organization_id;
+  const payload = organizationId ? { ...input, organization_id: organizationId } : input;
   return apiFetch<Lead>("/leads", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify(payload),
   });
 }
 

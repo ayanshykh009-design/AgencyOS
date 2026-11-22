@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   decideFounderProposal,
+  deleteFounderConversation,
+  getFounderConversation,
   listFounderConversations,
   listFounderProposals,
   sendFounderMessage,
@@ -71,6 +73,33 @@ describe("founder service", () => {
     const [url] = fetchMock.mock.calls[0] as [string];
     expect(url).toContain("/founder/conversations?");
     expect(url).toContain("limit=10");
+  });
+
+  it("getFounderConversation GETs the thread and its messages", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        conversation: { conversation_id: "c-1", title: "T", is_archived: false },
+        messages: [{ id: "m-1", sender: "user", body: "Hello", metadata: {} }],
+      })
+    );
+
+    const thread = await getFounderConversation("c-1");
+
+    expect(thread.conversation.conversation_id).toBe("c-1");
+    expect(thread.messages[0].body).toBe("Hello");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/founder/conversations/c-1");
+    expect(init.method).toBeUndefined();
+  });
+
+  it("deleteFounderConversation DELETEs the thread", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await deleteFounderConversation("c-1");
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/founder/conversations/c-1");
+    expect(init.method).toBe("DELETE");
   });
 
   it("listFounderProposals passes a status filter", async () => {

@@ -93,6 +93,21 @@ async def create_workflow(
 
 
 @router.get(
+    "/active",
+    response_model=list[WorkflowRead],
+    summary="List active workflows",
+    dependencies=[_read],
+)
+async def list_active_workflows(
+    db: DbSession,
+    current_user: CurrentUser,
+) -> list[WorkflowRead]:
+    service = WorkflowService(db)
+    workflows = await service.list_active(current_user.organization_id)
+    return [WorkflowRead.model_validate(w) for w in workflows]
+
+
+@router.get(
     "/{workflow_id}",
     response_model=WorkflowRead,
     summary="Get a workflow",
@@ -106,21 +121,6 @@ async def get_workflow(
     service = WorkflowService(db)
     workflow = await service.get_or_404(current_user.organization_id, workflow_id)
     return WorkflowRead.model_validate(workflow)
-
-
-@router.get(
-    "/active",
-    response_model=list[WorkflowRead],
-    summary="List active workflows",
-    dependencies=[_read],
-)
-async def list_active_workflows(
-    db: DbSession,
-    current_user: CurrentUser,
-) -> list[WorkflowRead]:
-    service = WorkflowService(db)
-    workflows = await service.list_active(current_user.organization_id)
-    return [WorkflowRead.model_validate(w) for w in workflows]
 
 
 @router.patch(
@@ -298,6 +298,7 @@ async def update_trigger(
         current_user.organization_id,
         trigger_id,
         body,
+        workflow_id=workflow_id,
     )
     return WorkflowTriggerRead.model_validate(trigger)
 
@@ -315,7 +316,9 @@ async def delete_trigger(
     current_user: CurrentUser,
 ):
     service = WorkflowService(db)
-    await service.delete_trigger(current_user.organization_id, trigger_id)
+    await service.delete_trigger(
+        current_user.organization_id, trigger_id, workflow_id=workflow_id
+    )
 
 
 # Nested executions -----------------------------------------------------------

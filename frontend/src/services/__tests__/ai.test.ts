@@ -2,8 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { clearSession, setSession } from "@/lib/session";
 import {
+  cancelAgentRun,
   dispatchDraft,
+  getAICapabilities,
   getAISettings,
+  getAgentRun,
   listAITools,
   runBrain,
   updateAISettings,
@@ -85,6 +88,86 @@ describe("ai service", () => {
     expect((init.body as string) ?? "").toContain('"goal":"draft_email"');
   });
 
+  it("getAICapabilities GETs the non-secret capability surface and parses every boolean", async () => {
+    setSession({
+      accessToken: "access-123",
+      expiresIn: 3600,
+      user: USER,
+    });
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        agent_runtime_enabled: false,
+        founder_assistant_enabled: true,
+        intelligence_triage_enabled: false,
+        intelligence_narrative_enabled: true,
+        ai_execution_enabled: false,
+        ai_budget_configured: true,
+      })
+    );
+
+    const capabilities = await getAICapabilities();
+
+    expect(capabilities).toEqual({
+      agent_runtime_enabled: false,
+      founder_assistant_enabled: true,
+      intelligence_triage_enabled: false,
+      intelligence_narrative_enabled: true,
+      ai_execution_enabled: false,
+      ai_budget_configured: true,
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/ai/capabilities");
+    expect(init.method).toBeUndefined();
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer access-123");
+  });
+
+  it("getAgentRun GETs a single run by id", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        id: "run-123",
+        organization_id: USER.organization_id,
+        agent_name: "ai_brain",
+        status: "running",
+        trigger: "ai_run",
+        input: {},
+        cost: 0,
+        created_at: "2026-08-01T00:00:00Z",
+        updated_at: "2026-08-01T00:00:00Z",
+      })
+    );
+
+    const run = await getAgentRun("run-123");
+
+    expect(run.id).toBe("run-123");
+    expect(run.status).toBe("running");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/agents/runs/run-123");
+    expect(init.method).toBeUndefined();
+  });
+
+  it("cancelAgentRun POSTs to the run cancel endpoint", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        id: "run-123",
+        organization_id: USER.organization_id,
+        agent_name: "ai_brain",
+        status: "cancelled",
+        trigger: "ai_run",
+        input: {},
+        cost: 0,
+        created_at: "2026-08-01T00:00:00Z",
+        updated_at: "2026-08-01T00:00:00Z",
+      })
+    );
+
+    const run = await cancelAgentRun("run-123");
+
+    expect(run.status).toBe("cancelled");
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/agents/runs/run-123/cancel");
+    expect(init.method).toBe("POST");
+  });
+
   it("dispatchDraft POSTs the workflow payload", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ workflow: "outreach-dispatch", status: 200, data: {} })
@@ -99,13 +182,19 @@ describe("ai service", () => {
 
   it("getAISettings GETs the effective settings", async () => {
     fetchMock.mockResolvedValue(
-      jsonResponse({ provider: "openai", model: "gpt-4o-mini", overridden: false })
+      jsonResponse({
+        provider: "openai",
+        model: "gpt-4o-mini",
+        overridden: false,
+        kill_switch: false,
+      })
     );
 
     const settings = await getAISettings();
 
     expect(settings.provider).toBe("openai");
     expect(settings.overridden).toBe(false);
+    expect(settings.kill_switch).toBe(false);
   });
 
   it("updateAISettings PATCHes the org override", async () => {

@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.founder_messages (
   sender_type         public.founder_message_sender NOT NULL,
   sender_user_id      uuid,
   body                text NOT NULL,
-  metadata_           jsonb NOT NULL DEFAULT '{}',
+  metadata            jsonb NOT NULL DEFAULT '{}',
   sent_at             timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT chk_founder_messages_body_not_blank CHECK (length(btrim(body)) > 0),
   CONSTRAINT fk_founder_messages_sender FOREIGN KEY (sender_user_id) REFERENCES public.users (id) ON DELETE SET NULL

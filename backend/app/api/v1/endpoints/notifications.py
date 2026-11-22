@@ -1,15 +1,24 @@
-"""Notification endpoints: per-user in-app inbox."""
+"""Notification endpoints: per-user in-app inbox (read/mark-read only).
+
+Notification *creation* is a trusted internal concern: the M6 delivery worker
+(``app/communication/inapp_provider.py``) and other trusted services create
+inbox rows through ``NotificationService.create`` (or the provider directly).
+There is deliberately no HTTP creation endpoint — every ``NotificationType``
+is a system/worker/agent/approval origin, so a user-writable create surface
+would let any authenticated member fabricate privileged SYSTEM/approval
+notifications in another user's inbox (a phishing primitive).
+"""
 
 from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import CurrentUser, DbSession
+from app.core.errors import AppError
 from app.core.permissions import Permission, require_permission
 from app.schemas.notification import (
-    NotificationCreate,
     NotificationListResponse,
     NotificationRead,
     NotificationTypeCounts,
@@ -21,7 +30,6 @@ from app.services.notification_service import NotificationService
 router = APIRouter()
 
 _read = Depends(require_permission(Permission.NOTIFICATION_READ))
-_write = Depends(require_permission(Permission.NOTIFICATION_WRITE))
 
 
 @router.get(
@@ -74,25 +82,6 @@ async def counts_by_type(db: DbSession, current_user: CurrentUser) -> Notificati
     return NotificationTypeCounts(counts=counts)
 
 
-@router.post(
-    "",
-    response_model=NotificationRead,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a notification (system/worker)",
-    dependencies=[_write],
-)
-async def create_notification(
-    body: NotificationCreate,
-    db: DbSession,
-    current_user: CurrentUser,
-) -> NotificationRead:
-    service = NotificationService(db)
-    data = body.model_dump(exclude={"organization_id"})
-    metadata = data.pop("metadata", None) or {}
-    notification = await service.create(current_user.organization_id, metadata_=metadata, **data)
-    return NotificationRead.model_validate(notification)
-
-
 @router.get(
     "/{notification_id}",
     response_model=NotificationRead,
@@ -126,8 +115,6 @@ async def update_notification(
     service = NotificationService(db)
     data = body.model_dump(exclude_unset=True)
     if "is_read" not in data:
-        from app.core.errors import AppError
-
         raise AppError(
             code="notification.is_read_required",
             message="is_read is required",

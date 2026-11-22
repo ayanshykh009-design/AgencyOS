@@ -17,13 +17,20 @@ import { Badge } from "@/components/ui/badge";
 
 import { useMonitoringInformation } from "@/services/monitoring";
 import type { MonitoringInformationResponse } from "@/types/monitoring";
+import { MonitoringErrorState } from "@/components/monitoring/monitoring-error-state";
 
 /**
  * Monitoring information display component.
  * Shows comprehensive system monitoring data including health, resources, and operational metrics.
  */
 export function MonitoringInformationDisplay() {
-  const { data: monitoringInfo, isLoading, error } = useMonitoringInformation();
+  const {
+    data: monitoringInfo,
+    isLoading,
+    error,
+    refetch,
+    isFetching,
+  } = useMonitoringInformation();
 
   if (isLoading) {
     return (
@@ -47,9 +54,13 @@ export function MonitoringInformationDisplay() {
           description="Error loading monitoring data"
         ></CardHeader>
         <CardBody>
-          <div className="text-center py-8 text-destructive">
-            Error loading monitoring information: {error.message}
-          </div>
+          <MonitoringErrorState
+            message={`Error loading monitoring information: ${error.message}`}
+
+            onRetry={() => refetch()}
+
+            retrying={isFetching}
+          />
         </CardBody>
       </Card>
     );

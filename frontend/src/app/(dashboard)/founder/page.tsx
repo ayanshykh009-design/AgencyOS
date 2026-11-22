@@ -7,17 +7,18 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { founderChatDisabledReason, proposalDecisionDisabledReason } from "@/lib/ai-capabilities";
 import { ApiRequestError } from "@/lib/api-client";
-import { can } from "@/lib/permissions";
+import { canManageFounder, canViewFounder } from "@/lib/batch5-permissions";
+import { getAICapabilities } from "@/services/ai";
 import {
   decideFounderProposal,
   deleteFounderConversation,
   getFounderConversation,
   listFounderConversations,
-  listFounderProposals,
   sendFounderMessage,
 } from "@/services/founder";
-import type { FounderConversation, FounderMessage, FounderProposal } from "@/types";
+import type { AICapabilities, FounderConversation, FounderMessage, FounderProposal } from "@/types";
 
 interface ChatEntry {
   message: FounderMessage;
@@ -29,52 +30,80 @@ interface ChatEntry {
 
 export default function FounderChatPage() {
   const session = useAuth();
+  const canView = !!session && canViewFounder(session.user.role);
+  const canManage = !!session && canManageFounder(session.user.role);
   const [conversations, setConversations] = useState<FounderConversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [draft, setDraft] = useState("");
+  // null means unverified: chat send and proposal decisions fail closed.
+  const [capabilities, setCapabilities] = useState<AICapabilities | null>(null);
   const [busy, setBusy] = useState(false);
+  const [decidingId, setDecidingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Event handlers write state after awaits: guard against stale responses when
+  // the user switches conversations quickly, and against post-unmount updates.
+  const mountedRef = useRef(true);
+  const conversationSeqRef = useRef(0);
 
-  const canManage = !!session && can(session.user.role, "founder_manage");
+  const chatDisabledReason = founderChatDisabledReason(capabilities);
+  const decisionDisabledReason = proposalDecisionDisabledReason(capabilities);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   async function refreshConversations() {
     const page = await listFounderConversations({ limit: 50 });
-    setConversations(page.items);
+    if (mountedRef.current) setConversations(page.items);
   }
 
   useEffect(() => {
-    if (!session) return;
+    if (!canView) return;
     let cancelled = false;
     listFounderConversations({ limit: 50 })
       .then((page) => {
         if (!cancelled) setConversations(page.items);
       })
       .catch(() => undefined);
+    getAICapabilities()
+      .then((surface) => {
+        if (!cancelled) setCapabilities(surface);
+      })
+      .catch(() => {
+        if (!cancelled) setCapabilities(null);
+      });
     return () => {
       cancelled = true;
     };
-  }, [session]);
+  }, [canView]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [messages]);
 
   async function openConversation(id: string) {
+    const seq = ++conversationSeqRef.current;
     setActiveId(id);
     setError(null);
     try {
       const { messages: loaded } = await getFounderConversation(id);
+      if (!mountedRef.current || seq !== conversationSeqRef.current) return;
       setMessages(loaded.map((message) => ({ message, proposals: [] })));
     } catch (err: unknown) {
+      if (!mountedRef.current || seq !== conversationSeqRef.current) return;
       setError(err instanceof ApiRequestError ? err.message : "Failed to load conversation");
     }
   }
 
   async function onSend() {
     const text = draft.trim();
-    if (!text || busy) return;
+    if (!text || busy || !canManage || chatDisabledReason) return;
+    const seq = conversationSeqRef.current;
     setBusy(true);
     setError(null);
     setDraft("");
@@ -83,6 +112,7 @@ export default function FounderChatPage() {
         message: text,
         conversation_id: activeId,
       });
+      if (!mountedRef.current || seq !== conversationSeqRef.current) return;
       setActiveId(res.conversation_id);
       setMessages((prev) => [
         ...prev,
@@ -100,18 +130,24 @@ export default function FounderChatPage() {
       ]);
       await refreshConversations();
     } catch (err: unknown) {
+      if (!mountedRef.current || seq !== conversationSeqRef.current) return;
       setError(err instanceof ApiRequestError ? err.message : "Assistant failed to respond");
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
   }
 
   async function onDecide(proposal: FounderProposal, approve: boolean) {
+    if (!canManage || decisionDisabledReason || decidingId) return;
+    const seq = conversationSeqRef.current;
+    setDecidingId(proposal.id);
+    setError(null);
     try {
       const updated = await decideFounderProposal(proposal.id, {
         approve,
         decision_note: approve ? null : "Denied from assistant",
       });
+      if (!mountedRef.current || seq !== conversationSeqRef.current) return;
       setMessages((prev) =>
         prev.map((entry) => ({
           ...entry,
@@ -119,24 +155,41 @@ export default function FounderChatPage() {
         }))
       );
     } catch (err: unknown) {
+      if (!mountedRef.current || seq !== conversationSeqRef.current) return;
       setError(err instanceof ApiRequestError ? err.message : "Decision failed");
+    } finally {
+      if (mountedRef.current) setDecidingId(null);
     }
   }
 
   async function onDelete(id: string) {
+    if (!canManage) return;
+    const seq = conversationSeqRef.current;
     try {
       await deleteFounderConversation(id);
+      if (!mountedRef.current) return;
+      await refreshConversations();
+      // The list must refresh even if the user switched threads mid-delete; only
+      // the active-thread reset is invalidated by a newer conversation request.
+      if (seq !== conversationSeqRef.current) return;
       if (activeId === id) {
         setActiveId(null);
         setMessages([]);
       }
-      await refreshConversations();
     } catch (err: unknown) {
+      if (!mountedRef.current || seq !== conversationSeqRef.current) return;
       setError(err instanceof ApiRequestError ? err.message : "Delete failed");
     }
   }
 
   if (!session) return null;
+  if (!canView) {
+    return (
+      <p className="text-sm text-gray-600">
+        You do not have permission to view the founder assistant. Contact an administrator.
+      </p>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -152,30 +205,14 @@ export default function FounderChatPage() {
             <p className="text-sm text-gray-500">No conversations yet.</p>
           ) : (
             conversations.map((c) => (
-              <button
+              <ConversationListItem
                 key={c.conversation_id}
-                type="button"
-                onClick={() => openConversation(c.conversation_id)}
-                className={`flex items-center justify-between rounded-md border px-3 py-2 text-left text-sm ${
-                  activeId === c.conversation_id ? "border-gray-900" : ""
-                }`}
-              >
-                <span className="truncate">{c.title || "Untitled conversation"}</span>
-                {canManage ? (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Delete conversation"
-                    className="ml-2 text-xs text-gray-400 hover:text-red-600"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(c.conversation_id);
-                    }}
-                  >
-                    ✕
-                  </span>
-                ) : null}
-              </button>
+                conversation={c}
+                canManage={canManage}
+                active={activeId === c.conversation_id}
+                onOpen={() => openConversation(c.conversation_id)}
+                onDelete={() => onDelete(c.conversation_id)}
+              />
             ))
           )}
         </aside>
@@ -200,7 +237,14 @@ export default function FounderChatPage() {
                   {entry.proposals.length > 0 ? (
                     <div className="flex flex-col gap-2">
                       {entry.proposals.map((p) => (
-                        <ProposalCard key={p.id} proposal={p} onDecide={onDecide} />
+                        <ProposalCard
+                          key={p.id}
+                          proposal={p}
+                          canManage={canManage}
+                          decisionDisabledReason={decisionDisabledReason}
+                          busy={decidingId !== null}
+                          onDecide={onDecide}
+                        />
                       ))}
                     </div>
                   ) : null}
@@ -211,37 +255,82 @@ export default function FounderChatPage() {
 
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
-          <div className="flex items-end gap-2">
-            <textarea
-              className="min-h-[44px] flex-1 rounded-md border px-3 py-2 text-sm"
-              placeholder="Message the founder assistant…"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  onSend();
-                }
-              }}
+          {canManage ? (
+            <FounderComposer
+              busy={busy}
+              disabledReason={chatDisabledReason}
+              draft={draft}
+              onDraftChange={setDraft}
+              onSend={onSend}
             />
-            <Button onClick={onSend} disabled={busy || !draft.trim()}>
-              {busy ? "Thinking…" : "Send"}
-            </Button>
-          </div>
+          ) : (
+            <p className="text-sm text-gray-500">
+              You can read this history, but only managers can message the assistant.
+            </p>
+          )}
         </section>
       </div>
     </div>
   );
 }
 
-function ProposalCard({
+/** Delete affordance is manager-only; readers get an inert list item. */
+export function ConversationListItem({
+  conversation,
+  canManage,
+  active,
+  onOpen,
+  onDelete,
+}: {
+  conversation: FounderConversation;
+  canManage: boolean;
+  active: boolean;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`flex items-center justify-between rounded-md border px-3 py-2 text-left text-sm ${
+        active ? "border-gray-900" : ""
+      }`}
+    >
+      <span className="truncate">{conversation.title || "Untitled conversation"}</span>
+      {canManage ? (
+        <span
+          role="button"
+          tabIndex={0}
+          aria-label="Delete conversation"
+          className="ml-2 text-xs text-gray-400 hover:text-red-600"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          ✕
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
+/** Read-only for non-managers; disabled with a truthful notice when blocked. */
+export function ProposalCard({
   proposal,
+  canManage,
+  decisionDisabledReason,
+  busy = false,
   onDecide,
 }: {
   proposal: FounderProposal;
+  canManage: boolean;
+  decisionDisabledReason: string | null;
+  busy?: boolean;
   onDecide: (p: FounderProposal, approve: boolean) => void;
 }) {
   const terminal = proposal.status !== "proposed";
+  const showDecisionNotice = !terminal && canManage && !!decisionDisabledReason;
   return (
     <div className="rounded-lg border bg-white p-3 text-sm shadow-sm">
       <div className="flex items-center justify-between">
@@ -253,11 +342,12 @@ function ProposalCard({
       {proposal.justification ? (
         <p className="mt-1 text-xs text-gray-500">{proposal.justification}</p>
       ) : null}
-      {!terminal ? (
+      {!terminal && canManage && !decisionDisabledReason ? (
         <div className="mt-2 flex items-center gap-2">
           <Button
             variant="ghost"
             onClick={() => onDecide(proposal, true)}
+            disabled={busy}
             className="text-green-700"
           >
             Approve
@@ -265,12 +355,55 @@ function ProposalCard({
           <Button
             variant="ghost"
             onClick={() => onDecide(proposal, false)}
+            disabled={busy}
             className="text-red-700"
           >
             Deny
           </Button>
         </div>
       ) : null}
+      {showDecisionNotice ? (
+        <p className="mt-2 text-xs text-amber-700">{decisionDisabledReason}</p>
+      ) : null}
+    </div>
+  );
+}
+
+/** Send control is only rendered for managers and fails closed when unavailable. */
+export function FounderComposer({
+  busy,
+  disabledReason,
+  draft,
+  onDraftChange,
+  onSend,
+}: {
+  busy: boolean;
+  disabledReason: string | null;
+  draft: string;
+  onDraftChange: (value: string) => void;
+  onSend: () => void;
+}) {
+  const disabled = busy || !!disabledReason || !draft.trim();
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-end gap-2">
+        <textarea
+          className="min-h-[44px] flex-1 rounded-md border px-3 py-2 text-sm"
+          placeholder="Message the founder assistant…"
+          value={draft}
+          onChange={(e) => onDraftChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              if (!disabled) onSend();
+            }
+          }}
+        />
+        <Button onClick={onSend} disabled={disabled}>
+          {busy ? "Thinking…" : "Send"}
+        </Button>
+      </div>
+      {disabledReason ? <p className="text-sm text-amber-700">{disabledReason}</p> : null}
     </div>
   );
 }

@@ -127,6 +127,30 @@ async def test_is_ai_enabled_kill_switch_disables() -> None:
     assert await service.is_ai_enabled(ORG_ID) is False
 
 
+async def test_is_ai_enabled_without_ai_key_is_enabled() -> None:
+    """A missing ``settings.ai`` override preserves the new-org default."""
+    org = Organization(name="Acme", slug="acme", settings={"other": "value"})
+    org.id = ORG_ID
+    service = AIService(_FakeOrgSession(org))
+    assert await service.is_ai_enabled(ORG_ID) is True
+
+
+async def test_is_ai_enabled_with_non_dict_ai_is_disabled() -> None:
+    """Malformed non-dict ``settings.ai`` fails closed (denies execution)."""
+    org = Organization(name="Acme", slug="acme", settings={"ai": "not-a-dict"})
+    org.id = ORG_ID
+    service = AIService(_FakeOrgSession(org))
+    assert await service.is_ai_enabled(ORG_ID) is False
+
+
+async def test_is_ai_enabled_with_kill_switch_true_is_disabled() -> None:
+    """An explicit ``ai.kill_switch = True`` denies execution."""
+    org = Organization(name="Acme", slug="acme", settings={"ai": {"kill_switch": True}})
+    org.id = ORG_ID
+    service = AIService(_FakeOrgSession(org))
+    assert await service.is_ai_enabled(ORG_ID) is False
+
+
 async def test_is_ai_enabled_missing_org_fails_closed() -> None:
     service = AIService(_NoOrgSession())
     assert await service.is_ai_enabled(ORG_ID) is False

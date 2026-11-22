@@ -3,19 +3,21 @@
 // can acknowledge/dismiss signals and trigger a manual sweep (manage only).
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { triageDisabledReason } from "@/lib/ai-capabilities";
 import { ApiRequestError } from "@/lib/api-client";
-import { can } from "@/lib/permissions";
-import { ROUTES } from "@/lib/constants";
+import { canManageFounder, canViewFounder } from "@/lib/batch5-permissions";
+import { getAICapabilities } from "@/services/ai";
 import {
   useAcknowledgeSignal,
   useRunTriage,
   useSignalSummary,
   useSignals,
 } from "@/services/intelligence";
+import type { AICapabilities } from "@/types";
 import type { IntelligenceSignal, IntelligenceSignalStatus } from "@/types/intelligence";
 
 const SEVERITY_STYLES: Record<string, string> = {
@@ -35,9 +37,38 @@ const STATUS_FILTERS: Array<{ label: string; value: IntelligenceSignalStatus | "
 
 export default function FounderIntelligencePage() {
   const session = useAuth();
-  const canManage = !!session && can(session.user.role, "founder_manage");
+  if (!session) return null;
+  if (!canViewFounder(session.user.role)) {
+    return (
+      <p className="text-sm text-gray-600">
+        You do not have permission to view intelligence signals. Contact an administrator.
+      </p>
+    );
+  }
+  return <IntelligenceDashboard canManage={canManageFounder(session.user.role)} />;
+}
+
+function IntelligenceDashboard({ canManage }: { canManage: boolean }) {
   const [statusFilter, setStatusFilter] = useState<IntelligenceSignalStatus | "all">("all");
+  // null means unverified: only the manual triage control fails closed.
+  const [capabilities, setCapabilities] = useState<AICapabilities | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const triageReason = triageDisabledReason(capabilities);
+
+  useEffect(() => {
+    if (!canManage) return;
+    let cancelled = false;
+    getAICapabilities()
+      .then((surface) => {
+        if (!cancelled) setCapabilities(surface);
+      })
+      .catch(() => {
+        if (!cancelled) setCapabilities(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [canManage]);
 
   const query = useMemo(
     () => ({ status: statusFilter === "all" ? undefined : statusFilter, limit: 100, offset: 0 }),
@@ -50,6 +81,10 @@ export default function FounderIntelligencePage() {
   const run = useRunTriage();
 
   async function onTransition(signal: IntelligenceSignal, next: IntelligenceSignalStatus) {
+    if (!canManage) {
+      setError("You do not have permission to update intelligence signals.");
+      return;
+    }
     setError(null);
     try {
       await ack.mutateAsync({ id: signal.id, status: next });
@@ -59,6 +94,10 @@ export default function FounderIntelligencePage() {
   }
 
   async function onRunTriage() {
+    if (!canManage || triageReason) {
+      setError(triageReason ?? "You do not have permission to run triage.");
+      return;
+    }
     setError(null);
     try {
       await run.mutateAsync();
@@ -66,8 +105,6 @@ export default function FounderIntelligencePage() {
       setError(err instanceof ApiRequestError ? err.message : "Triage run failed");
     }
   }
-
-  if (!session) return null;
 
   const signals = data?.items ?? [];
 
@@ -81,9 +118,11 @@ export default function FounderIntelligencePage() {
           </p>
         </div>
         {canManage ? (
-          <Button onClick={onRunTriage} disabled={run.isPending}>
-            {run.isPending ? "Triaging…" : "Run triage now"}
-          </Button>
+          <TriageControl
+            disabledReason={triageReason}
+            isPending={run.isPending}
+            onRun={onRunTriage}
+          />
         ) : null}
       </div>
 
@@ -162,7 +201,28 @@ function SummaryChip({
   );
 }
 
-function SignalCard({
+/** Manager-only manual sweep, visibly disabled with a truthful reason. */
+export function TriageControl({
+  disabledReason,
+  isPending,
+  onRun,
+}: {
+  disabledReason: string | null;
+  isPending: boolean;
+  onRun: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button onClick={onRun} disabled={!!disabledReason || isPending}>
+        {isPending ? "Triaging…" : "Run triage now"}
+      </Button>
+      {disabledReason ? <p className="text-xs text-amber-700">{disabledReason}</p> : null}
+    </div>
+  );
+}
+
+/** Acknowledge/dismiss stay manager-only and independent of manual triage. */
+export function SignalCard({
   signal,
   canManage,
   onTransition,

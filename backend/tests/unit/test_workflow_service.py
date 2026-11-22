@@ -172,18 +172,88 @@ async def test_update_applies_only_provided_fields() -> None:
     workflow = MagicMock()
     workflow.name = "old"
     workflow.description = "keep"
+    workflow.status = WorkflowStatus.DRAFT
     service._repo.get_or_404 = AsyncMock(return_value=workflow)
     service._repo.flush = AsyncMock()
     service._repo.refresh = AsyncMock()
 
-    result = await service.update(
-        ORG_ID, WORKFLOW_ID, WorkflowUpdate(name="New name", status=WorkflowStatus.ACTIVE)
-    )
+    result = await service.update(ORG_ID, WORKFLOW_ID, WorkflowUpdate(name="New name"))
 
     assert workflow.name == "New name"
-    assert workflow.status == WorkflowStatus.ACTIVE
+    # Status is a lifecycle field and must never be touched by generic update.
+    assert workflow.status == WorkflowStatus.DRAFT
     assert workflow.description == "keep"
     assert result is workflow
+
+
+async def test_update_rejects_status_change() -> None:
+    """B6-F-02: generic PATCH cannot bypass activate/pause/archive."""
+    service = _service()
+    workflow = MagicMock()
+    workflow.name = "old"
+    workflow.description = "keep"
+    workflow.status = WorkflowStatus.DRAFT
+    service._repo.get_or_404 = AsyncMock(return_value=workflow)
+
+    with pytest.raises(AppError) as exc_info:
+        await service.update(
+            ORG_ID, WORKFLOW_ID, WorkflowUpdate(name="New name", status=WorkflowStatus.ACTIVE)
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.code == "workflow.status_change_not_allowed"
+    assert workflow.name == "old"
+    assert workflow.status == WorkflowStatus.DRAFT
+    assert service._session.commits == 0
+
+
+async def test_create_trigger_uses_authenticated_organization() -> None:
+    """B6-F-03: a client-supplied organization_id must never be trusted."""
+    from app.models.enums import WorkflowTriggerType
+    from app.schemas.workflow_trigger import WorkflowTriggerCreate
+
+    service = _service()
+    captured: list[WorkflowTriggerCreate] = []
+    service._trigger_service = MagicMock()
+    service._trigger_service.create = AsyncMock(
+        side_effect=lambda data: (captured.append(data), data)[1]
+    )
+    foreign_org = uuid.UUID("00000000-0000-0000-0000-000000000099")
+    data = WorkflowTriggerCreate(
+        organization_id=foreign_org,
+        workflow_id=WORKFLOW_ID,
+        name="On lead created",
+        trigger_type=WorkflowTriggerType.EVENT,
+        event_type="lead_created",
+    )
+
+    await service.create_trigger(ORG_ID, data)
+
+    assert len(captured) == 1
+    assert captured[0].organization_id == ORG_ID
+    assert data.organization_id == foreign_org  # caller's object is not mutated
+
+
+async def test_nested_trigger_delegation_carries_path_workflow_id() -> None:
+    """B6-F-03: nested routes must pass the path workflow to the trigger service."""
+    service = _service()
+    service._trigger_service = MagicMock()
+    service._trigger_service.update = AsyncMock(return_value="updated")
+    service._trigger_service.delete = AsyncMock(return_value=None)
+    body = MagicMock()
+
+    assert (
+        await service.update_trigger(ORG_ID, WORKFLOW_ID, body, workflow_id=WORKFLOW_ID)
+        == "updated"
+    )
+    service._trigger_service.update.assert_awaited_once_with(
+        ORG_ID, WORKFLOW_ID, body, workflow_id=WORKFLOW_ID
+    )
+
+    await service.delete_trigger(ORG_ID, WORKFLOW_ID, workflow_id=WORKFLOW_ID)
+    service._trigger_service.delete.assert_awaited_once_with(
+        ORG_ID, WORKFLOW_ID, workflow_id=WORKFLOW_ID
+    )
 
 
 async def test_activate_rejects_archived() -> None:

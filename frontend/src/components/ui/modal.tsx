@@ -47,7 +47,7 @@ export function Modal({ open, title, onClose, children, footer, width = "md" }: 
             <button
               type="button"
               aria-label="Close"
-              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              className="rounded p-1 text-gray-600 hover:bg-gray-100 hover:text-gray-700"
               onClick={onClose}
             >
               <span aria-hidden>✕</span>

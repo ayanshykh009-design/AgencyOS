@@ -6,6 +6,44 @@ and executes them through the LLM provider layer. All endpoints are session
 authenticated (JWT) and organization-scoped — a user only ever touches their own
 org's leads and settings.
 
+## GET /api/v1/ai/capabilities
+
+Return **non-secret** capability booleans so clients can render truthful disabled
+states instead of implying that a flagged-off feature is available. The
+organization is derived from the authenticated user (no org ID is accepted from
+the client), the response is boolean-only, and no API keys, hostnames, model
+configuration, or user data are exposed. Any authenticated user may read this
+state; mutation routes keep their own permission checks. Rate-limited with the
+default limit.
+
+```json
+{
+  "agent_runtime_enabled": false,
+  "founder_assistant_enabled": false,
+  "intelligence_triage_enabled": false,
+  "intelligence_narrative_enabled": false,
+  "ai_execution_enabled": true,
+  "ai_budget_configured": false
+}
+```
+
+| Field                          | Source                                     | Meaning                                                        |
+| ------------------------------ | ------------------------------------------ | -------------------------------------------------------------- |
+| `agent_runtime_enabled`        | `AGENT_RUNTIME_ENABLED`                    | Runtime worker drains queued agent runs                        |
+| `founder_assistant_enabled`    | `FOUNDER_ASSISTANT_ENABLED`                | Founder executor may answer chat turns                         |
+| `intelligence_triage_enabled`  | `INTELLIGENCE_TRIAGE_ENABLED`              | Manual triage sweep is permitted (reads remain available)      |
+| `intelligence_narrative_enabled` | `INTELLIGENCE_NARRATIVE_ENABLED`         | AI-written signal narrative is enabled (else deterministic)    |
+| `ai_execution_enabled`         | `AIService.is_ai_enabled(org)`             | Inverse of the org AI kill switch; fails closed on bad settings |
+| `ai_budget_configured`         | token budget > 0 or cost budget > 0        | At least one positive per-org budget; `0`/`0` denies execution  |
+
+### Responses
+
+| Status | Meaning                                    |
+| ------ | ------------------------------------------ |
+| `200`  | Six boolean capability flags               |
+| `401`  | Missing or invalid bearer token            |
+| `429`  | Default rate limit exceeded                |
+
 ## POST /api/v1/ai/run
 
 Queue an AI-run execution for a single goal against one lead. As of M11 this
@@ -139,14 +177,15 @@ one is stored under `organizations.settings.ai`, otherwise the global env
 defaults (`LLM_PROVIDER` / `LLM_DEFAULT_MODEL`).
 
 ```json
-{"provider": "openai", "model": "gpt-4o-mini", "overridden": false}
+{"provider": "openai", "model": "gpt-4o-mini", "overridden": false, "kill_switch": false}
 ```
 
-| Field       | Type    | Notes                                            |
-| ----------- | ------- | ------------------------------------------------ |
-| `provider`  | string  | Effective provider                               |
-| `model`     | string  | Effective default model                          |
-| `overridden`| boolean | True when a per-org override is stored           |
+| Field       | Type    | Notes                                                      |
+| ----------- | ------- | ---------------------------------------------------------- |
+| `provider`  | string  | Effective provider                                         |
+| `model`     | string  | Effective default model                                    |
+| `overridden`| boolean | True when a per-org override is stored                     |
+| `kill_switch` | boolean | True when org AI execution is explicitly disabled (fail closed) |
 
 ## PATCH /api/v1/ai/settings
 
@@ -174,6 +213,7 @@ always the authenticated user's organization.
 
 | Endpoint              | Required permission |
 | --------------------- | ------------------- |
+| `GET /ai/capabilities`| any authenticated   |
 | `GET /ai/tools`       | any authenticated   |
 | `GET /ai/settings`    | any authenticated   |
 | `PATCH /ai/settings`  | `ai_manage`         |

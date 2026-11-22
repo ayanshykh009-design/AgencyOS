@@ -91,6 +91,14 @@ model, the Pydantic schemas, and this doc in the same change.
 | 44| `growth_recommendations` | Evidence-backed recommendations (triage lifecycle, source analysis ref) |
 | 45| `growth_scenarios`     | Saved what-if projections (assumption deltas + result) |
 | 46| `growth_health_weights`| Versioned active health-weight sets (one active row per org) |
+| 47| `founder_conversations`| M8 org-scoped founder assistant chat threads (title, archive flag, last message) |
+| 48| `founder_messages`     | M8 conversation turns (sender_type `user`/`assistant`) with metadata; tenant-scoped reads/writes via RLS |
+| 49| `founder_action_proposals` | M8 approval-gated assistant action proposals with decision/execution audit |
+| 50| `intelligence_signals` | M9 deduplicated, scored triage feed with priority, evidence, and ack lifecycle |
+
+`intelligence_signals` (M9) has no `database/schema/` mirror in this checkout —
+its authoritative DDL lives in `database/migrations/0027_m9_intelligence_signals.sql`.
+This documents an existing limitation; no schema change is made here.
 
 See the ERD in [diagrams/database-erd.md](diagrams/database-erd.md).
 

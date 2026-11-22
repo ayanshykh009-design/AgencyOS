@@ -76,8 +76,13 @@ class Settings(BaseSettings):
     JWT_ISSUER: str = "agencyos"
     JWT_AUDIENCE: str = "agencyos-api"
     # Shared secret for inbound webhooks (n8n / contact forms). Endpoints that
-    # rely on it refuse to operate when this is empty.
+    # rely on it refuse to operate when this is empty. When configured, the
+    # inbound route additionally requires a signed timestamp/nonce/raw-body HMAC.
     WEBHOOK_SECRET: str = ""
+    # Bounds for the inbound webhook signature and replay controls. Both must
+    # be positive in every environment; defaults are deliberately conservative.
+    WEBHOOK_TIMESTAMP_SKEW_SECONDS: int = 300
+    WEBHOOK_REPLAY_TTL_SECONDS: int = 600
 
     # --- Database (local dev mirror of Supabase) ---
     DATABASE_URL: str = "postgresql+asyncpg://agencyos:change-me@localhost:5432/agencyos"
@@ -182,6 +187,10 @@ class Settings(BaseSettings):
 
     # --- n8n automation ---
     N8N_BASE_URL: str = ""
+    # HMAC secret for signed outbound n8n webhook dispatches. Local development
+    # and tests may leave it empty; every deployed environment with N8N_BASE_URL
+    # set must configure it (validated on every boot, not just production).
+    N8N_WEBHOOK_SECRET: str = ""
 
     # --- Workflow execution worker ---
     EXECUTION_WORKER_ENABLED: bool = True
@@ -260,7 +269,9 @@ class Settings(BaseSettings):
     AGENT_RUNTIME_ENABLED: bool = False
     AI_MEMORY_ENABLED: bool = False
     # --- M11-B: cumulative per-org AI usage budgets (enforced in LLMService) ---
-    # A 0 value disables the corresponding budget (unlimited). Budgets are
+    # A 0 value means the budget is NOT configured; a zero budget is NEVER
+    # treated as "unlimited". When BOTH budgets are <= 0, AI execution is denied
+    # (fail closed) and a positive value is required to enable it. Budgets are
     # evaluated against the organization's FULL provider_usage rollup (no
     # feature filter) over a rolling 24h window — the ceiling is per-org, not
     # per-feature.
@@ -431,6 +442,28 @@ class Settings(BaseSettings):
         if self.SMTP_HOST and not (0 < self.SMTP_PORT <= 65535):
             raise RuntimeError("SMTP_PORT must be between 1 and 65535")
 
+    def _validate_webhook_security(self) -> None:
+        """Validate webhook signing/replay bounds and outbound signing secret.
+
+        All checks are environment-agnostic except the N8N secret requirement:
+        process-local fallbacks are only supported for ``LOCAL_APP_ENVS``, so a
+        deployed environment with an outbound dispatch URL must sign it. Error
+        messages never include secret values.
+        """
+        if self.WEBHOOK_TIMESTAMP_SKEW_SECONDS < 1:
+            raise RuntimeError("WEBHOOK_TIMESTAMP_SKEW_SECONDS must be >= 1")
+        if self.WEBHOOK_REPLAY_TTL_SECONDS < 1:
+            raise RuntimeError("WEBHOOK_REPLAY_TTL_SECONDS must be >= 1")
+        if (
+            self.N8N_BASE_URL
+            and not self.is_local_environment
+            and not self.N8N_WEBHOOK_SECRET
+        ):
+            raise RuntimeError(
+                "N8N_WEBHOOK_SECRET must be set when N8N_BASE_URL is configured "
+                "outside development/test: outbound webhooks must be signed"
+            )
+
     def _validate_redis_url(self) -> None:
         if self.REDIS_URL:
             if not self.REDIS_URL.startswith(("redis://", "rediss://")):
@@ -575,6 +608,7 @@ class Settings(BaseSettings):
 
     def validate_runtime(self) -> None:
         """Environment-agnostic startup validation (called on every boot)."""
+        self._validate_webhook_security()
         self._validate_redis_url()
         self._validate_enc_key()
         self._validate_account_security()
@@ -588,6 +622,11 @@ class Settings(BaseSettings):
         """Fail fast on dangerous configuration when APP_ENV=production."""
         if self.APP_ENV != "production":
             return
+        if self.N8N_BASE_URL and not self.N8N_WEBHOOK_SECRET:
+            raise RuntimeError(
+                "N8N_WEBHOOK_SECRET must be set in production when N8N_BASE_URL "
+                "is configured: outbound webhooks must be signed"
+            )
         if self.APP_DEBUG:
             raise RuntimeError("APP_DEBUG must be false in production")
         if (
@@ -652,6 +691,7 @@ class Settings(BaseSettings):
                 "SMTP_HOST and SMTP_FROM_EMAIL must be set in production when "
                 "EMAIL_VERIFICATION_ENABLED or PASSWORD_RESET_ENABLED is true"
             )
+        self._validate_webhook_security()
         self._validate_redis_url()
         self._validate_enc_key()
         self._validate_account_security()

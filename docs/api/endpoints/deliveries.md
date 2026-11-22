@@ -32,9 +32,21 @@ A delivery row includes `subject`, `body`, `status`, `attempts`/`max_attempts`,
 Enqueue a new delivery. Returns 201 with the created row (status `queued`).
 Rate-limited.
 
+Trust rules (enforced before the service runs):
+
+* `channel: "dashboard"` is **trusted-internal only** — the delivery worker
+  and internal services enqueue in-app deliveries; a JWT user request is
+  rejected with `403 delivery.channel_trusted_only` (an ordinary enqueue
+  would fabricate a privileged SYSTEM/approval notification).
+* `recipient_user_id` is server-authoritative: a JWT user may only enqueue
+  for itself (`403 delivery.recipient_not_allowed`).
+* `action_url` must be an application-relative path (single leading `/`, no
+  backslashes, no percent-encoding, no control characters, no scheme);
+  anything else is rejected with `422 delivery.unsafe_action_url`.
+
 ```json
 {
-  "channel": "dashboard",
+  "channel": "email",
   "recipient_user_id": "…",
   "subject": "New meeting booked",
   "body": "A meeting was booked with a prospect.",
@@ -45,13 +57,13 @@ Rate-limited.
 
 | Field             | Type    | Notes                                        |
 | ----------------- | ------- | -------------------------------------------- |
-| `channel`         | enum    | Required. `dashboard` is the only shipped provider; `email`/`whatsapp`/`push` fail closed |
-| `recipient_user_id` | uuid? | Optional recipient                           |
+| `channel`         | enum    | Required. `dashboard` is trusted-internal only; `email`/`whatsapp`/`push` fail closed until their providers ship |
+| `recipient_user_id` | uuid? | Optional recipient (self only for JWT callers) |
 | `notification_id` | uuid?   | Optional linked inbox row                    |
 | `approval_request_id` | uuid? | Optional linked approval                     |
 | `subject`         | string  | 1–500 chars                                  |
 | `body`            | string  | Required                                     |
-| `action_url`      | string? | Deep link for the recipient                  |
+| `action_url`      | string? | Deep link for the recipient (app-relative)   |
 | `payload`         | object  | Free-form, default `{}`                      |
 | `max_attempts`    | int?    | 1–10, default from config                    |
 | `scheduled_for`   | datetime? | Defer processing until this time           |

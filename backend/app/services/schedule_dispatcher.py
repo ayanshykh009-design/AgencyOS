@@ -17,7 +17,7 @@ idempotent (the optimistic guard refuses a second claim for the same tick).
 Each trigger's reservation + queue runs inside its own savepoint, so a
 per-trigger queue failure (e.g. the workflow was deactivated mid-batch) rolls
 back only that trigger's reservation while earlier dispatches in the batch
-survive to the caller's commit.
+survive to the dispatcher's single end-of-batch commit.
 
 Every lifecycle event is emitted as a structured log line and a lightweight
 metric counter (see ``app/core/metrics.py``).
@@ -37,7 +37,7 @@ from app.core.metrics import get_counter
 from app.repositories.workflow_trigger import WorkflowTriggerRepository
 from app.schemas.workflow_execution import WorkflowExecutionCreate
 from app.services.automation_control_service import AutomationControlService
-from app.services.base import utcnow
+from app.services.base import commit_with_retry, utcnow
 from app.services.schedule_cron import previous_fire
 from app.services.workflow_execution_service import WorkflowExecutionService
 
@@ -98,6 +98,10 @@ class ScheduleDispatcher:
         batch_limit = limit if limit is not None else settings.SCHEDULE_BATCH_LIMIT
         triggers = await self._trigger_repo.list_enabled_schedules(batch_limit)
         stats = {"scanned": len(triggers), "queued": 0, "failed": 0, "skipped": 0, "conflicts": 0}
+        # Success telemetry is committed with the batch. A final commit failure
+        # rolls back every reservation/execution, so it must also roll back the
+        # "queued" counters and structured events.
+        committed_events: list[tuple[str, dict[str, Any]]] = []
         if not triggers:
             return stats
 
@@ -201,6 +205,7 @@ class ScheduleDispatcher:
                                 },
                             ),
                             requested_by_user_id=None,
+                            commit=False,
                         )
                     except AppError as exc:
                         # Workflow vanished/deactivated between listing and
@@ -216,16 +221,18 @@ class ScheduleDispatcher:
                         )
                         raise
 
-                _log(
-                    "workflow_queued",
-                    trigger_id=str(trigger.id),
-                    workflow_id=str(trigger.workflow_id),
-                    organization_id=str(trigger.organization_id),
-                    execution_id=str(execution.id),
-                    prev_fire=fire_time.isoformat(),
+                committed_events.append(
+                    (
+                        "workflow_queued",
+                        {
+                            "trigger_id": str(trigger.id),
+                            "workflow_id": str(trigger.workflow_id),
+                            "organization_id": str(trigger.organization_id),
+                            "execution_id": str(execution.id),
+                            "prev_fire": fire_time.isoformat(),
+                        },
+                    )
                 )
-                get_counter(_QUEUED).add(1)
-                get_counter(_QUEUE_SUCCESS).add(1)
                 stats["queued"] += 1
             except AppError:
                 # The savepoint rolled back this trigger's reservation and
@@ -234,6 +241,20 @@ class ScheduleDispatcher:
                 get_counter(_FAILED).add(1)
                 get_counter(_QUEUE_FAILURE).add(1)
                 stats["failed"] += 1
+
+        # Each queue() ran with commit=False and only flushed inside its
+        # savepoint. One commit now persists the whole batch; a final failure
+        # rolls every reservation/execution back, not just one trigger.
+        try:
+            await commit_with_retry(self._session)
+        except Exception:
+            await self._session.rollback()
+            raise
+
+        for event, payload in committed_events:
+            _log(event, **payload)
+            get_counter(_QUEUED).add(1)
+            get_counter(_QUEUE_SUCCESS).add(1)
 
         _log(
             "tick_end",

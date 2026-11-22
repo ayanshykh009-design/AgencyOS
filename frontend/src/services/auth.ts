@@ -1,4 +1,4 @@
-// Auth service: login, logout, refresh, session persistence.
+// Auth service: register, login, logout, refresh, session persistence.
 import { ApiRequestError, apiFetch, performRefresh } from "@/lib/api-client";
 import { clearSession, setSession, type Session } from "@/lib/session";
 import type {
@@ -13,6 +13,15 @@ export interface LoginInput {
   password: string;
 }
 
+/** Self-service organization signup (founder-approved: public signup is open). */
+export interface RegisterInput {
+  email: string;
+  password: string;
+  fullName: string;
+  organizationName: string;
+  organizationSlug: string;
+}
+
 export async function login(input: LoginInput): Promise<AuthResponse> {
   const result = await apiFetch<AuthResponse>("/auth/login", {
     method: "POST",
@@ -21,6 +30,48 @@ export async function login(input: LoginInput): Promise<AuthResponse> {
   });
   persist(result);
   return result;
+}
+
+/**
+ * Register a new organization and its owner account. The backend creates the
+ * organization with the registering user as OWNER, isolates it as its own
+ * tenant, enforces the same rate limits as login, and (when email
+ * verification is enabled) flags the account until the address is confirmed.
+ * On success the refresh cookie is set and the session is persisted in
+ * memory exactly like a password login.
+ */
+export async function register(input: RegisterInput): Promise<AuthResponse> {
+  const result = await apiFetch<AuthResponse>("/auth/register", {
+    method: "POST",
+    auth: false,
+    body: JSON.stringify({
+      email: input.email,
+      password: input.password,
+      full_name: input.fullName,
+      organization_name: input.organizationName,
+      organization_slug: input.organizationSlug,
+    }),
+  });
+  persist(result);
+  return result;
+}
+
+/**
+ * The backend cannot expose its feature flags to the browser, so the
+ * disabled/feature-off states are derived from the exact `detail` the API
+ * returns when a flag is off (app/api/v1/endpoints/auth.py). The UI shows a
+ * neutral disabled state only from this real signal — never from a guess.
+ */
+export const PASSWORD_RESET_DISABLED_DETAIL = "Password reset is not enabled";
+
+export const EMAIL_VERIFICATION_DISABLED_DETAIL = "Email verification is not enabled";
+
+export function isPasswordResetDisabled(detail: string | null | undefined): boolean {
+  return detail === PASSWORD_RESET_DISABLED_DETAIL;
+}
+
+export function isEmailVerificationDisabled(detail: string | null | undefined): boolean {
+  return detail === EMAIL_VERIFICATION_DISABLED_DETAIL;
 }
 
 /** Rotate the refresh cookie and persist the new access token in memory. */
