@@ -16,6 +16,7 @@ from app.llm.models import (
     ToolDefinition,
 )
 from app.llm.pricing import estimate_cost
+from app.llm.providers import close_transport
 
 
 def _role(role: MessageRole) -> str:
@@ -87,12 +88,18 @@ class AnthropicClient:
         kwargs: dict[str, Any] = {"api_key": api_key}
         if http is not None:
             kwargs["http_client"] = http
+        self._owns_sdk = http is None
         self._client = AsyncAnthropic(**kwargs)
         self.model = model
 
     @property
     def provider(self) -> str:
         return "anthropic"
+
+    async def aclose(self) -> None:
+        """Close the SDK client this provider created (never an injected one)."""
+        if self._owns_sdk:
+            await close_transport(self._client.close)
 
     async def chat(
         self,

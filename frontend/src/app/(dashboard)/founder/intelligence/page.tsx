@@ -5,6 +5,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { ErrorState } from "@/components/automation/automation-states";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { triageDisabledReason } from "@/lib/ai-capabilities";
@@ -33,6 +34,7 @@ const STATUS_FILTERS: Array<{ label: string; value: IntelligenceSignalStatus | "
   { label: "Active", value: "active" },
   { label: "Acknowledged", value: "acknowledged" },
   { label: "Dismissed", value: "dismissed" },
+  { label: "Superseded", value: "superseded" },
 ];
 
 export default function FounderIntelligencePage() {
@@ -75,7 +77,7 @@ function IntelligenceDashboard({ canManage }: { canManage: boolean }) {
     [statusFilter]
   );
 
-  const { data, isLoading } = useSignals(query);
+  const { data, isLoading, isError, error: signalsError, refetch } = useSignals(query);
   const { data: summary } = useSignalSummary();
   const ack = useAcknowledgeSignal();
   const run = useRunTriage();
@@ -161,7 +163,16 @@ function IntelligenceDashboard({ canManage }: { canManage: boolean }) {
         </p>
       ) : null}
 
-      {isLoading ? (
+      {isError ? (
+        <ErrorState
+          message={
+            signalsError instanceof Error
+              ? signalsError.message
+              : "Failed to load signals. Please retry."
+          }
+          onRetry={() => void refetch()}
+        />
+      ) : isLoading ? (
         <p className="text-sm text-gray-500">Loading signals…</p>
       ) : signals.length === 0 ? (
         <p className="text-sm text-gray-500">No signals in this view.</p>
@@ -249,7 +260,7 @@ export function SignalCard({
             >
               {signal.severity}
             </span>
-            <span className="text-xs uppercase tracking-wide text-gray-400">
+            <span className="text-xs uppercase tracking-wide text-gray-600">
               {signal.signal_category}
             </span>
             {amount !== undefined ? (
@@ -263,7 +274,7 @@ export function SignalCard({
           <p className="mt-0.5 text-sm text-gray-600">{signal.summary}</p>
         </div>
         <div className="text-right">
-          <div className="text-xs text-gray-400">priority</div>
+          <div className="text-xs text-gray-600">priority</div>
           <div className="text-lg font-semibold">{signal.priority_score.toFixed(3)}</div>
         </div>
       </div>

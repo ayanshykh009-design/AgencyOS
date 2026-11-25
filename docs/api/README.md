@@ -15,5 +15,6 @@ This folder holds the stable, versioned reference:
 
 When you change an endpoint:
 
-1. Update `docs/api/openapi.yaml` (or regenerate and commit the diff).
+1. Regenerate `docs/api/openapi.yaml` with `python scripts/regen-openapi.py` and commit the diff.
 2. Update the matching file in `docs/api/endpoints/`.
+3. CI regenerates the snapshot and fails if `docs/api/openapi.yaml` drifts from the live app.

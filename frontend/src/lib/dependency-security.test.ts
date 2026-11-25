@@ -32,4 +32,13 @@ describe("dependency security baseline", () => {
     expect(lockfile.packages["node_modules/@vitest/mocker"]?.version).toBe("4.1.12");
     expect(lockfile.packages["node_modules/vite"]?.version).toBe("8.2.4");
   });
+
+  it("keeps the Zod and minimatch advisory fixes in the committed lockfile", () => {
+    expect(manifest.dependencies.zod).toBe("^4.6.7");
+    expect(lockfile.packages["node_modules/zod"]?.version).toBe("4.6.7");
+    expect(
+      lockfile.packages["node_modules/@typescript-eslint/typescript-estree/node_modules/minimatch"]
+        ?.version
+    ).toMatch(/^11\./);
+  });
 });

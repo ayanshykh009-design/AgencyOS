@@ -24,19 +24,18 @@ from pathlib import Path
 
 import pytest
 
-ENDPOINTS_DIR = (
-    Path(__file__).resolve().parents[2] / "app" / "api" / "v1" / "endpoints"
-)
+ENDPOINTS_DIR = Path(__file__).resolve().parents[2] / "app" / "api" / "v1" / "endpoints"
 # slowapi's header-injecting decorators. Matched on the attribute name so
 # aliased imports (``rl.limit``) are covered too. ``limiter.exempt`` is excluded
 # because it removes the limit and never injects headers.
 LIMITER_DECORATORS = frozenset({"limit", "shared_limit"})
 # Current inventory: 13 auth routes, 6 AI routes (the Batch 5 capability
-# endpoint added one), 2 agent routes, 2 team routes = 23. The R7 baseline was
-# 22 (5 AI routes); keep the floor at the current count so a lost decorator on
-# any one route cannot pass silently. Guarding the count keeps a broken scanner
-# (which would trivially report "no offenders") from passing.
-MIN_LIMITED_HANDLERS = 23
+# endpoint added one), 2 agent routes, 2 team routes, 1 founder chat route = 24.
+# The R7 baseline was 22 (5 AI routes); keep the floor at the current count so
+# a lost decorator on any one route cannot pass silently. Guarding the count
+# keeps a broken scanner (which would trivially report "no offenders") from
+# passing.
+MIN_LIMITED_HANDLERS = 24
 
 
 def _call_attr(node: ast.expr) -> str | None:

@@ -173,6 +173,19 @@ async def test_update_ai_settings_sets_kill_switch() -> None:
     assert await service.is_ai_enabled(ORG_ID) is False
 
 
+async def test_settings_paths_do_not_allocate_http_client() -> None:
+    """Settings/kill-switch reads must not leak an unclosed httpx client."""
+    service = AIService(_NoOrgSession())
+    assert service._http_client is None
+
+    await service.get_ai_settings(ORG_ID)
+    await service.is_ai_enabled(ORG_ID)
+    await service.tools()
+
+    assert service._http_client is None
+    await service.aclose()
+
+
 async def test_dispatch_fails_cleanly_without_n8n() -> None:
     service = AIService(_NoOrgSession())
 

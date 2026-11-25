@@ -1,4 +1,5 @@
 """Unit tests: builtin (in-process) execution engine."""
+
 from __future__ import annotations
 
 import pytest
@@ -79,21 +80,13 @@ def test_template_default_used_for_missing_path() -> None:
 
 
 def test_template_missing_path_without_default_raises() -> None:
-    definition = {
-        "steps": [
-            {"type": "set", "key": "phone", "value": "{{ input.lead.phone }}"}
-        ]
-    }
+    definition = {"steps": [{"type": "set", "key": "phone", "value": "{{ input.lead.phone }}"}]}
     with pytest.raises(BuiltinExecutionError, match="phone"):
         run_builtin_definition(definition, _input())
 
 
 def test_template_rejects_invalid_path_segment() -> None:
-    definition = {
-        "steps": [
-            {"type": "set", "key": "x", "value": "{{ input.lead[0] }}"}
-        ]
-    }
+    definition = {"steps": [{"type": "set", "key": "x", "value": "{{ input.lead[0] }}"}]}
     with pytest.raises(BuiltinExecutionError, match="segment"):
         run_builtin_definition(definition, _input())
 
@@ -110,11 +103,7 @@ def test_template_renders_json_like_values() -> None:
 
 
 def test_copy_missing_source_raises() -> None:
-    definition = {
-        "steps": [
-            {"type": "copy", "from": "input.nope", "to": "x"}
-        ]
-    }
+    definition = {"steps": [{"type": "copy", "from": "input.nope", "to": "x"}]}
     with pytest.raises(BuiltinExecutionError, match="not found"):
         run_builtin_definition(definition, _input())
 
@@ -148,9 +137,7 @@ def test_copy_deep_copies_not_shares_references() -> None:
         ("input.lead.score", "exists", None, True),
     ],
 )
-def test_condition_ops_select_branch(
-    path: str, op: str, value: object, expected: bool
-) -> None:
+def test_condition_ops_select_branch(path: str, op: str, value: object, expected: bool) -> None:
     definition = {
         "steps": [
             {
@@ -260,20 +247,21 @@ def test_step_budget_limit_enforced() -> None:
 
 
 def test_result_size_limit_enforced() -> None:
-    definition = {
-        "steps": [
-            {"type": "set", "key": "blob", "value": "x" * 1000}
-        ]
-    }
+    definition = {"steps": [{"type": "set", "key": "blob", "value": "x" * 1000}]}
+    with pytest.raises(BuiltinExecutionError, match="size limit"):
+        run_builtin_definition(definition, _input(), max_result_size=100)
+
+
+def test_result_size_limit_counts_utf8_bytes() -> None:
+    definition = {"steps": [{"type": "set", "key": "blob", "value": "é" * 60}]}
+    # The JSON is 71 characters but 131 UTF-8 bytes.
     with pytest.raises(BuiltinExecutionError, match="size limit"):
         run_builtin_definition(definition, _input(), max_result_size=100)
 
 
 def test_template_length_limit_enforced() -> None:
     definition = {
-        "steps": [
-            {"type": "set", "key": "big", "value": "{{ input.source }}" + "x" * 100}
-        ]
+        "steps": [{"type": "set", "key": "big", "value": "{{ input.source }}" + "x" * 100}]
     }
     with pytest.raises(BuiltinExecutionError, match="character limit"):
         run_builtin_definition(definition, _input(), max_template_length=50)
@@ -338,6 +326,40 @@ def test_validate_collection_op_requires_list_value() -> None:
         validate_builtin_definition(
             {"steps": [{"type": "condition", "if": {"path": "a", "op": "in", "value": "x"}}]}
         )
+
+
+def test_validate_contains_requires_non_empty_string_value() -> None:
+    definition = {
+        "steps": [
+            {
+                "type": "condition",
+                "if": {"path": "input.lead.tags", "op": "contains", "value": "founder"},
+                "then": [{"type": "set", "key": "outcome", "value": "hit"}],
+            }
+        ]
+    }
+    validate_builtin_definition(definition)
+    assert run_builtin_definition(definition, _input())["outcome"] == "hit"
+
+    with pytest.raises(BuiltinExecutionError, match="non-empty string"):
+        validate_builtin_definition(
+            {
+                "steps": [
+                    {
+                        "type": "condition",
+                        "if": {"path": "input.lead.tags", "op": "contains", "value": ["founder"]},
+                    }
+                ]
+            }
+        )
+
+
+def test_validate_rejects_invalid_output_key() -> None:
+    with pytest.raises(BuiltinExecutionError, match="definition.output_key"):
+        validate_builtin_definition({"steps": [], "output_key": 123})
+    with pytest.raises(BuiltinExecutionError, match="definition.output_key"):
+        validate_builtin_definition({"steps": [], "output_key": ""})
+    validate_builtin_definition({"steps": [], "output_key": "result"})
 
 
 def test_validate_path_segments() -> None:

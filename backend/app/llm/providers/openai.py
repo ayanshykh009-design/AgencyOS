@@ -21,6 +21,7 @@ from app.llm.models import (
     ToolDefinition,
 )
 from app.llm.pricing import estimate_cost
+from app.llm.providers import close_transport
 
 
 def _to_role(role: MessageRole) -> str:
@@ -76,12 +77,18 @@ class OpenAIClient:
 
         if not api_key:
             raise ValueError("OpenAI API key is required")
+        self._owns_sdk = http is None
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url, http_client=http)
         self.model = model
 
     @property
     def provider(self) -> str:
         return "openai"
+
+    async def aclose(self) -> None:
+        """Close the SDK client this provider created (never an injected one)."""
+        if self._owns_sdk:
+            await close_transport(self._client.close)
 
     async def chat(
         self,

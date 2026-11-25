@@ -66,9 +66,7 @@ async def test_trigger_webhook_async(monkeypatch) -> None:
         "/other/x",
     ],
 )
-async def test_trigger_webhook_rejects_unsafe_paths(
-    monkeypatch, path: str
-) -> None:
+async def test_trigger_webhook_rejects_unsafe_paths(monkeypatch, path: str) -> None:
     post = AsyncMock()
     monkeypatch.setattr(httpx.AsyncClient, "post", post)
     client = N8nClient(base_url=_BASE)
@@ -149,6 +147,21 @@ async def test_trigger_webhook_retries_transient_5xx(monkeypatch) -> None:
     assert sleep.await_count == 2
 
 
+async def test_trigger_webhook_uses_fresh_nonce_and_signature_per_retry(monkeypatch) -> None:
+    post = AsyncMock(side_effect=[_response(500), _response(200)])
+    sleep = AsyncMock()
+    monkeypatch.setattr(httpx.AsyncClient, "post", post)
+    monkeypatch.setattr(n8n_client, "_sleep_backoff", sleep)
+    monkeypatch.setattr(n8n_client.settings, "N8N_WEBHOOK_SECRET", _SIGNING_SECRET)
+
+    client = N8nClient(base_url=_BASE)
+    assert await client.trigger_webhook("/webhook/x", {"a": 1}) == {"ok": True}
+
+    first, second = (call.kwargs["headers"] for call in post.await_args_list)
+    assert first["X-AgencyOS-Nonce"] != second["X-AgencyOS-Nonce"]
+    assert first["X-AgencyOS-Signature"] != second["X-AgencyOS-Signature"]
+
+
 async def test_trigger_webhook_retries_timeout(monkeypatch) -> None:
     post = AsyncMock(side_effect=[httpx.ReadTimeout("timed out"), _response(200)])
     sleep = AsyncMock()
@@ -215,11 +228,7 @@ async def test_trigger_webhook_raises_sanitized_http_error(monkeypatch) -> None:
     monkeypatch.setattr(
         httpx.AsyncClient,
         "post",
-        AsyncMock(
-            return_value=_response(
-                500, b"x-account-error: 'boom' with a long traceback"
-            )
-        ),
+        AsyncMock(return_value=_response(500, b"x-account-error: 'boom' with a long traceback")),
     )
     monkeypatch.setattr(n8n_client, "_sleep_backoff", AsyncMock())
     client = N8nClient(base_url=_BASE, api_key="k")

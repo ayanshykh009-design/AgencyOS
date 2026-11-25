@@ -7,6 +7,7 @@ no code outside this module references a provider SDK directly.
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
@@ -49,6 +50,13 @@ class ProviderClient(Protocol):
 def _build_http_options() -> dict[str, Any]:
     """Common httpx options for provider calls."""
     return {"timeout": 60.0, "http2": True}
+
+
+async def close_transport(close_fn: Any) -> None:
+    """Invoke a provider SDK close hook that may be sync or async."""
+    result = close_fn()
+    if inspect.isawaitable(result):
+        await result
 
 
 def client_for(

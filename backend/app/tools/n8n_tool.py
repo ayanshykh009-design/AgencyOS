@@ -6,10 +6,13 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
+from app.llm.error_sanitizer import safe_error
 from app.tools.base import Tool, ToolResult
 
 if TYPE_CHECKING:
     pass
+
+_DISPATCH_FAILED = "n8n dispatch failed"
 
 _DESCRIPTION = (
     "Dispatch an outreach draft to the n8n automation platform via its inbound webhook. "
@@ -37,8 +40,28 @@ class N8nDispatchTool(Tool):
     }
 
     def __init__(self, client: httpx.AsyncClient | None = None, base_url: str = "") -> None:
-        self._client = client or httpx.AsyncClient(timeout=30.0)
+        self._client = client
+        self._owns_client = False
         self._base_url = base_url.rstrip("/")
+
+    def _client_or_create(self) -> httpx.AsyncClient:
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=30.0)
+            self._owns_client = True
+        return self._client
+
+    async def aclose(self) -> None:
+        """Close a privately-owned HTTP client (idempotent).
+
+        An injected client is caller-owned and is left open.
+        """
+        if not self._owns_client:
+            return
+        client = self._client
+        self._client = None
+        self._owns_client = False
+        if client is not None:
+            await client.aclose()
 
     @classmethod
     def instantiate(cls, context: Any) -> N8nDispatchTool:
@@ -64,11 +87,17 @@ class N8nDispatchTool(Tool):
             return ToolResult(ok=False, error=f"unknown workflow: {workflow}")
 
         url = f"{base}{path}"
+        client = self._client_or_create()
         try:
-            response = await self._client.post(url, json=payload)
+            response = await client.post(url, json=payload)
             response.raise_for_status()
             return ToolResult(
                 ok=True, content={"status": response.status_code, "data": response.json()}
             )
         except httpx.HTTPError as exc:
-            return ToolResult(ok=False, error=f"n8n dispatch failed: {exc}")
+            # SDK/httpx text can include the webhook URL, payload and headers.
+            # Log it server-side; expose only a stable message.
+            return ToolResult(
+                ok=False,
+                error=safe_error(exc, public=_DISPATCH_FAILED, log_label="n8n.dispatch.failed"),
+            )

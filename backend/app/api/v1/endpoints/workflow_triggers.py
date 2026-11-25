@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.permissions import Permission, require_permission
+from app.models.enums import WorkflowTriggerType
 from app.schemas.common import Page
 from app.schemas.workflow_trigger import (
     WorkflowTriggerCreate,
@@ -53,7 +54,7 @@ async def list_triggers(
     db: DbSession,
     current_user: CurrentUser,
     workflow_id: uuid.UUID | None = Query(default=None),
-    trigger_type: str | None = Query(default=None),
+    trigger_type: WorkflowTriggerType | None = Query(default=None),
     enabled: bool | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),

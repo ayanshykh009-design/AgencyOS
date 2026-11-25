@@ -69,6 +69,7 @@ class OpenAICompatibleClient:
         if not base_url:
             raise ValueError(f"{kind} requires a base_url")
         self._base_url = base_url.rstrip("/")
+        self._owns_http = http is None
         self._http = http or httpx.AsyncClient(**_build_http_options())
         self._api_key = api_key
         self._kind = kind
@@ -77,6 +78,11 @@ class OpenAICompatibleClient:
     @property
     def provider(self) -> str:
         return self._kind
+
+    async def aclose(self) -> None:
+        """Close the transport this client created (never an injected one)."""
+        if self._owns_http:
+            await self._http.aclose()
 
     def _headers(self) -> dict[str, str]:
         headers = {"Content-Type": "application/json"}

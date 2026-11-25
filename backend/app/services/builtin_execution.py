@@ -50,7 +50,9 @@ _KEY_RE = re.compile(r"[A-Za-z0-9_]+")
 _TEMPLATE_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
 _STEP_TYPES = frozenset({"set", "copy", "condition", "error_if"})
 _COMPARISON_OPS = frozenset({"eq", "ne", "gt", "gte", "lt", "lte"})
-_COLLECTION_OPS = frozenset({"in", "not_in", "contains"})
+_MEMBERSHIP_OPS = frozenset({"in", "not_in"})
+_CONTAINS_OP = "contains"
+_COLLECTION_OPS = _MEMBERSHIP_OPS | {_CONTAINS_OP}
 _PRESENCE_OPS = frozenset({"exists", "missing"})
 _GUARD_OPS = _COMPARISON_OPS | _COLLECTION_OPS | _PRESENCE_OPS
 
@@ -98,8 +100,10 @@ def _validate_guard(guard: Any) -> dict[str, Any]:
     if not isinstance(op, str) or op not in _GUARD_OPS:
         raise BuiltinExecutionError(f"guard.op must be one of {sorted(_GUARD_OPS)}")
     result = {"path": path, "op": op, "value": guard.get("value")}
-    if op in _COLLECTION_OPS and not isinstance(result["value"], list):
+    if op in _MEMBERSHIP_OPS and not isinstance(result["value"], list):
         raise BuiltinExecutionError(f"guard.op {op!r} requires a list value")
+    if op == _CONTAINS_OP and (not isinstance(result["value"], str) or not result["value"]):
+        raise BuiltinExecutionError("guard.op 'contains' requires a non-empty string value")
     return result
 
 
@@ -175,6 +179,9 @@ def validate_builtin_definition(
     steps = definition.get("steps", [])
     if not isinstance(steps, list):
         raise BuiltinExecutionError("definition.steps must be a list")
+    output_key = definition.get("output_key")
+    if output_key is not None:
+        _validate_key(output_key, where="definition.output_key")
     budget = [0]
     for step in steps:
         _validate_step(
@@ -281,7 +288,8 @@ def _evaluate_guard(context: dict[str, Any], guard: dict[str, Any]) -> bool:
 
 
 def _check_result_size(context: dict[str, Any], *, limit: int) -> None:
-    size = len(json.dumps(context, separators=(",", ":"), ensure_ascii=False))
+    serialized = json.dumps(context, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    size = len(serialized)
     if size > limit:
         raise BuiltinExecutionError(f"result exceeds the {limit} byte size limit")
 

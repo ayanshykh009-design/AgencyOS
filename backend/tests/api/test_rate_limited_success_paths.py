@@ -95,6 +95,22 @@ def _authenticated(role: UserRole = UserRole.OWNER):
         app.dependency_overrides.pop(get_current_user, None)
 
 
+class _AsyncServiceFactory:
+    """AIService replacement that matches the endpoint's ``async with`` lifecycle."""
+
+    def __init__(self, service: MagicMock) -> None:
+        self._service = service
+
+    def __call__(self, db):  # noqa: ANN001, ANN204
+        return self
+
+    async def __aenter__(self) -> MagicMock:
+        return self._service
+
+    async def __aexit__(self, *exc_info) -> bool:  # noqa: ANN002
+        return False
+
+
 def _assert_rate_limit_headers(res) -> None:
     lowered = {key.lower(): value for key, value in res.headers.items()}
     for header in RATE_LIMIT_HEADERS:
@@ -155,7 +171,7 @@ def test_ai_get_settings_success(api_client: TestClient) -> None:
     fake.get_ai_settings = AsyncMock(return_value=("anthropic", "claude-sonnet", False, False))
 
     with _authenticated():
-        with patch("app.api.v1.endpoints.ai.AIService", return_value=fake):
+        with patch("app.api.v1.endpoints.ai.AIService", new=_AsyncServiceFactory(fake)):
             res = api_client.get("/api/v1/ai/settings")
 
     assert res.status_code == 200, res.text
@@ -169,7 +185,7 @@ def test_ai_update_settings_success(api_client: TestClient) -> None:
     fake.get_ai_settings = AsyncMock(return_value=("openai", "gpt-5", True, True))
 
     with _authenticated():
-        with patch("app.api.v1.endpoints.ai.AIService", return_value=fake):
+        with patch("app.api.v1.endpoints.ai.AIService", new=_AsyncServiceFactory(fake)):
             res = api_client.patch("/api/v1/ai/settings", json={"kill_switch": True})
 
     assert res.status_code == 200, res.text
@@ -186,7 +202,7 @@ def test_ai_list_tools_success(api_client: TestClient) -> None:
     )
 
     with _authenticated():
-        with patch("app.api.v1.endpoints.ai.AIService", return_value=fake):
+        with patch("app.api.v1.endpoints.ai.AIService", new=_AsyncServiceFactory(fake)):
             res = api_client.get("/api/v1/ai/tools")
 
     assert res.status_code == 200, res.text
@@ -203,7 +219,7 @@ def test_ai_run_brain_success(api_client: TestClient) -> None:
 
     with _authenticated():
         with (
-            patch("app.api.v1.endpoints.ai.AIService", return_value=fake),
+            patch("app.api.v1.endpoints.ai.AIService", new=_AsyncServiceFactory(fake)),
             patch("app.api.v1.endpoints.ai.AgentService", return_value=fake_agents),
         ):
             res = api_client.post(
@@ -221,7 +237,7 @@ def test_ai_dispatch_success(api_client: TestClient) -> None:
     fake.dispatch = AsyncMock(return_value={"ok": True})
 
     with _authenticated():
-        with patch("app.api.v1.endpoints.ai.AIService", return_value=fake):
+        with patch("app.api.v1.endpoints.ai.AIService", new=_AsyncServiceFactory(fake)):
             res = api_client.post(
                 "/api/v1/ai/dispatch",
                 json={"workflow": "outreach-dispatch", "payload": {"msg": "hi"}},
@@ -349,10 +365,9 @@ def test_limited_ai_route_rate_limit_still_rejects(api_client: TestClient) -> No
     default_limit = int(settings.RATE_LIMIT_DEFAULT.split("/", 1)[0])
 
     with _authenticated():
-        with patch("app.api.v1.endpoints.ai.AIService", return_value=fake):
+        with patch("app.api.v1.endpoints.ai.AIService", new=_AsyncServiceFactory(fake)):
             statuses = [
-                api_client.get("/api/v1/ai/settings").status_code
-                for _ in range(default_limit + 1)
+                api_client.get("/api/v1/ai/settings").status_code for _ in range(default_limit + 1)
             ]
 
     assert statuses[:default_limit] == [200] * default_limit

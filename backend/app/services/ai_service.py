@@ -20,16 +20,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.errors import AppError
-from app.llm.service import LLMService
+from app.llm.error_sanitizer import safe_error
+from app.llm.service import LLMService, aclose_llm
 from app.repositories.lead import LeadRepository
 from app.repositories.lead_research import LeadResearchRepository
 from app.services.llm_settings import SUPPORTED_PROVIDERS
 
 logger = logging.getLogger("agencyos")
 
+_HTTP_TIMEOUT = 15.0
+_DISPATCH_FAILED = "n8n dispatch failed"
+
 
 class AIService:
-    """Owns the AI automation workflow and its transaction boundary."""
+    """Owns the AI automation workflow and its transaction boundary.
+
+    The outbound HTTP client is created lazily, only by the methods that need
+    it, and always released on success and failure. Most callers only read AI
+    settings or the kill switch, so they never allocate a client at all.
+    """
 
     def __init__(
         self,
@@ -37,7 +46,34 @@ class AIService:
         http_client: httpx.AsyncClient | None = None,
     ) -> None:
         self._session = session
-        self._http_client = http_client or httpx.AsyncClient(timeout=15.0)
+        self._http_client = http_client
+        self._owns_http_client = False
+
+    def _client(self) -> httpx.AsyncClient:
+        """Return the HTTP client, creating a privately-owned one on demand."""
+        if self._http_client is None:
+            self._http_client = httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
+            self._owns_http_client = True
+        return self._http_client
+
+    async def aclose(self) -> None:
+        """Close the privately-owned HTTP client (idempotent).
+
+        An injected client is caller-owned: it is left open and reusable.
+        """
+        if not self._owns_http_client:
+            return
+        client = self._http_client
+        self._http_client = None
+        self._owns_http_client = False
+        if client is not None:
+            await client.aclose()
+
+    async def __aenter__(self) -> AIService:
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        await self.aclose()
 
     async def run(
         self,
@@ -52,31 +88,37 @@ class AIService:
         from app.ai.brain import Brain
         from app.tools.registry import ToolContext, default_registry
 
-        lead = await LeadRepository(self._session).get_or_404(organization_id, lead_id)
-        research = await LeadResearchRepository(self._session).get(organization_id, lead_id)
+        client = self._client()
+        llm: LLMService | None = None
+        try:
+            lead = await LeadRepository(self._session).get_or_404(organization_id, lead_id)
+            research = await LeadResearchRepository(self._session).get(organization_id, lead_id)
 
-        llm = await self._llm_for_org(organization_id)
-        ctx = ToolContext(
-            session=self._session,
-            organization_id=organization_id,
-            llm_service=llm,
-            http_client=self._http_client,
-        )
-        registry = default_registry(ctx)
+            llm = await self._llm_for_org(organization_id)
+            ctx = ToolContext(
+                session=self._session,
+                organization_id=organization_id,
+                llm_service=llm,
+                http_client=client,
+            )
+            registry = default_registry(ctx)
 
-        brain = Brain(llm, registry)
-        plan_params: dict[str, Any] = {"lead_id": str(lead_id)}
-        if channel:
-            plan_params["channel"] = channel
-        memory_context = await self._retrieve_memory_context(organization_id)
-        return await brain.run_with_plan(
-            goal=goal,
-            lead=lead,
-            research=research,
-            recent_messages=recent_messages,
-            memory_context=memory_context,
-            **plan_params,
-        )
+            brain = Brain(llm, registry)
+            plan_params: dict[str, Any] = {"lead_id": str(lead_id)}
+            if channel:
+                plan_params["channel"] = channel
+            memory_context = await self._retrieve_memory_context(organization_id)
+            return await brain.run_with_plan(
+                goal=goal,
+                lead=lead,
+                research=research,
+                recent_messages=recent_messages,
+                memory_context=memory_context,
+                **plan_params,
+            )
+        finally:
+            await aclose_llm(llm)
+            await self.aclose()
 
     async def _retrieve_memory_context(self, organization_id: uuid.UUID) -> str | None:
         """Fetch ranked memory context for the AI prompt, gated + fail-open.
@@ -117,9 +159,7 @@ class AIService:
             "enrich_and_dispatch": "outreach_agent",
         }.get(goal, "ai_brain")
 
-    async def get_ai_settings(
-        self, organization_id: uuid.UUID
-    ) -> tuple[str, str, bool, bool]:
+    async def get_ai_settings(self, organization_id: uuid.UUID) -> tuple[str, str, bool, bool]:
         """Return (provider, model, overridden, kill_switch) for the org."""
         from app.repositories.organization import OrganizationRepository
 
@@ -198,7 +238,12 @@ class AIService:
 
         org_service = OrganizationService(self._session)
         org = await org_service.get(organization_id)
-        ai = dict(org.settings.get("ai") or {})
+        # Read paths are defensive about malformed JSONB; the write path must
+        # be too. A non-dict settings blob (or settings.ai) is normalized to {}
+        # so PATCH never fails with an AttributeError/500.
+        stored = org.settings if isinstance(org.settings, dict) else {}
+        current_ai = stored.get("ai")
+        ai = dict(current_ai) if isinstance(current_ai, dict) else {}
         if provider is not None:
             ai["provider"] = provider
         if model is not None:
@@ -211,15 +256,24 @@ class AIService:
         """Dispatch a ready-to-send draft to the n8n automation platform."""
         from app.tools.n8n_tool import N8nDispatchTool
 
-        tool = N8nDispatchTool(client=self._http_client)
-        result = await tool.run({"workflow": workflow, "payload": payload})
-        if not result.ok:
-            raise AppError(
-                code="ai.dispatch_failed",
-                message=result.error or "n8n dispatch failed",
-                status_code=502,
-            )
-        return result.content
+        tool = N8nDispatchTool(client=self._client())
+        try:
+            result = await tool.run({"workflow": workflow, "payload": payload})
+            if not result.ok:
+                raise AppError(
+                    code="ai.dispatch_failed",
+                    # The tool error may embed a provider URL/body/SDK text;
+                    # only a stable message may cross the API boundary.
+                    message=safe_error(
+                        result.error,
+                        public=_DISPATCH_FAILED,
+                        log_label="ai.dispatch.failed",
+                    ),
+                    status_code=502,
+                )
+            return result.content
+        finally:
+            await self.aclose()
 
     async def _llm_for_org(self, organization_id: uuid.UUID) -> LLMService:
         """Build an LLMService honoring per-org AI settings (else env defaults)."""

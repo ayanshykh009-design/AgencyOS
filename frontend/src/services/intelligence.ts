@@ -34,7 +34,7 @@ export async function listSignals(
   const params = new URLSearchParams();
   if (query.status) params.set("status", query.status);
   if (query.category) params.set("category", query.category);
-  if (query.sourceType) params.set("sourceType", query.sourceType);
+  if (query.sourceType) params.set("source_type", query.sourceType);
   if (query.limit !== undefined) params.set("limit", String(query.limit));
   if (query.offset !== undefined) params.set("offset", String(query.offset));
   const qs = params.toString();

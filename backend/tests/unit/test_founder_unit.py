@@ -62,8 +62,7 @@ def test_classify_action_keyword() -> None:
 def test_classify_greeting_is_casual() -> None:
     assert FounderIntentService.classify("hi").intent_type == FounderIntentType.CASUAL
     assert (
-        FounderIntentService.classify("good morning team").intent_type
-        == FounderIntentType.CASUAL
+        FounderIntentService.classify("good morning team").intent_type == FounderIntentType.CASUAL
     )
 
 
@@ -173,9 +172,7 @@ async def test_propose_action_happy_path() -> None:
     action = MagicMock()
     action.propose = AsyncMock(return_value=proposal)
     tool = ProposeFounderActionTool(_tool_ctx(action))
-    res = await tool.run(
-        {"action_type": "create_task", "title": "t", "justification": "j"}
-    )
+    res = await tool.run({"action_type": "create_task", "title": "t", "justification": "j"})
     assert res.ok
     action.propose.assert_awaited_once()
 
@@ -239,9 +236,7 @@ def _patch_action_service(monkeypatch, *, proposal=None, proposals_repo=None):
     user = SimpleNamespace(id=actor_id)
     monkeypatch.setattr(
         "app.services.founder_action_service.UserRepository",
-        MagicMock(
-            return_value=SimpleNamespace(get=AsyncMock(return_value=user))
-        ),
+        MagicMock(return_value=SimpleNamespace(get=AsyncMock(return_value=user))),
     )
 
     approval_svc = MagicMock()
@@ -254,9 +249,21 @@ def _patch_action_service(monkeypatch, *, proposal=None, proposals_repo=None):
 
     if proposals_repo is None:
         proposals_repo = MagicMock()
+
+        def _transition(p, new_status, *, now, decided_by_user_id=None):
+            # Mirror the repository's in-memory status stamping so the
+            # pre-side-effect re-check sees the claimed state.
+            p.proposal_status = new_status
+            p.decided_at = now
+            if decided_by_user_id is not None:
+                p.decided_by_user_id = decided_by_user_id
+
         proposals_repo.get = AsyncMock(return_value=proposal)
         proposals_repo.add = MagicMock()
-        proposals_repo.apply_transition = MagicMock()
+        proposals_repo.apply_transition = MagicMock(side_effect=_transition)
+        proposals_repo.claim_decision = AsyncMock(return_value=True)
+        proposals_repo.claim_execution = AsyncMock(return_value=True)
+        proposals_repo.finish_execution = AsyncMock(return_value=True)
         proposals_repo.mark_expired = AsyncMock(return_value=True)
         proposals_repo.list_pending_expired_all = AsyncMock(return_value=[])
     monkeypatch.setattr(
@@ -267,9 +274,7 @@ def _patch_action_service(monkeypatch, *, proposal=None, proposals_repo=None):
         "app.services.founder_action_service.ApprovalRequestRepository",
         MagicMock(return_value=SimpleNamespace(mark_expired=AsyncMock())),
     )
-    monkeypatch.setattr(
-        "app.services.founder_action_service.commit_with_retry", AsyncMock()
-    )
+    monkeypatch.setattr("app.services.founder_action_service.commit_with_retry", AsyncMock())
     monkeypatch.setattr(
         "app.services.founder_action_service.utcnow",
         lambda: datetime(2026, 1, 1, tzinfo=UTC),
@@ -377,9 +382,7 @@ async def test_expire_due_all_sweeps_expired(monkeypatch) -> None:
     proposals_repo = MagicMock()
     proposals_repo.list_pending_expired_all = AsyncMock(return_value=[expired])
     proposals_repo.mark_expired = AsyncMock(return_value=True)
-    org, actor_id, _, _ = _patch_action_service(
-        monkeypatch, proposals_repo=proposals_repo
-    )
+    org, actor_id, _, _ = _patch_action_service(monkeypatch, proposals_repo=proposals_repo)
     svc = FounderActionService(MagicMock())
     handled = await svc.expire_due_all()
     assert handled == 1

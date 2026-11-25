@@ -95,7 +95,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Verify committed lockfile is unchanged
+        run: git diff --exit-code -- package-lock.json package.json
 
       - name: Format check (prettier)
         run: npm run format:check
@@ -132,9 +135,13 @@ jobs:
       - name: Verify endpoint docs consistency
         run: python scripts/ci/docs_api_consistency.py
 
+      - name: Verify committed OpenAPI snapshot matches the live app
+        run: |
+          python scripts/regen-openapi.py
+          git diff --exit-code -- docs/api/openapi.yaml
+
   security:
     name: Dependency vulnerability scan
-    # placeholder
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -158,18 +165,17 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
         working-directory: frontend
 
-      # Gated at critical: the 2 residual "high" advisories (nanoid <3.3.18
-      # GHSA-2v37-7h3g-55p8, source-map-js <1.2.2 GHSA-68fv-2mgg-jv7q) are
-      # transitive dependencies with DoS-level impact only (no RCE/data breach).
-      # nanoid: requires size=0 edge case; source-map-js: requires processing
-      # attacker-controlled source maps. Neither is reachable in normal
-      # production operation. No patched stable release available offline.
-      # Re-gate at high once these transitive deps are upgraded.
+      - name: Verify committed lockfile is unchanged
+        run: git diff --exit-code -- frontend/package-lock.json frontend/package.json
+
+      # The audited lockfile has zero moderate-or-higher advisories. Zod was
+      # upgraded to 4.6.7 and the typescript-eslint chain to 8.73.0, which
+      # resolves the minimatch advisory; fail the gate on any regression.
       - name: Frontend dependency audit (npm audit)
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=moderate
         working-directory: frontend
 
   compose:

@@ -1,15 +1,21 @@
-"""Founder Assistant API — chat, conversations, and approval-gated proposals."""
+"""Founder Assistant API — chat, conversations, and approval-gated proposals.
 
-from __future__ import annotations
+NOTE: intentionally does NOT use ``from __future__ import annotations``:
+slowapi's ``@limiter.limit`` wrapper copies string annotations and FastAPI
+cannot resolve them against slowapi's module globals.
+"""
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from app.api.deps import CurrentUser, DbSession
+from app.core.config import settings
 from app.core.errors import AppError
 from app.core.permissions import Permission, require_permission
+from app.core.rate_limit import limiter
 from app.models.enums import FounderProposalStatus
+from app.repositories.founder_chat import FounderChatRepository
 from app.schemas.founder_assistant import (
     FounderChatRequest,
     FounderChatResponse,
@@ -34,8 +40,13 @@ _manage = Depends(require_permission(Permission.FOUNDER_MANAGE))
     summary="Send a message to the Founder AI Assistant",
     dependencies=[_manage],
 )
+@limiter.limit(settings.RATE_LIMIT_AI)
 async def founder_chat(
-    body: FounderChatRequest, db: DbSession, current_user: CurrentUser
+    request: Request,
+    body: FounderChatRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+    response: Response,
 ) -> FounderChatResponse:
     service = FounderChatService(db)
     result = await service.send_message(
@@ -75,8 +86,11 @@ async def list_conversations(
         offset=offset,
         include_archived=include_archived,
     )
+    total = await FounderChatRepository(db).count_conversations(
+        current_user.organization_id, include_archived=include_archived
+    )
     return FounderConversationList(
-        items=[FounderConversationRead.model_validate(c) for c in items], total=len(items)
+        items=[FounderConversationRead.model_validate(c) for c in items], total=total
     )
 
 
@@ -131,8 +145,9 @@ async def list_proposals(
         limit=limit,
         offset=offset,
     )
+    total = await service.count_proposals(current_user.organization_id, status=proposal_status)
     return FounderProposalList(
-        items=[FounderProposalRead.model_validate(p) for p in items], total=len(items)
+        items=[FounderProposalRead.model_validate(p) for p in items], total=total
     )
 
 

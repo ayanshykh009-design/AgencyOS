@@ -21,6 +21,7 @@ from app.llm.models import (
     ToolDefinition,
 )
 from app.llm.pricing import estimate_cost
+from app.llm.providers import close_transport
 
 
 def _role(role: MessageRole) -> str:
@@ -56,6 +57,10 @@ class GeminiClient:
     @property
     def provider(self) -> str:
         return "gemini"
+
+    async def aclose(self) -> None:
+        """Close the async transport owned by the Gemini SDK client."""
+        await close_transport(self._client.aio.aclose)
 
     def _build_contents(self, messages: list[LLMMessage]) -> list[Any]:
         name_by_id: dict[str, str] = {}

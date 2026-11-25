@@ -4,6 +4,7 @@ Covers the business rules that live in the thin service layer (org scoping,
 approval state-machine transitions, read-through on upsert, not-found errors)
 without a database — repositories are mocked.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -57,6 +58,15 @@ class FakeSession:
 
     async def flush(self) -> None:
         pass
+
+    async def execute(self, statement: object, *args: object, **kwargs: object):
+        """Minimal Core-UPDATE result: one claimed row (repositories are mocked)."""
+        from unittest.mock import MagicMock
+
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = uuid.uuid4()
+        result.scalar_one.return_value = 1
+        return result
 
     async def refresh(self, instance: object) -> None:
         pass
@@ -152,9 +162,7 @@ async def test_agent_create_run_persists_and_commit() -> None:
 async def test_agent_update_run_not_found_404() -> None:
     session, service, _ = _service(AgentService, "_states")
     runs: MagicMock = MagicMock()
-    runs.get_or_404 = AsyncMock(
-        side_effect=AppError("agent_run.not_found", "Not found", 404)
-    )
+    runs.get_or_404 = AsyncMock(side_effect=AppError("agent_run.not_found", "Not found", 404))
     service._runs = runs
     with pytest.raises(AppError) as exc:
         await service.update_run(ORG_ID, uuid.uuid4())
@@ -198,9 +206,9 @@ async def test_memory_search_blank_rejected() -> None:
 async def test_notification_get_for_user_404_when_not_owned() -> None:
     session, service, _ = _service(NotificationService)
     notifications: MagicMock = MagicMock()
-    notifications.get = AsyncMock(return_value=Notification(
-        organization_id=ORG_ID, user_id=uuid.uuid4()
-    ))
+    notifications.get = AsyncMock(
+        return_value=Notification(organization_id=ORG_ID, user_id=uuid.uuid4())
+    )
     service._notifications = notifications
     with pytest.raises(AppError) as exc:
         await service.get_for_user(ORG_ID, uuid.uuid4(), uuid.uuid4())
@@ -224,17 +232,23 @@ async def test_notification_set_read_not_found_404() -> None:
 async def test_approval_decide_transitions_and_logs() -> None:
     session, service, mocks = _service(ApprovalService, "_requests", "_logs")
     requests_repo, logs_repo = mocks
-    requests_repo.get_or_404 = AsyncMock(return_value=ApprovalRequest(
-        organization_id=ORG_ID,
-        requested_by_user_id=uuid.uuid4(),
-        approver_user_id=uuid.uuid4(),
-        title="t",
-        status=ApprovalRequestStatus.PENDING,
-    ))
+    requests_repo.get_or_404 = AsyncMock(
+        return_value=ApprovalRequest(
+            organization_id=ORG_ID,
+            requested_by_user_id=uuid.uuid4(),
+            approver_user_id=uuid.uuid4(),
+            title="t",
+            status=ApprovalRequestStatus.PENDING,
+        )
+    )
     logs_repo.add = MagicMock(side_effect=session.add)
 
     result = await service.decide(
-        ORG_ID, ACTOR, uuid.uuid4(), approve=True, decision_note="looks good",
+        ORG_ID,
+        ACTOR,
+        uuid.uuid4(),
+        approve=True,
+        decision_note="looks good",
     )
 
     assert result.status is ApprovalRequestStatus.APPROVED
@@ -255,18 +269,24 @@ async def test_approval_decide_always_attributes_to_actor() -> None:
     """
     session, service, mocks = _service(ApprovalService, "_requests", "_logs")
     requests_repo, logs_repo = mocks
-    requests_repo.get_or_404 = AsyncMock(return_value=ApprovalRequest(
-        organization_id=ORG_ID,
-        requested_by_user_id=uuid.uuid4(),
-        approver_user_id=uuid.uuid4(),
-        title="t",
-        status=ApprovalRequestStatus.PENDING,
-    ))
+    requests_repo.get_or_404 = AsyncMock(
+        return_value=ApprovalRequest(
+            organization_id=ORG_ID,
+            requested_by_user_id=uuid.uuid4(),
+            approver_user_id=uuid.uuid4(),
+            title="t",
+            status=ApprovalRequestStatus.PENDING,
+        )
+    )
     logs_repo.add = MagicMock(side_effect=session.add)
 
     spoofed = uuid.uuid4()
     result = await service.decide(
-        ORG_ID, ACTOR, uuid.uuid4(), approve=False, decision_note=None,
+        ORG_ID,
+        ACTOR,
+        uuid.uuid4(),
+        approve=False,
+        decision_note=None,
     )
 
     assert result.decided_by_user_id == USER_ID
@@ -291,12 +311,15 @@ async def test_approval_decide_always_attributes_to_actor() -> None:
 async def test_approval_decide_rejects_non_pending() -> None:
     session, service, mocks = _service(ApprovalService, "_requests", "_logs")
     requests_repo, _ = mocks
-    requests_repo.get_or_404 = AsyncMock(return_value=ApprovalRequest(
-        organization_id=ORG_ID, title="t", status=ApprovalRequestStatus.APPROVED,
-    ))
+    requests_repo.get_or_404 = AsyncMock(
+        return_value=ApprovalRequest(
+            organization_id=ORG_ID,
+            title="t",
+            status=ApprovalRequestStatus.APPROVED,
+        )
+    )
     with pytest.raises(AppError) as exc:
-        await service.decide(ORG_ID, ACTOR, uuid.uuid4(), approve=True,
-                             decision_note=None)
+        await service.decide(ORG_ID, ACTOR, uuid.uuid4(), approve=True, decision_note=None)
     assert exc.value.status_code == 409
 
 
@@ -308,9 +331,15 @@ async def test_approval_create_request_appends_requested_log() -> None:
     logs_repo.add = MagicMock(side_effect=session.add)
 
     await service.create_request(
-        ORG_ID, requested_by_user_id=USER_ID, actor=ACTOR,
-        workflow_id=None, workflow_execution_id=None, approver_user_id=None,
-        title="Ship", details=None, expires_at=None,
+        ORG_ID,
+        requested_by_user_id=USER_ID,
+        actor=ACTOR,
+        workflow_id=None,
+        workflow_execution_id=None,
+        approver_user_id=None,
+        title="Ship",
+        details=None,
+        expires_at=None,
     )
 
     assert any(isinstance(o, ApprovalRequest) for o in session.added)
@@ -371,8 +400,13 @@ async def test_growth_create_metric_persists() -> None:
     metrics: MagicMock = mocks[0]
     metrics.add = MagicMock()
     metric = await service.create_metric(
-        ORG_ID, metric_type="revenue", period_start=uuid.uuid4(),
-        period_end=uuid.uuid4(), value=10, unit="usd", metadata_={},
+        ORG_ID,
+        metric_type="revenue",
+        period_start=uuid.uuid4(),
+        period_end=uuid.uuid4(),
+        value=10,
+        unit="usd",
+        metadata_={},
     )
     assert metric.organization_id == ORG_ID
     assert session.committed is True

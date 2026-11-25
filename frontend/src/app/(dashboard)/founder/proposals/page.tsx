@@ -1,8 +1,9 @@
 // Founder action proposals (M8) — the approval queue for assistant actions.
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ErrorState } from "@/components/automation/automation-states";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { proposalDecisionDisabledReason } from "@/lib/ai-capabilities";
@@ -18,6 +19,8 @@ const STATUSES: Array<FounderProposalStatus | "all"> = [
   "approved",
   "denied",
   "expired",
+  "cancelled",
+  "executing",
   "succeeded",
   "failed",
 ];
@@ -32,23 +35,43 @@ export default function FounderProposalsPage() {
   const [capabilities, setCapabilities] = useState<AICapabilities | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const listSeqRef = useRef(0);
 
   const decisionDisabledReason = proposalDecisionDisabledReason(capabilities);
+
+  const loadProposals = useCallback(async () => {
+    const seq = ++listSeqRef.current;
+    try {
+      const page = await listFounderProposals({
+        status: status === "all" ? undefined : status,
+        limit: 100,
+      });
+      if (seq !== listSeqRef.current) return;
+      setProposals(page.items);
+    } catch (err: unknown) {
+      if (seq !== listSeqRef.current) return;
+      setError(err instanceof ApiRequestError ? err.message : "Failed to load proposals");
+    } finally {
+      if (seq === listSeqRef.current) setLoading(false);
+    }
+  }, [status]);
 
   useEffect(() => {
     if (!canView) return;
     let cancelled = false;
-    listFounderProposals({
-      status: status === "all" ? undefined : status,
-      limit: 100,
-    })
-      .then((page) => {
-        if (!cancelled) setProposals(page.items);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled)
-          setError(err instanceof ApiRequestError ? err.message : "Failed to load proposals");
-      });
+    void Promise.resolve().then(() => {
+      if (!cancelled) void loadProposals();
+    });
+    return () => {
+      cancelled = true;
+      listSeqRef.current += 1;
+    };
+  }, [canView, loadProposals]);
+
+  useEffect(() => {
+    if (!canView) return;
+    let cancelled = false;
     getAICapabilities()
       .then((surface) => {
         if (!cancelled) setCapabilities(surface);
@@ -59,7 +82,7 @@ export default function FounderProposalsPage() {
     return () => {
       cancelled = true;
     };
-  }, [canView, status]);
+  }, [canView]);
 
   async function onDecide(proposal: FounderProposal, approve: boolean) {
     if (!canManage || decisionDisabledReason) return;
@@ -96,7 +119,11 @@ export default function FounderProposalsPage() {
             <button
               key={s}
               type="button"
-              onClick={() => setStatus(s)}
+              onClick={() => {
+                setStatus(s);
+                setLoading(true);
+                setError(null);
+              }}
               className={s === status ? "font-medium text-gray-900" : "text-gray-500"}
             >
               {s}
@@ -105,15 +132,24 @@ export default function FounderProposalsPage() {
         </div>
       </div>
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-
       {canManage && decisionDisabledReason ? (
         <p className="text-sm text-amber-700">
           Proposal decisions are currently disabled: {decisionDisabledReason}
         </p>
       ) : null}
 
-      {proposals.length === 0 ? (
+      {loading ? (
+        <p className="text-sm text-gray-500">Loading proposals…</p>
+      ) : error ? (
+        <ErrorState
+          message={error}
+          onRetry={() => {
+            setLoading(true);
+            setError(null);
+            void loadProposals();
+          }}
+        />
+      ) : proposals.length === 0 ? (
         <p className="text-sm text-gray-500">No proposals match this filter.</p>
       ) : (
         <ul className="flex flex-col gap-3">

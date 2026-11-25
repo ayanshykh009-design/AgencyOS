@@ -23,10 +23,14 @@ from typing import TYPE_CHECKING, Any
 
 from app.core.metrics import get_counter
 from app.core.permissions import Permission
+from app.llm.error_sanitizer import safe_error
 from app.llm.models import LLMMessage, MessageRole, ToolCall, ToolDefinition
 from app.llm.service import LLMService
 from app.tools.base import ToolResult
 from app.tools.registry import ToolAuthorizationError, ToolRegistry, assert_can_invoke_tool
+
+_LLM_FAILED = "LLM call failed"
+_TOOL_FAILED = "tool execution failed"
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -164,7 +168,8 @@ class Brain:
             except Exception as exc:
                 return BrainResult(
                     success=False,
-                    error=f"LLM call failed: {exc}",
+                    # Provider/SDK exceptions may contain URLs, bodies or keys.
+                    error=safe_error(exc, public=_LLM_FAILED, log_label="brain.llm.failed"),
                     tool_results=tool_results,
                     tool_trace=tool_trace,
                     steps_taken=steps,
@@ -268,6 +273,18 @@ class Brain:
                 try:
                     arguments = self._parse_arguments(tc.arguments)
                     tool_result = await tool.run(arguments)
+                    if not tool_result.ok:
+                        # Tool failures are persisted in the audit trail and
+                        # returned to clients. Their text may embed transport
+                        # URLs/bodies, so sanitize at this boundary.
+                        tool_result = ToolResult(
+                            ok=False,
+                            error=safe_error(
+                                tool_result.error,
+                                public=_TOOL_FAILED,
+                                log_label=f"brain.tool.{tc.name}.failed",
+                            ),
+                        )
                     duration_ms = round((time.perf_counter() - start) * 1000, 2)
                     tool_results.append(tool_result)
                     # Append the tool result so the model can reason about it.
@@ -289,12 +306,19 @@ class Brain:
                     tool_trace.append(entry)
                 except Exception as exc:
                     duration_ms = round((time.perf_counter() - start) * 1000, 2)
-                    tool_results.append(ToolResult(ok=False, error=str(exc)))
+                    # Unexpected tool exceptions are logged with context; the
+                    # result/trace only carry a stable generic message.
+                    public_error = safe_error(
+                        exc,
+                        public=_TOOL_FAILED,
+                        log_label=f"brain.tool.{tc.name}.unexpected",
+                    )
+                    tool_results.append(ToolResult(ok=False, error=public_error))
                     entry.update(
                         allowed=True,
                         authorized=True,
                         ok=False,
-                        error=str(exc),
+                        error=public_error,
                         duration_ms=duration_ms,
                         char_len=0,
                     )

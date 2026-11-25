@@ -33,6 +33,8 @@ export default function FounderChatPage() {
   const canView = !!session && canViewFounder(session.user.role);
   const canManage = !!session && canManageFounder(session.user.role);
   const [conversations, setConversations] = useState<FounderConversation[]>([]);
+  const [conversationsLoading, setConversationsLoading] = useState(true);
+  const [conversationsError, setConversationsError] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [draft, setDraft] = useState("");
@@ -59,7 +61,10 @@ export default function FounderChatPage() {
 
   async function refreshConversations() {
     const page = await listFounderConversations({ limit: 50 });
-    if (mountedRef.current) setConversations(page.items);
+    if (!mountedRef.current) return;
+    setConversations(page.items);
+    setConversationsError(null);
+    setConversationsLoading(false);
   }
 
   useEffect(() => {
@@ -69,7 +74,15 @@ export default function FounderChatPage() {
       .then((page) => {
         if (!cancelled) setConversations(page.items);
       })
-      .catch(() => undefined);
+      .catch((err: unknown) => {
+        if (!cancelled)
+          setConversationsError(
+            err instanceof ApiRequestError ? err.message : "Failed to load conversations"
+          );
+      })
+      .finally(() => {
+        if (!cancelled) setConversationsLoading(false);
+      });
     getAICapabilities()
       .then((surface) => {
         if (!cancelled) setCapabilities(surface);
@@ -200,8 +213,26 @@ export default function FounderChatPage() {
 
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
         <aside className="flex flex-col gap-2">
-          <p className="text-xs uppercase tracking-wide text-gray-400">Conversations</p>
-          {conversations.length === 0 ? (
+          <p className="text-xs uppercase tracking-wide text-gray-600">Conversations</p>
+          {conversationsLoading ? (
+            <p className="text-sm text-gray-500">Loading conversations…</p>
+          ) : conversationsError ? (
+            <div role="alert" className="flex flex-col gap-2">
+              <p className="text-sm text-red-600">{conversationsError}</p>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  void refreshConversations().catch((err: unknown) => {
+                    setConversationsError(
+                      err instanceof ApiRequestError ? err.message : "Failed to load conversations"
+                    );
+                  });
+                }}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : conversations.length === 0 ? (
             <p className="text-sm text-gray-500">No conversations yet.</p>
           ) : (
             conversations.map((c) => (
@@ -289,29 +320,25 @@ export function ConversationListItem({
   onDelete: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className={`flex items-center justify-between rounded-md border px-3 py-2 text-left text-sm ${
+    <div
+      className={`flex items-center justify-between rounded-md border px-3 py-2 text-sm ${
         active ? "border-gray-900" : ""
       }`}
     >
-      <span className="truncate">{conversation.title || "Untitled conversation"}</span>
+      <button type="button" onClick={onOpen} className="min-w-0 flex-1 truncate text-left">
+        {conversation.title || "Untitled conversation"}
+      </button>
       {canManage ? (
-        <span
-          role="button"
-          tabIndex={0}
+        <button
+          type="button"
           aria-label="Delete conversation"
-          className="ml-2 text-xs text-gray-400 hover:text-red-600"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
+          className="ml-2 shrink-0 text-xs text-gray-600 hover:text-red-700"
+          onClick={onDelete}
         >
           ✕
-        </span>
+        </button>
       ) : null}
-    </button>
+    </div>
   );
 }
 

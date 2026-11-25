@@ -11,13 +11,19 @@ source rows a signal points at.
 
 from __future__ import annotations
 
+import importlib
+import logging
 import uuid
 from typing import Any
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.contextvars import request_id_var
 from app.core.errors import AppError
+from app.llm.models import LLMMessage, MessageRole
+from app.llm.service import aclose_llm
 from app.models.enums import (
     IntelligenceSignalStatus,
     SignalCategory,
@@ -27,14 +33,39 @@ from app.models.intelligence_signal import IntelligenceSignal
 from app.repositories.intelligence_signal import IntelligenceSignalRepository
 from app.services.base import utcnow
 
+logger = logging.getLogger("agencyos.founder.intelligence")
+
 _TERMINAL_USER_TRANSITIONS = frozenset(
     {IntelligenceSignalStatus.ACKNOWLEDGED, IntelligenceSignalStatus.DISMISSED}
 )
 
 _NARRATIVE_PROMPT_NAME = "intelligence-narrative"
-_NARRATIVE_PROMPT_VERSION = "1.0.0"
+_NARRATIVE_PROMPT_VERSION = "1.0.1"
 _NARRATIVE_MAX_TOKENS = 600
 _NARRATIVE_TEMPERATURE = 0.2
+
+
+def _expected_provider_errors() -> tuple[type[BaseException], ...]:
+    """Provider/transport failures that legitimately trigger the fallback."""
+    types: list[type[BaseException]] = [
+        AppError,
+        httpx.HTTPError,
+        ValueError,
+        KeyError,
+        NotImplementedError,
+    ]
+    for module_name in ("openai", "anthropic", "google.genai.errors"):
+        try:
+            module = importlib.import_module(module_name)
+        except ImportError:  # optional providers are not installed everywhere
+            continue
+        api_error = getattr(module, "APIError", None)
+        if isinstance(api_error, type) and issubclass(api_error, BaseException):
+            types.append(api_error)
+    return tuple(types)
+
+
+_EXPECTED_PROVIDER_ERRORS = _expected_provider_errors()
 
 
 class FounderIntelligenceService:
@@ -158,13 +189,14 @@ class FounderIntelligenceService:
         if not context:
             return fallback
 
+        llm: Any = None
         try:
             llm = await self._llm_service(organization_id)
             rendered = llm.render_prompt(
                 _NARRATIVE_PROMPT_NAME, _NARRATIVE_PROMPT_VERSION, {"signalsJson": context}
             )
             result = await llm.chat(
-                [{"role": "system", "content": rendered}],
+                [LLMMessage(role=MessageRole.SYSTEM, content=rendered)],
                 max_tokens=_NARRATIVE_MAX_TOKENS,
                 temperature=_NARRATIVE_TEMPERATURE,
             )
@@ -172,8 +204,23 @@ class FounderIntelligenceService:
             if isinstance(text, str) and text.strip():
                 return text.strip()
             return fallback
-        except Exception:  # noqa: BLE001 - narrative must never break the sweep
+        except _EXPECTED_PROVIDER_ERRORS as exc:
+            logger.warning(
+                "intelligence narrative provider failure [request_id=%s]: %s",
+                request_id_var.get(),
+                type(exc).__name__,
+            )
             return fallback
+        except Exception:
+            # Unexpected failures (e.g. a wrong message type reaching a
+            # provider) must be visible, not silently hidden by a bare catch.
+            logger.exception(
+                "unexpected intelligence narrative failure [request_id=%s]",
+                request_id_var.get(),
+            )
+            return fallback
+        finally:
+            await aclose_llm(llm)
 
     async def _llm_service(self, organization_id: uuid.UUID):
         from app.llm.service import LLMService

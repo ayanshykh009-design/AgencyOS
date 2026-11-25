@@ -6,4 +6,4 @@ business logic.
 
 | Prompt | Version | Purpose |
 | ------ | ------- | ------- |
-| `intelligence-narrative` | 1.0.0 | Grounded plain-text digest of the top triaged signals |
+| `intelligence-narrative` | 1.0.1 | Grounded plain-text digest of the top triaged signals; renders the bounded `signalsJson` context (1.0.0 is deprecated) |

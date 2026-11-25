@@ -3,7 +3,7 @@
 // auth/services. Hydration, click handlers, and browser interactivity are NOT
 // verified here.
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Session } from "@/lib/session";
 import type { User, UserRole } from "@/types";
@@ -11,7 +11,25 @@ import type { IntelligenceSignal } from "@/types/intelligence";
 
 const state = vi.hoisted(() => ({
   session: null as Session | null,
+  signals: {
+    data: { items: [], total: 0 } as { items: unknown[]; total: number } | undefined,
+    isLoading: false,
+    isError: false,
+    error: undefined as Error | undefined,
+    refetch: undefined as (() => void) | undefined,
+  },
 }));
+
+beforeEach(() => {
+  state.session = null;
+  state.signals = {
+    data: { items: [], total: 0 },
+    isLoading: false,
+    isError: false,
+    error: undefined,
+    refetch: undefined,
+  };
+});
 
 vi.mock("@/hooks/use-auth", () => ({ useAuth: () => state.session }));
 
@@ -35,7 +53,7 @@ vi.mock("@/services/founder", () => ({
 }));
 
 vi.mock("@/services/intelligence", () => ({
-  useSignals: () => ({ data: { items: [], total: 0 }, isLoading: false }),
+  useSignals: () => state.signals,
   useSignalSummary: () => ({ data: undefined }),
   useAcknowledgeSignal: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRunTriage: () => ({ mutateAsync: vi.fn(), isPending: false, data: undefined }),
@@ -160,6 +178,31 @@ describe("founder chat static markup", () => {
     expect(card).not.toContain(">Deny</button>");
   });
 
+  it("uses sibling native buttons for open and delete with AA-safe muted text", () => {
+    const item = renderToStaticMarkup(
+      <ConversationListItem
+        conversation={CONVERSATION}
+        canManage
+        active={false}
+        onOpen={() => undefined}
+        onDelete={() => undefined}
+      />
+    );
+
+    expect(item).toContain('aria-label="Delete conversation"');
+    expect(item.match(/<button/g)).toHaveLength(2);
+    expect(item).not.toContain('role="button"');
+    expect(item).not.toContain("text-gray-400");
+  });
+
+  it("shows a loading list instead of a false empty state on first render", () => {
+    setRole("manager");
+    const page = renderToStaticMarkup(<FounderChatPage />);
+
+    expect(page).toContain("Loading conversations…");
+    expect(page).not.toContain("No conversations yet.");
+  });
+
   it("disables both decision buttons while a decision is in flight", () => {
     const card = renderToStaticMarkup(
       <ProposalCard
@@ -198,6 +241,14 @@ describe("founder chat static markup", () => {
 });
 
 describe("founder proposals static markup", () => {
+  it("shows loading before rendering a false empty-filter state", () => {
+    setRole("manager");
+    const page = renderToStaticMarkup(<FounderProposalsPage />);
+
+    expect(page).toContain("Loading proposals…");
+    expect(page).not.toContain("No proposals match this filter.");
+  });
+
   it("keeps reads available and disables decisions when the org kill switch is on", () => {
     setRole("manager");
     const page = renderToStaticMarkup(<FounderProposalsPage />);
@@ -240,6 +291,23 @@ describe("founder proposals static markup", () => {
 });
 
 describe("founder intelligence static markup", () => {
+  it("renders a real error state with retry instead of a false empty feed", () => {
+    setRole("manager");
+    state.signals = {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error("Signals service unavailable"),
+      refetch: vi.fn(),
+    };
+
+    const page = renderToStaticMarkup(<FounderIntelligencePage />);
+
+    expect(page).toContain("Signals service unavailable");
+    expect(page).toContain(">Retry</button>");
+    expect(page).not.toContain("No signals in this view.");
+  });
+
   it("hides triage and signal transitions from non-managers but keeps reads", () => {
     setRole("member");
     const page = renderToStaticMarkup(<FounderIntelligencePage />);

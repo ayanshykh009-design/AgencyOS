@@ -1,4 +1,5 @@
 """Service-layer unit tests: workflow lifecycle (create/update/status)."""
+
 from __future__ import annotations
 
 import uuid
@@ -107,6 +108,23 @@ async def test_create_rejects_invalid_builtin_definition() -> None:
     service._repo.flush.assert_not_awaited()
 
 
+async def test_create_rejects_invalid_builtin_output_key() -> None:
+    service = _service()
+    data = WorkflowCreate(
+        organization_id=ORG_ID,
+        name="BuiltinOutputKey",
+        execution_mode="builtin",
+        definition={"steps": [], "output_key": 123},
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        await service.create(data, created_by_user_id=USER_ID)
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.code == "workflow.builtin_definition_invalid"
+    service._repo.flush.assert_not_awaited()
+
+
 async def test_create_accepts_valid_builtin_definition() -> None:
     service = _service()
     service._repo.add.side_effect = lambda instance: None
@@ -114,9 +132,7 @@ async def test_create_accepts_valid_builtin_definition() -> None:
         organization_id=ORG_ID,
         name="Builtin",
         execution_mode="builtin",
-        definition={
-            "steps": [{"type": "set", "key": "greeting", "value": "Hi {{ input.name }}"}]
-        },
+        definition={"steps": [{"type": "set", "key": "greeting", "value": "Hi {{ input.name }}"}]},
     )
 
     await service.create(data, created_by_user_id=USER_ID)
@@ -132,9 +148,7 @@ async def test_update_rejects_invalid_builtin_definition() -> None:
     service._repo.get_or_404 = AsyncMock(return_value=workflow)
 
     with pytest.raises(AppError) as exc_info:
-        await service.update(
-            ORG_ID, WORKFLOW_ID, WorkflowUpdate(name="tweak")
-        )
+        await service.update(ORG_ID, WORKFLOW_ID, WorkflowUpdate(name="tweak"))
 
     assert exc_info.value.code == "workflow.builtin_definition_invalid"
 

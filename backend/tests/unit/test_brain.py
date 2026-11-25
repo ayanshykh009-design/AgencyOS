@@ -238,7 +238,9 @@ async def test_brain_returns_error_when_llm_fails() -> None:
     result = await brain.run(goal="g", lead=_lead(), research=None)
 
     assert result.success is False
-    assert "LLM call failed" in (result.error or "")
+    # A stable generic message: raw provider/exception text must never leak.
+    assert result.error == "LLM call failed"
+    assert "provider down" not in (result.error or "")
 
 
 @pytest.mark.asyncio

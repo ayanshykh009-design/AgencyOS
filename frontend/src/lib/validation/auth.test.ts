@@ -32,6 +32,15 @@ describe("loginSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  it("uses Zod 4 email format checks with stable field messages", () => {
+    expect(validateForm(loginSchema, { email: "", password: "password1" }).email).toBe(
+      "This field is required"
+    );
+    expect(validateForm(loginSchema, { email: "bad@", password: "password1" }).email).toBe(
+      "Enter a full email address"
+    );
+  });
+
   it("rejects a password shorter than the backend minimum (8)", () => {
     const result = loginSchema.safeParse({ email: "a@b.example", password: "short" });
     expect(result.success).toBe(false);

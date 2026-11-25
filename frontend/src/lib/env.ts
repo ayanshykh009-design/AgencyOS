@@ -6,7 +6,7 @@ import { z } from "zod";
  * of silently misbehaving in production.
  */
 const envSchema = z.object({
-  NEXT_PUBLIC_API_URL: z.string().url().default("http://localhost:8000/api/v1"),
+  NEXT_PUBLIC_API_URL: z.url().default("http://localhost:8000/api/v1"),
   NEXT_PUBLIC_APP_ENV: z.enum(["development", "staging", "production"]).default("development"),
 });
 

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.permissions import Permission, require_permission
-from app.models.enums import WorkflowStatus
+from app.models.enums import ExecutionStatus, WorkflowStatus, WorkflowTriggerType
 from app.schemas.workflow import (
     WorkflowCreate,
     WorkflowListResponse,
@@ -221,7 +221,7 @@ async def list_triggers(
     workflow_id: uuid.UUID,
     db: DbSession,
     current_user: CurrentUser,
-    trigger_type: str | None = None,
+    trigger_type: WorkflowTriggerType | None = None,
     enabled: bool | None = None,
     sort: str = Query(default="created_at", pattern="^(created_at|name|trigger_type)$"),
     order: str = Query(default="desc", pattern="^(asc|desc)$"),
@@ -316,9 +316,7 @@ async def delete_trigger(
     current_user: CurrentUser,
 ):
     service = WorkflowService(db)
-    await service.delete_trigger(
-        current_user.organization_id, trigger_id, workflow_id=workflow_id
-    )
+    await service.delete_trigger(current_user.organization_id, trigger_id, workflow_id=workflow_id)
 
 
 # Nested executions -----------------------------------------------------------
@@ -334,15 +332,13 @@ async def list_workflow_executions(
     workflow_id: uuid.UUID,
     db: DbSession,
     current_user: CurrentUser,
-    status: str | None = None,
+    status: ExecutionStatus | None = None,
     sort: str = Query(default="created_at", pattern="^(created_at|started_at|finished_at|status)$"),
     order: str = Query(default="desc", pattern="^(asc|desc)$"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> WorkflowExecutionListResponse:
-    from app.models.enums import ExecutionStatus
-
-    exec_status = ExecutionStatus(status) if status else None
+    exec_status = status
     # Use the execution service for listing
     from app.services.workflow_execution_service import WorkflowExecutionService
 

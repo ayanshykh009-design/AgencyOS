@@ -527,14 +527,8 @@ paths:
       tags:
       - auth
       summary: Rotate a refresh token
-      description: Exchange a refresh token for a new token pair (rotation).
+      description: Exchange the HttpOnly refresh cookie for a new token pair (rotation).
       operationId: refresh_api_v1_auth_refresh_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RefreshRequest'
-        required: true
       responses:
         '200':
           description: Successful Response
@@ -542,12 +536,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/auth/logout:
     post:
       tags:
@@ -627,13 +615,14 @@ paths:
       tags:
       - auth
       summary: Re-send the email-verification link
-      description: 'Pre-authentication and enumeration-safe: invalidates any previous
-        token and sends a fresh verification link by email, always returning 202.
-        Attempts are limited to one per normalized address per rolling cooldown
-        window (at least 60s in every deployed environment) using an atomic
-        shared-store reservation; a suppressed attempt has no token/email side
-        effects and is indistinguishable
-        from any other non-delivering resend.'
+      description: 'Invalidate the previous token and send a fresh verification link.
+
+
+        Pre-authentication: does not require an authenticated session, so
+
+        unverified users blocked by the verification gate can still request a
+
+        new link. Enumeration-safe (always 202).'
       operationId: resend_verification_api_v1_auth_verify_email_resend_post
       requestBody:
         content:
@@ -3163,6 +3152,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/workflows/active:
+    get:
+      tags:
+      - workflows
+      summary: List active workflows
+      operationId: list_active_workflows_api_v1_workflows_active_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/WorkflowRead'
+                type: array
+                title: Response List Active Workflows Api V1 Workflows Active Get
+      security:
+      - HTTPBearer: []
   /api/v1/workflows/{workflow_id}:
     get:
       tags:
@@ -3250,24 +3257,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-  /api/v1/workflows/active:
-    get:
-      tags:
-      - workflows
-      summary: List active workflows
-      operationId: list_active_workflows_api_v1_workflows_active_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/WorkflowRead'
-                type: array
-                title: Response List Active Workflows Api V1 Workflows Active Get
-      security:
-      - HTTPBearer: []
   /api/v1/workflows/{workflow_id}/activate:
     post:
       tags:
@@ -3376,7 +3365,7 @@ paths:
         required: false
         schema:
           anyOf:
-          - type: string
+          - $ref: '#/components/schemas/WorkflowTriggerType'
           - type: 'null'
           title: Trigger Type
       - name: enabled
@@ -3561,7 +3550,7 @@ paths:
         required: false
         schema:
           anyOf:
-          - type: string
+          - $ref: '#/components/schemas/ExecutionStatus'
           - type: 'null'
           title: Status
       - name: sort
@@ -3661,7 +3650,7 @@ paths:
         required: false
         schema:
           anyOf:
-          - type: string
+          - $ref: '#/components/schemas/WorkflowTriggerType'
           - type: 'null'
           title: Trigger Type
       - name: enabled
@@ -5507,6 +5496,31 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /api/v1/ai/capabilities:
+    get:
+      tags:
+      - ai
+      summary: Get non-secret AI capability flags for the current organization
+      description: 'Return boolean capability state used to render truthful disabled states.
+
+
+        The organization is derived from the authenticated user, so no org ID is
+
+        accepted from the client. Every field is a boolean: no API keys, hostnames,
+
+        model configuration, or user data are returned. Any authenticated user may
+
+        read this non-secret state; mutation routes keep their own permissions.'
+      operationId: get_ai_capabilities_api_v1_ai_capabilities_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AICapabilitiesRead'
+      security:
+      - HTTPBearer: []
   /api/v1/agents/states:
     get:
       tags:
@@ -6162,32 +6176,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/NotificationListResponse'
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-    post:
-      tags:
-      - notifications
-      summary: Create a notification (system/worker)
-      operationId: create_notification_api_v1_notifications_post
-      security:
-      - HTTPBearer: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NotificationCreate'
-      responses:
-        '201':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationRead'
         '422':
           description: Validation Error
           content:
@@ -8184,31 +8172,36 @@ paths:
       parameters:
       - name: X-AgencyOS-Webhook
         in: header
-        required: true
-        description: 'Shared webhook secret (WEBHOOK_SECRET).'
+        required: false
         schema:
-          type: string
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Agencyos-Webhook
       - name: X-AgencyOS-Timestamp
         in: header
-        required: true
-        description: 'Unix timestamp in seconds, bounded by WEBHOOK_TIMESTAMP_SKEW_SECONDS.'
+        required: false
         schema:
-          type: string
-          pattern: '^[0-9]{1,20}$'
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Agencyos-Timestamp
       - name: X-AgencyOS-Nonce
         in: header
-        required: true
-        description: 'Single-use nonce, 8-128 URL-safe characters (A-Za-z0-9_-).'
+        required: false
         schema:
-          type: string
-          pattern: '^[A-Za-z0-9_-]{8,128}$'
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Agencyos-Nonce
       - name: X-AgencyOS-Signature
         in: header
-        required: true
-        description: 'Hex HMAC-SHA256 of "<timestamp>.<nonce>." followed by the exact raw request body.'
+        required: false
         schema:
-          type: string
-          pattern: '^[0-9a-fA-F]{64}$'
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Agencyos-Signature
       requestBody:
         required: true
         content:
@@ -8224,24 +8217,51 @@ paths:
                 type: object
                 additionalProperties: true
                 title: Response Ingest Lead Api V1 Webhooks Leads Post
-        '400':
-          description: 'Missing organization_slug (webhook.missing_org) or invalid lead body.'
-        '401':
-          description: 'Missing/invalid shared secret (webhook.invalid_secret) or signature (webhook.invalid_signature).'
-        '404':
-          description: 'Unknown organization_slug (webhook.unknown_org).'
-        '409':
-          description: 'Duplicate webhook nonce (webhook.replay_detected).'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-        '503':
-          description: 'Webhook secret not configured (webhook.not_configured) or replay guard unavailable (webhook.replay_unavailable).'
 components:
   schemas:
+    AICapabilitiesRead:
+      properties:
+        agent_runtime_enabled:
+          type: boolean
+          title: Agent Runtime Enabled
+        founder_assistant_enabled:
+          type: boolean
+          title: Founder Assistant Enabled
+        intelligence_triage_enabled:
+          type: boolean
+          title: Intelligence Triage Enabled
+        intelligence_narrative_enabled:
+          type: boolean
+          title: Intelligence Narrative Enabled
+        ai_execution_enabled:
+          type: boolean
+          title: Ai Execution Enabled
+        ai_budget_configured:
+          type: boolean
+          title: Ai Budget Configured
+      type: object
+      required:
+      - agent_runtime_enabled
+      - founder_assistant_enabled
+      - intelligence_triage_enabled
+      - intelligence_narrative_enabled
+      - ai_execution_enabled
+      - ai_budget_configured
+      title: AICapabilitiesRead
+      description: 'Non-secret capability booleans used to render truthful disabled states.
+
+
+        Every field is derived server-side from deployment flags, the per-org AI
+
+        kill switch, and budget configuration. No API keys, hostnames, model
+
+        configuration, organization identifiers, or user data are exposed.'
     ActivityEventType:
       type: string
       enum:
@@ -8473,7 +8493,6 @@ components:
           title: Duration Ms
         cost:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Cost
         started_at:
           anyOf:
@@ -8571,7 +8590,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Cost
         started_at:
@@ -8628,12 +8646,10 @@ components:
           default: 0
         average_runtime_ms:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Average Runtime Ms
           default: '0'
         average_cost:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Average Cost
           default: '0'
         last_execution:
@@ -8708,7 +8724,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Average Runtime Ms
           default: '0'
         average_cost:
@@ -8716,7 +8731,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Average Cost
           default: '0'
         last_execution:
@@ -9322,9 +9336,6 @@ components:
         access_token:
           type: string
           title: Access Token
-        refresh_token:
-          type: string
-          title: Refresh Token
         token_type:
           type: string
           title: Token Type
@@ -9332,7 +9343,6 @@ components:
         expires_in:
           type: integer
           title: Expires In
-          default: 3600
         user:
           $ref: '#/components/schemas/UserRead'
         email_verification_required:
@@ -9344,11 +9354,9 @@ components:
           - type: string
           - type: 'null'
           title: Dev Email Verification Url
-          default: null
       type: object
       required:
       - access_token
-      - refresh_token
       - user
       title: AuthResponse
       description: Token pair plus the authenticated user (avoids an extra round trip).
@@ -11420,7 +11428,6 @@ components:
         health_score:
           anyOf:
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Health Score
         summary:
@@ -11585,20 +11592,17 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total Value
         confidence_low:
           anyOf:
           - type: number
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Confidence Low
         confidence_high:
           anyOf:
           - type: number
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Confidence High
         method:
@@ -11625,7 +11629,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Point Estimate
         lower_bound:
@@ -11633,7 +11636,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Lower Bound
         upper_bound:
@@ -11641,7 +11643,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Upper Bound
         series:
@@ -11697,18 +11698,15 @@ components:
           title: Horizon End
         total_value:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Total Value
         confidence_low:
           anyOf:
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Confidence Low
         confidence_high:
           anyOf:
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Confidence High
         method:
@@ -11733,19 +11731,16 @@ components:
         point_estimate:
           anyOf:
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Point Estimate
         lower_bound:
           anyOf:
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Lower Bound
         upper_bound:
           anyOf:
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Upper Bound
         series:
@@ -11840,7 +11835,6 @@ components:
             anyOf:
             - type: number
             - type: string
-              pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
             - type: integer
           type: object
           title: Weights
@@ -11923,7 +11917,6 @@ components:
           - type: number
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Value
         unit:
           anyOf:
@@ -11978,7 +11971,6 @@ components:
           title: Period End
         value:
           type: string
-          pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           title: Value
         unit:
           anyOf:
@@ -12965,7 +12957,6 @@ components:
             maximum: 99999999999999.98
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Deal Value
         organization_id:
@@ -13070,7 +13061,6 @@ components:
         deal_value:
           anyOf:
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Deal Value
         id:
@@ -13522,7 +13512,6 @@ components:
             maximum: 99999999999999.98
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Deal Value
       type: object
@@ -13917,45 +13906,6 @@ components:
       type: object
       title: NoteUpdate
       description: Partial update of a note (all fields optional).
-    NotificationCreate:
-      properties:
-        user_id:
-          anyOf:
-          - type: string
-            format: uuid
-          - type: 'null'
-          title: User Id
-        type:
-          $ref: '#/components/schemas/NotificationType'
-        title:
-          type: string
-          maxLength: 500
-          minLength: 1
-          title: Title
-        body:
-          type: string
-          minLength: 1
-          title: Body
-        action_url:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Action Url
-        metadata_:
-          additionalProperties: true
-          type: object
-          title: Metadata
-        organization_id:
-          type: string
-          format: uuid
-          title: Organization Id
-      type: object
-      required:
-      - type
-      - title
-      - body
-      - organization_id
-      title: NotificationCreate
     NotificationListResponse:
       properties:
         items:
@@ -15008,17 +14958,6 @@ components:
       - monthly
       title: RecurrenceFrequency
       description: Cadence for repeating tasks (advanced on completion).
-    RefreshRequest:
-      properties:
-        refresh_token:
-          type: string
-          minLength: 1
-          title: Refresh Token
-      type: object
-      required:
-      - refresh_token
-      title: RefreshRequest
-      description: Payload to exchange a refresh token for a new token pair.
     RegisterRequest:
       properties:
         email:
@@ -15994,7 +15933,6 @@ components:
             maximum: 99999999999999.98
             minimum: 0.0
           - type: string
-            pattern: ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$
           - type: 'null'
           title: Deal Value
         lead_source_id:

@@ -8,6 +8,7 @@ usage is forwarded to an injectable recorder (by default the existing
 
 from __future__ import annotations
 
+import inspect
 import logging
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -62,6 +63,26 @@ async def _async_sleep(seconds: float) -> None:
     import asyncio
 
     await asyncio.sleep(seconds)
+
+
+async def aclose_llm(service: Any) -> None:
+    """Best-effort release of an LLMService from a ``finally`` block.
+
+    Accepts ``None`` and lightweight test doubles: a service without an
+    ``aclose`` hook is left alone. Cleanup problems are logged, never raised,
+    so they cannot mask the original outcome of a caller.
+    """
+    if service is None:
+        return
+    closer = getattr(service, "aclose", None)
+    if closer is None:
+        return
+    try:
+        result = closer()
+        if inspect.isawaitable(result):
+            await result
+    except Exception as exc:  # pragma: no cover - defensive cleanup
+        logger.warning("LLM client close failed: %s", exc)
 
 
 async def _with_retry(coro_factory: Callable[[], Awaitable[T]]) -> T:
@@ -159,6 +180,23 @@ class LLMService:
             session=session,
             feature=feature,
         )
+
+    async def aclose(self) -> None:
+        """Release the underlying provider client (idempotent).
+
+        Provider clients own SDK/HTTP transports; leaving them unclosed leaks
+        sockets. A client without a close hook is simply left as-is.
+        """
+        client = self._client
+        self._client = None
+        if client is None:
+            return
+        closer = getattr(client, "aclose", None)
+        if closer is None:
+            return
+        result = closer()
+        if inspect.isawaitable(result):
+            await result
 
     async def chat(
         self,

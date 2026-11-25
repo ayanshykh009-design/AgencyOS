@@ -104,23 +104,19 @@ def _validate_webhook_path(webhook_path: str) -> str:
 
 def _canonical_body(payload: dict[str, Any]) -> bytes:
     """Stable JSON bytes used both for transport and for the HMAC."""
-    return json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
 
 
 def _header_value(value: Any) -> str:
     text = str(value)
-    if len(text) > _MAX_METADATA_HEADER_CHARS or any(
-        ord(ch) < 32 or ord(ch) == 127 for ch in text
-    ):
+    if len(text) > _MAX_METADATA_HEADER_CHARS or any(ord(ch) < 32 or ord(ch) == 127 for ch in text):
         raise ValueError("Invalid n8n webhook metadata")
     return text
 
 
-def _signature_headers(
-    timestamp: str, nonce: str, body: bytes, secret: str
-) -> dict[str, str]:
+def _signature_headers(timestamp: str, nonce: str, body: bytes, secret: str) -> dict[str, str]:
     signed = timestamp.encode("ascii") + b"." + nonce.encode("ascii") + b"." + body
     digest = hmac.new(secret.encode("utf-8"), signed, hashlib.sha256).hexdigest()
     return {"X-AgencyOS-Signature": digest}
@@ -180,24 +176,25 @@ class N8nClient:
         url = f"{self._base_url}{path}"
 
         body = _canonical_body(payload)
-        headers = self._headers()
-        timestamp = str(int(time.time()))
-        nonce = secrets.token_hex(16)
-        headers["X-AgencyOS-Timestamp"] = timestamp
-        headers["X-AgencyOS-Nonce"] = nonce
-
-        if metadata:
-            for aliases, header in _METADATA_HEADERS:
-                for key in aliases:
-                    value = metadata.get(key)
-                    if value not in (None, ""):
-                        headers[header] = _header_value(value)
-                        break
-
-        if self._webhook_secret:
-            headers.update(_signature_headers(timestamp, nonce, body, self._webhook_secret))
 
         for attempt in range(1, _MAX_ATTEMPTS + 1):
+            headers = self._headers()
+            timestamp = str(int(time.time()))
+            nonce = secrets.token_hex(16)
+            headers["X-AgencyOS-Timestamp"] = timestamp
+            headers["X-AgencyOS-Nonce"] = nonce
+
+            if metadata:
+                for aliases, header in _METADATA_HEADERS:
+                    for key in aliases:
+                        value = metadata.get(key)
+                        if value not in (None, ""):
+                            headers[header] = _header_value(value)
+                            break
+
+            if self._webhook_secret:
+                headers.update(_signature_headers(timestamp, nonce, body, self._webhook_secret))
+
             try:
                 async with httpx.AsyncClient(timeout=self._timeout) as client:
                     response = await client.post(url, content=body, headers=headers)

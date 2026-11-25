@@ -60,7 +60,7 @@ export async function listFounderProposals(
   query: FounderProposalQuery = {}
 ): Promise<Page<FounderProposal>> {
   const params = new URLSearchParams();
-  if (query.status) params.set("status", query.status);
+  if (query.status) params.set("proposal_status", query.status);
   if (query.limit !== undefined) params.set("limit", String(query.limit));
   if (query.offset !== undefined) params.set("offset", String(query.offset));
   const qs = params.toString();

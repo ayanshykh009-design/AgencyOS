@@ -7,6 +7,12 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+const BATCH5_SURFACES = [
+  "src/app/(dashboard)/ai/page.tsx",
+  "src/app/(dashboard)/founder/page.tsx",
+  "src/app/(dashboard)/founder/intelligence/page.tsx",
+];
+
 const BATCH6_SURFACES = [
   "src/app/(dashboard)/workflows/page.tsx",
   "src/app/(dashboard)/workflows/[id]/page.tsx",
@@ -21,9 +27,9 @@ const BATCH6_SURFACES = [
   "src/components/layouts/site-nav.tsx",
 ];
 
-describe("Batch 6 muted-text contrast", () => {
+describe("Batch 5 + Batch 6 muted-text contrast", () => {
   it("does not use the low-contrast gray-400 token on in-scope surfaces", () => {
-    for (const surface of BATCH6_SURFACES) {
+    for (const surface of [...BATCH5_SURFACES, ...BATCH6_SURFACES]) {
       const source = readFileSync(resolve(process.cwd(), surface), "utf8");
       expect(source, surface).not.toContain("text-gray-400");
     }

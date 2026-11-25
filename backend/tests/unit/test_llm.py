@@ -203,6 +203,24 @@ def test_service_render_prompt_renders_via_prompt_manager() -> None:
     assert "connection-request" in rendered.lower() or "Role" in rendered
 
 
+async def test_service_aclose_delegates_to_provider_once() -> None:
+    class _ClosableClient(FakeClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.closed = 0
+
+        async def aclose(self) -> None:
+            self.closed += 1
+
+    client = _ClosableClient()
+    service = LLMService(client)
+
+    await service.aclose()
+    await service.aclose()
+
+    assert client.closed == 1
+
+
 def test_service_for_provider_unsupported_raises() -> None:
     with pytest.raises(ValueError):
         LLMService.for_provider("warp-drive")

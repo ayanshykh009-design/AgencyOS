@@ -39,6 +39,11 @@ import type { Credential, UserRole } from "@/types";
 export const CREDENTIAL_WRITE_UNAVAILABLE =
   "Credential creation and value replacement are unavailable in this UI. The backend stores values encrypted server-side; this page performs no client-side encryption.";
 
+/** Denied roles must never issue a request the backend will reject with 403. */
+export function shouldFetchCredentials(hasSession: boolean, canManage: boolean): boolean {
+  return hasSession && canManage;
+}
+
 /** Exported for static-markup tests: denied roles see no action buttons. */
 export function CredentialActions({
   role,
@@ -97,13 +102,15 @@ export default function CredentialsPage() {
     return fetchCredentials();
   }, [fetchCredentials]);
 
+  const role = session?.user.role;
+  const canManage = !!role && canManageCredentials(role);
+
   useEffect(() => {
-    if (session) void fetchCredentials();
-  }, [fetchCredentials, session]);
+    if (!shouldFetchCredentials(!!session, canManage)) return;
+    void fetchCredentials();
+  }, [canManage, fetchCredentials, session]);
 
   if (!session) return null;
-  const role = session.user.role;
-  const canManage = canManageCredentials(role);
 
   const rotate = (credential: Credential) => {
     setBusyId(credential.id);

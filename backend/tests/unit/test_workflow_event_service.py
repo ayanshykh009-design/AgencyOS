@@ -1,4 +1,5 @@
 """Service-layer unit tests: workflow event publishing and trigger matching."""
+
 from __future__ import annotations
 
 import uuid
@@ -84,8 +85,8 @@ async def test_publish_with_matching_triggers_queues_executions_and_consumes() -
     events: list[object] = []
     service._event_repo.add.side_effect = lambda instance: events.append(instance)
 
-    trigger_a = MagicMock(id=uuid.uuid4(), workflow_id=uuid.uuid4())
-    trigger_b = MagicMock(id=uuid.uuid4(), workflow_id=uuid.uuid4())
+    trigger_a = MagicMock(id=uuid.uuid4(), workflow_id=uuid.uuid4(), config={})
+    trigger_b = MagicMock(id=uuid.uuid4(), workflow_id=uuid.uuid4(), config={})
     service._trigger_repo.get_by_event_type = AsyncMock(return_value=[trigger_a, trigger_b])
 
     async def _fake_queue(data: object, **kwargs: object) -> object:
@@ -208,6 +209,50 @@ async def test_publish_rejects_oversized_payload() -> None:
     assert exc_info.value.code == "event.payload_too_large"
     service._trigger_repo.get_by_event_type.assert_not_awaited()
     assert read_counter("event_publish_total") == 0
+
+
+async def test_publish_rejects_multibyte_payload_over_byte_limit() -> None:
+    service = _service()
+    event = _event()
+    event.payload = {"blob": "é" * 60}
+    service._trigger_repo.get_by_event_type = AsyncMock(return_value=[])
+
+    # The JSON string is under 100 characters but over 100 UTF-8 bytes.
+    with pytest.raises(AppError) as exc_info:
+        await service.publish(event, max_payload_bytes=100)
+
+    assert exc_info.value.code == "event.payload_too_large"
+    service._trigger_repo.get_by_event_type.assert_not_awaited()
+
+
+async def test_publish_rejects_oversized_trigger_config_before_any_write() -> None:
+    service = _service()
+    trigger = _trigger()
+    trigger.config = {"blob": "x" * 500}
+    service._trigger_repo.get_by_event_type = AsyncMock(return_value=[trigger])
+
+    with pytest.raises(AppError) as exc_info:
+        await service.publish(_event(), max_payload_bytes=100)
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.code == "event.input_too_large"
+    service._event_repo.add.assert_not_called()
+    service._execution_service.queue.assert_not_called()
+    assert read_counter("event_publish_total") == 0
+
+
+async def test_publish_counts_multibyte_trigger_config_as_utf8_bytes() -> None:
+    service = _service()
+    trigger = _trigger()
+    trigger.config = {"blob": "é" * 60}
+    service._trigger_repo.get_by_event_type = AsyncMock(return_value=[trigger])
+
+    with pytest.raises(AppError) as exc_info:
+        await service.publish(_event(), max_payload_bytes=100)
+
+    assert exc_info.value.code == "event.input_too_large"
+    service._event_repo.add.assert_not_called()
+    service._execution_service.queue.assert_not_called()
 
 
 async def test_publish_bounds_fanout_to_trigger_limit() -> None:

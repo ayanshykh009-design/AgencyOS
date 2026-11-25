@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, cast
 
-from sqlalchemy import CursorResult, select, update
+from sqlalchemy import CursorResult, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
@@ -58,6 +58,21 @@ class FounderActionProposalRepository(TenantRepository[FounderActionProposal]):
         stmt = stmt.order_by(FounderActionProposal.created_at.desc()).limit(limit).offset(offset)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def count_by_status(
+        self,
+        organization_id: uuid.UUID,
+        *,
+        status: FounderProposalStatus | None = None,
+    ) -> int:
+        """Count proposals with the same org/status filters as ``list_by_status``."""
+        stmt = select(func.count(FounderActionProposal.id)).where(
+            FounderActionProposal.organization_id == organization_id
+        )
+        if status is not None:
+            stmt = stmt.where(FounderActionProposal.proposal_status == status)
+        result = await self._session.execute(stmt.select_from(FounderActionProposal))
+        return int(result.scalar_one())
 
     async def list_by_conversation(
         self,
@@ -156,6 +171,109 @@ class FounderActionProposalRepository(TenantRepository[FounderActionProposal]):
         ):
             proposal.decided_at = now
             proposal.decided_by_user_id = decided_by_user_id or proposal.decided_by_user_id
+
+    # -- atomic decision/execution claims --------------------------------
+    #
+    # These are conditional ``UPDATE ... RETURNING`` statements: the row is
+    # claimed by whichever transaction changes it first. A loser sees no row
+    # and must not execute any side effect. Unlike ``apply_transition`` (an
+    # in-memory guard for local consistency), these claims are the concurrency
+    # boundary and need no schema change.
+
+    async def claim_decision(
+        self,
+        organization_id: uuid.UUID,
+        proposal_id: uuid.UUID,
+        *,
+        target: FounderProposalStatus,
+        now: datetime,
+        decided_by_user_id: uuid.UUID,
+    ) -> bool:
+        """Atomically claim ``PROPOSED -> APPROVED|DENIED``; False if lost."""
+        if target not in (
+            FounderProposalStatus.APPROVED,
+            FounderProposalStatus.DENIED,
+        ):
+            raise ValueError(f"invalid decision target {target!r}")
+        stmt = (
+            update(FounderActionProposal)
+            .where(
+                FounderActionProposal.organization_id == organization_id,
+                FounderActionProposal.id == proposal_id,
+                FounderActionProposal.proposal_status == FounderProposalStatus.PROPOSED,
+            )
+            .values(
+                proposal_status=target,
+                decided_at=now,
+                decided_by_user_id=decided_by_user_id,
+            )
+            .execution_options(synchronize_session=False)
+            .returning(FounderActionProposal.id)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def claim_execution(
+        self,
+        organization_id: uuid.UUID,
+        proposal_id: uuid.UUID,
+        *,
+        now: datetime,
+        decided_by_user_id: uuid.UUID,
+    ) -> bool:
+        """Atomically claim ``APPROVED -> EXECUTING``; only one caller wins."""
+        stmt = (
+            update(FounderActionProposal)
+            .where(
+                FounderActionProposal.organization_id == organization_id,
+                FounderActionProposal.id == proposal_id,
+                FounderActionProposal.proposal_status == FounderProposalStatus.APPROVED,
+            )
+            .values(
+                proposal_status=FounderProposalStatus.EXECUTING,
+                decided_at=now,
+                decided_by_user_id=decided_by_user_id,
+            )
+            .execution_options(synchronize_session=False)
+            .returning(FounderActionProposal.id)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def finish_execution(
+        self,
+        organization_id: uuid.UUID,
+        proposal_id: uuid.UUID,
+        *,
+        status: FounderProposalStatus,
+        now: datetime,
+        decided_by_user_id: uuid.UUID,
+        reference: dict | None = None,
+    ) -> bool:
+        """Atomically settle ``EXECUTING -> SUCCEEDED|FAILED``; False if lost."""
+        if status not in (
+            FounderProposalStatus.SUCCEEDED,
+            FounderProposalStatus.FAILED,
+        ):
+            raise ValueError(f"invalid execution result {status!r}")
+        stmt = (
+            update(FounderActionProposal)
+            .where(
+                FounderActionProposal.organization_id == organization_id,
+                FounderActionProposal.id == proposal_id,
+                FounderActionProposal.proposal_status == FounderProposalStatus.EXECUTING,
+            )
+            .values(
+                proposal_status=status,
+                decided_at=now,
+                decided_by_user_id=decided_by_user_id,
+                execution_reference=reference,
+            )
+            .execution_options(synchronize_session=False)
+            .returning(FounderActionProposal.id)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none() is not None
 
     async def mark_expired(
         self,

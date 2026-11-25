@@ -10,7 +10,12 @@ const EMAIL_MESSAGE = "Enter a full email address";
 const PASSWORD_SHORT_MESSAGE = "Password must be at least 8 characters";
 const PASSWORD_LONG_MESSAGE = "Password must be at most 128 characters";
 
-const email = z.string().trim().min(1, REQUIRED_MESSAGE).email(EMAIL_MESSAGE).max(255);
+const email = z
+  .string()
+  .trim()
+  .min(1, REQUIRED_MESSAGE)
+  .max(255)
+  .check(z.email({ error: EMAIL_MESSAGE }));
 const password = z.string().min(8, PASSWORD_SHORT_MESSAGE).max(128, PASSWORD_LONG_MESSAGE);
 
 export const loginSchema = z.object({
@@ -41,7 +46,7 @@ export const signupSchema = z
   .superRefine((values, ctx) => {
     if (values.confirmPassword !== values.password) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["confirmPassword"],
         message: "Passwords do not match",
       });
@@ -79,7 +84,7 @@ export type LoginValues = z.infer<typeof loginSchema>;
 export type SignupValues = z.infer<typeof signupSchema>;
 export type FormErrors = Record<string, string | undefined>;
 
-export function validateForm(schema: z.ZodTypeAny, values: unknown): FormErrors {
+export function validateForm(schema: z.ZodType, values: unknown): FormErrors {
   const result = schema.safeParse(values);
   if (result.success) return {};
   const errors: FormErrors = {};

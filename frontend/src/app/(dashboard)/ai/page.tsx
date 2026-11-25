@@ -219,6 +219,9 @@ export default function AIPage() {
     setBusy(true);
     try {
       const updated = await cancelAgentRun(runId);
+      // Invalidating the run id tears down the poll effect so an in-flight
+      // response cannot overwrite the terminal state with a stale running one.
+      setRunId(null);
       setRun(updated);
       setCancelMsg("Run cancelled.");
     } catch (err: unknown) {
@@ -352,7 +355,7 @@ export default function AIPage() {
           <h2 className="text-lg font-semibold">Run status</h2>
           <div className="mt-3 flex flex-col gap-4">
             <div className="rounded-lg border bg-white p-4 shadow-sm">
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-600">
                 {run.status}
                 {run.trace_id ? ` · trace ${run.trace_id}` : ""}
               </p>

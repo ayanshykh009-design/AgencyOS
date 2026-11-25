@@ -12,6 +12,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from sqlalchemy import or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
@@ -103,12 +104,20 @@ class ApprovalService:
         *,
         approve: bool,
         decision_note: str | None = None,
+        commit: bool = True,
     ) -> ApprovalRequest:
         """Transition a pending request to approved/denied and log the decision.
 
         ``decided_by`` is ALWAYS the authenticated ``actor`` — there is no
         client-controlled path to attribute a decision to another user.
+
+        The status change is claimed with a conditional ``UPDATE ... RETURNING``
+        guarded by ``status=PENDING`` (and expiry), so two concurrent decisions
+        cannot both succeed. Pass ``commit=False`` to include the claim and its
+        audit log in a caller-owned transaction; the caller must commit or roll
+        back that transaction.
         """
+        now = utcnow()
         request = await self._requests.get_or_404(organization_id, request_id)
         if request.status is not ApprovalRequestStatus.PENDING:
             raise AppError(
@@ -118,19 +127,38 @@ class ApprovalService:
             )
         # Enforce the approval time-box at the synchronous gate (not only in the
         # background sweep). A PENDING request past its expires_at must be rejected.
-        now = utcnow()
         if request.expires_at is not None and now > request.expires_at:
             await self._requests.mark_expired(organization_id, request.id, now=now)
-            await commit_with_retry(self._session)
+            if commit:
+                await commit_with_retry(self._session)
             raise AppError(
                 code="approval.expired",
                 message="Approval request has expired and can no longer be decided",
                 status_code=409,
             )
+        target = ApprovalRequestStatus.APPROVED if approve else ApprovalRequestStatus.DENIED
+        claimed = await self._claim_pending_decision(
+            organization_id,
+            request_id,
+            target=target,
+            actor_id=actor.id,
+            decision_note=decision_note,
+            now=now,
+        )
+        if not claimed:
+            # Another transaction decided (or expired) the row first. The
+            # conditional UPDATE, not the earlier Python check, is authoritative.
+            raise AppError(
+                code="approval.not_pending",
+                message="Approval request is not pending",
+                status_code=409,
+            )
         action = ApprovalLogAction.APPROVED if approve else ApprovalLogAction.DENIED
-        request.status = ApprovalRequestStatus.APPROVED if approve else ApprovalRequestStatus.DENIED
+        # The Core UPDATE uses synchronize_session=False; keep the loaded object
+        # in step with the row the database just changed.
+        request.status = target
         request.decided_by_user_id = actor.id
-        request.decided_at = utcnow()
+        request.decided_at = now
         request.decision_note = decision_note
         self._logs.add(
             ApprovalLog(
@@ -141,8 +169,43 @@ class ApprovalService:
                 note=decision_note,
             )
         )
-        await commit_with_retry(self._session)
+        if commit:
+            await commit_with_retry(self._session)
         return request
+
+    async def _claim_pending_decision(
+        self,
+        organization_id: uuid.UUID,
+        request_id: uuid.UUID,
+        *,
+        target: ApprovalRequestStatus,
+        actor_id: uuid.UUID,
+        decision_note: str | None,
+        now: datetime,
+    ) -> bool:
+        """Atomically claim a non-expired PENDING request for ``target``."""
+        stmt = (
+            update(ApprovalRequest)
+            .where(
+                ApprovalRequest.organization_id == organization_id,
+                ApprovalRequest.id == request_id,
+                ApprovalRequest.status == ApprovalRequestStatus.PENDING,
+                or_(
+                    ApprovalRequest.expires_at.is_(None),
+                    ApprovalRequest.expires_at > now,
+                ),
+            )
+            .values(
+                status=target,
+                decided_by_user_id=actor_id,
+                decided_at=now,
+                decision_note=decision_note,
+            )
+            .execution_options(synchronize_session=False)
+            .returning(ApprovalRequest.id)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none() is not None
 
     async def list_logs(
         self,

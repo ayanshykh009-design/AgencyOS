@@ -458,6 +458,9 @@ class WorkflowExecutionRepository:
                 status=ExecutionStatus.RUNNING,
                 attempts=WorkflowExecution.attempts + 1,
                 started_at=func.now(),
+                error=None,
+                output=None,
+                finished_at=None,
             )
             .returning(WorkflowExecution)
         )
@@ -681,6 +684,10 @@ class WorkflowExecutionRepository:
                 next_retry_at=None,
                 cancel_requested_at=None,
                 cancelled_by_user_id=None,
+                started_at=None,
+                finished_at=None,
+                error=None,
+                output=None,
             )
             .returning(WorkflowExecution)
         )
@@ -707,6 +714,10 @@ class WorkflowExecutionRepository:
             .values(
                 status=ExecutionStatus.QUEUED,
                 next_retry_at=None,
+                started_at=None,
+                finished_at=None,
+                error=None,
+                output=None,
             )
             .returning(WorkflowExecution)
         )

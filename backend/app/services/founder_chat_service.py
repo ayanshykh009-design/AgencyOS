@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.agents.executors.base import ExecutorContext
 from app.agents.executors.registry import get_executor
 from app.core.errors import AppError
+from app.llm.error_sanitizer import safe_error
 from app.models.enums import FounderMessageSender
 from app.models.founder_conversation import FounderConversation
 from app.models.founder_message import FounderMessage
@@ -27,6 +28,10 @@ from app.services.base import commit_with_retry, utcnow
 logger = logging.getLogger("agencyos.founder.chat")
 
 _MAX_TITLE = 60
+
+# Executor errors can contain raw provider/SDK text. Only this stable message
+# is ever returned to the client or persisted in a message field.
+_CLIENT_FACING_ERROR = "I wasn't able to process that request. Please try again."
 
 
 class FounderChatService:
@@ -93,10 +98,14 @@ class FounderChatService:
             proposals = (result.output or {}).get("proposals") or []
             intent = (result.output or {}).get("intent") or {}
         else:
-            response_text = (
-                "I wasn't able to process that request. "
-                + (result.error or "Please try again.")
+            # Log the raw executor error server-side, persist/return only a
+            # stable generic message (no URLs, bodies, secrets or SDK text).
+            client_error = safe_error(
+                result.error,
+                public=_CLIENT_FACING_ERROR,
+                log_label="founder.chat.failed",
             )
+            response_text = client_error
             tool_calls = []
             proposals = []
             intent = {}
@@ -112,7 +121,7 @@ class FounderChatService:
                 "tool_calls": tool_calls,
                 "proposals": proposals,
                 "intent": intent,
-                "error": result.error,
+                "error": client_error if not result.success else None,
             },
         )
         self._messages.add(assistant_msg)
@@ -133,7 +142,7 @@ class FounderChatService:
             "proposals": proposals,
             "intent": intent,
             "ok": result.success,
-            "error": result.error,
+            "error": client_error if not result.success else None,
         }
 
     async def list_conversations(
@@ -162,18 +171,14 @@ class FounderChatService:
                 message="Conversation not found",
                 status_code=404,
             )
-        messages = await self._messages.list_by_conversation(
-            organization_id, conversation_id
-        )
+        messages = await self._messages.list_by_conversation(organization_id, conversation_id)
         return {
             "conversation_id": str(conversation.id),
             "title": conversation.title,
             "is_archived": conversation.is_archived,
             "created_at": conversation.created_at.isoformat() if conversation.created_at else None,
             "last_message_at": (
-                conversation.last_message_at.isoformat()
-                if conversation.last_message_at
-                else None
+                conversation.last_message_at.isoformat() if conversation.last_message_at else None
             ),
             "messages": [
                 {

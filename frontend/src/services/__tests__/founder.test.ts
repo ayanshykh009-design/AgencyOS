@@ -108,8 +108,8 @@ describe("founder service", () => {
     await listFounderProposals({ status: "proposed" });
 
     const [url] = fetchMock.mock.calls[0] as [string];
-    expect(url).toContain("/founder/proposals?");
-    expect(url).toContain("status=proposed");
+    expect(url).toContain("/founder/proposals?proposal_status=proposed");
+    expect(url).not.toContain("?status=proposed");
   });
 
   it("decideFounderProposal POSTs the decision", async () => {

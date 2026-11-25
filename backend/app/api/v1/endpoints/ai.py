@@ -48,10 +48,10 @@ async def get_ai_settings(
     response: Response,
 ) -> OrganizationAISettingsRead:
     """Return the resolved provider/model (per-org override else env defaults)."""
-    service = AIService(db)
-    provider, model, overridden, kill_switch = await service.get_ai_settings(
-        current_user.organization_id
-    )
+    async with AIService(db) as service:
+        provider, model, overridden, kill_switch = await service.get_ai_settings(
+            current_user.organization_id
+        )
     return OrganizationAISettingsRead(
         provider=provider, model=model, overridden=overridden, kill_switch=kill_switch
     )
@@ -72,16 +72,16 @@ async def update_ai_settings(
     response: Response,
 ) -> OrganizationAISettingsRead:
     """Set per-org LLM provider/model and AI kill switch; falls back to env."""
-    service = AIService(db)
-    await service.update_ai_settings(
-        current_user.organization_id,
-        provider=body.provider,
-        model=body.model,
-        kill_switch=body.kill_switch,
-    )
-    provider, model, overridden, kill_switch = await service.get_ai_settings(
-        current_user.organization_id
-    )
+    async with AIService(db) as service:
+        await service.update_ai_settings(
+            current_user.organization_id,
+            provider=body.provider,
+            model=body.model,
+            kill_switch=body.kill_switch,
+        )
+        provider, model, overridden, kill_switch = await service.get_ai_settings(
+            current_user.organization_id
+        )
     return OrganizationAISettingsRead(
         provider=provider, model=model, overridden=overridden, kill_switch=kill_switch
     )
@@ -100,8 +100,8 @@ async def list_tools(
     response: Response,
 ) -> list[ToolManifestEntry]:
     """Return the static tool manifest (no LLM call)."""
-    service = AIService(db)
-    manifest = await service.tools()
+    async with AIService(db) as service:
+        manifest = await service.tools()
     return [ToolManifestEntry.model_validate(entry) for entry in manifest]
 
 
@@ -128,33 +128,33 @@ async def run_brain(
     budget are enforced by the worker path; the HTTP layer only authorizes the
     request (``ai_run``) and persists the run.
     """
-    service = AIService(db)
-    # Per-org AI kill switch (F-SEC-3): fail fast before enqueuing a run.
-    await service.assert_ai_enabled(current_user.organization_id)
-    agent_name = service.agent_for_goal(body.goal)
+    async with AIService(db) as service:
+        # Per-org AI kill switch (F-SEC-3): fail fast before enqueuing a run.
+        await service.assert_ai_enabled(current_user.organization_id)
+        agent_name = service.agent_for_goal(body.goal)
 
-    # Trace the run end-to-end from the originating request id.
-    raw_trace = request_id_var.get()
-    try:
-        trace_id = UUID(raw_trace)
-    except (ValueError, TypeError):
-        trace_id = uuid4()
+        # Trace the run end-to-end from the originating request id.
+        raw_trace = request_id_var.get()
+        try:
+            trace_id = UUID(raw_trace)
+        except (ValueError, TypeError):
+            trace_id = uuid4()
 
-    run = await AgentService(db).create_run(
-        current_user.organization_id,
-        agent_name=agent_name,
-        status=AgentRunStatus.QUEUED,
-        trigger=AgentRunTrigger.AI_RUN,
-        input_={
-            "goal": body.goal,
-            "lead_id": str(body.lead_id),
-            "channel": body.channel,
-            "recent_messages": body.recent_messages or [],
-            "actor_user_id": str(current_user.id),
-        },
-        idempotency_key=body.idempotency_key,
-        trace_id=trace_id,
-    )
+        run = await AgentService(db).create_run(
+            current_user.organization_id,
+            agent_name=agent_name,
+            status=AgentRunStatus.QUEUED,
+            trigger=AgentRunTrigger.AI_RUN,
+            input_={
+                "goal": body.goal,
+                "lead_id": str(body.lead_id),
+                "channel": body.channel,
+                "recent_messages": body.recent_messages or [],
+                "actor_user_id": str(current_user.id),
+            },
+            idempotency_key=body.idempotency_key,
+            trace_id=trace_id,
+        )
     get_counter(
         "ai_runs_total",
         description="AI (M11) runs queued via /api/v1/ai/run",
@@ -179,8 +179,8 @@ async def dispatch(
     """Send a ready-to-send draft to the configured n8n workflow."""
     if not body.workflow.strip():
         raise AppError(code="ai.invalid_workflow", message="workflow is required", status_code=400)
-    service = AIService(db)
-    data = await service.dispatch(workflow=body.workflow, payload=body.payload)
+    async with AIService(db) as service:
+        data = await service.dispatch(workflow=body.workflow, payload=body.payload)
     return DispatchResponse(workflow=body.workflow, status=200, data=data)
 
 
@@ -203,7 +203,8 @@ async def get_ai_capabilities(
     model configuration, or user data are returned. Any authenticated user may
     read this non-secret state; mutation routes keep their own permissions.
     """
-    ai_execution_enabled = await AIService(db).is_ai_enabled(current_user.organization_id)
+    async with AIService(db) as service:
+        ai_execution_enabled = await service.is_ai_enabled(current_user.organization_id)
     return AICapabilitiesRead(
         agent_runtime_enabled=settings.AGENT_RUNTIME_ENABLED,
         founder_assistant_enabled=settings.FOUNDER_ASSISTANT_ENABLED,
@@ -211,7 +212,6 @@ async def get_ai_capabilities(
         intelligence_narrative_enabled=settings.INTELLIGENCE_NARRATIVE_ENABLED,
         ai_execution_enabled=ai_execution_enabled,
         ai_budget_configured=(
-            settings.AI_ORG_DAILY_TOKEN_BUDGET > 0
-            or settings.AI_ORG_DAILY_COST_BUDGET_USD > 0
+            settings.AI_ORG_DAILY_TOKEN_BUDGET > 0 or settings.AI_ORG_DAILY_COST_BUDGET_USD > 0
         ),
     )

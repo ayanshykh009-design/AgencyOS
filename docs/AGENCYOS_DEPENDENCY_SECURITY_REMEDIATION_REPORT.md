@@ -210,3 +210,17 @@ The worktree is based on committed HEAD and therefore contains the repository's 
 The Next.js security notification did not correspond to an applicable GitHub advisory for the installed `next@16.4.6`; no Next.js upgrade was justified. `eslint-config-next@16.4.0` has no advisory and remains compatible with the installed ESLint/TypeScript versions, so it was also left unchanged.
 
 Specific applicable advisories did exist for the development test toolchain. Those were remediated with stable same-line patches: Vitest and `@vitest/mocker` to `4.1.12`, and Vite to `8.2.4`. A regression test and a full local frontend gate run verified the change. Remaining audit findings are either dev-only with no same-line patch (`minimatch`) or version-applicable but not reachable because the vulnerable schema feature is unused (`zod`); both are documented rather than silently force-upgraded.
+
+---
+
+## 10. Final closure addendum (2026-11-22)
+
+Sections 1–9 are a historical record of the earlier isolated-worktree remediation and remain unchanged. The final closure audit superseded the two "documented, not upgraded" decisions:
+
+- `zod` was upgraded from `3.25.76` to `4.6.7`; deprecated v3 call shapes were modernized where practical and the full frontend gate suite was rerun.
+- `npm audit fix` upgraded the compatible `@typescript-eslint` chain to `8.73.0`, resolving the nested `minimatch` advisory (`11.x`) without a force upgrade.
+- `npm audit --audit-level=moderate` now exits 0 with 0 vulnerabilities.
+- CI was tightened to `npm ci`, a committed lockfile diff check, and `npm audit --audit-level=moderate`; the stale critical-only rationale was removed.
+- `frontend/src/lib/dependency-security.test.ts` now guards the Zod and minimatch patch lines in addition to the earlier Next/Vite/Vitest pins.
+
+This addendum does not rewrite the historical findings; it records their final disposition.

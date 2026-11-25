@@ -28,6 +28,7 @@ from app.ai.planner import allowed_tools_for_goal
 from app.core.config import settings
 from app.core.errors import AppError
 from app.core.permissions import Permission, permissions_for_role
+from app.llm.service import aclose_llm
 from app.repositories.lead import LeadRepository
 from app.repositories.lead_research import LeadResearchRepository
 from app.repositories.user import UserRepository
@@ -55,9 +56,11 @@ class BrainAgentExecutor:
     async def execute(self, ctx: ExecutorContext) -> ExecutorResult:
         owns_client = self._http_client is None
         client = self._http_client or httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
+        llm: Any = None
         try:
             deps = await self._runtime_deps(ctx, client)
-            if deps["llm"] is None:
+            llm = deps["llm"]
+            if llm is None:
                 return ExecutorResult(
                     success=False,
                     error="LLM is not configured for this organization",
@@ -118,6 +121,7 @@ class BrainAgentExecutor:
                 )
             return ExecutorResult(success=False, error=result.error or "Agent execution failed")
         finally:
+            await aclose_llm(llm)
             if owns_client:
                 await client.aclose()
 
@@ -245,6 +249,7 @@ class FounderAssistantExecutor(BrainAgentExecutor):
 
         owns_client = self._http_client is None
         client = self._http_client or httpx.AsyncClient(timeout=_HTTP_TIMEOUT)
+        llm: Any = None
         try:
             deps = await self._runtime_deps(ctx, client)
             llm = deps["llm"]
@@ -318,9 +323,9 @@ class FounderAssistantExecutor(BrainAgentExecutor):
                     FounderActionProposalRepository,
                 )
 
-                created = await FounderActionProposalRepository(
-                    ctx.session
-                ).list_by_conversation(ctx.organization_id, conversation_id, limit=50)
+                created = await FounderActionProposalRepository(ctx.session).list_by_conversation(
+                    ctx.organization_id, conversation_id, limit=50
+                )
                 proposals = [
                     {
                         "id": str(p.id),
@@ -342,6 +347,7 @@ class FounderAssistantExecutor(BrainAgentExecutor):
                 steps=result.steps_taken,
             )
         finally:
+            await aclose_llm(llm)
             if owns_client:
                 await client.aclose()
 

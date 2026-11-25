@@ -19,6 +19,13 @@ describe("intelligence service", () => {
     expect(apiFetch).toHaveBeenCalledWith("/intelligence/signals?status=active&limit=50&offset=0");
   });
 
+  it("listSignals maps sourceType to the backend snake_case contract", async () => {
+    apiFetch.mockResolvedValue({ items: [], total: 0 });
+    await listSignals({ sourceType: "briefing" });
+
+    expect(apiFetch).toHaveBeenCalledWith("/intelligence/signals?source_type=briefing");
+  });
+
   it("listSignals omits query string when no filters", async () => {
     apiFetch.mockResolvedValue({ items: [], total: 0 });
     await listSignals({});

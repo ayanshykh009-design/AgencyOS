@@ -23,6 +23,11 @@ from app.services.workflow_execution_service import WorkflowExecutionService
 logger = logging.getLogger("agencyos.automation.event")
 
 
+def _serialized_size(value: object) -> int:
+    """Canonical UTF-8 byte size used by all event input limits."""
+    return len(json.dumps(value, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+
+
 class WorkflowEventService:
     """Owns event publishing and trigger matching."""
 
@@ -76,11 +81,11 @@ class WorkflowEventService:
     ) -> WorkflowEvent:
         """Publish an event and queue executions for matching triggers.
 
-        Production guards: the serialized payload is capped (fail-fast 400
-        before any write) and fan-out is bounded — at most ``max_fanout``
-        triggers are queued per event. Exceeding either is misconfiguration
-        and is surfaced via a counter + warning log rather than an unbounded
-        transaction.
+        Production guards: the serialized execution input (event payload plus
+        trigger config) is capped with a fail-fast 400 before any write, and
+        fan-out is bounded — at most ``max_fanout`` triggers are queued per
+        event. Exceeding either is misconfiguration and is surfaced via a
+        counter + warning log rather than an unbounded transaction.
 
         While the global kill switch is paused, publishing is blocked with a
         ``409`` so no event row is written and no execution is queued.
@@ -98,12 +103,44 @@ class WorkflowEventService:
         if max_payload_bytes is None:
             max_payload_bytes = settings.EVENT_MAX_PAYLOAD_BYTES
 
-        payload_size = len(json.dumps(data.payload, separators=(",", ":"), ensure_ascii=False))
+        payload_size = _serialized_size(data.payload)
         if payload_size > max_payload_bytes:
             raise AppError(
                 code="event.payload_too_large",
                 message=f"Event payload exceeds the {max_payload_bytes} byte limit",
                 status_code=400,
+            )
+
+        fetched = await self._trigger_repo.get_by_event_type(
+            data.organization_id, data.event_type, limit=max_fanout + 1
+        )
+        truncated = len(fetched) > max_fanout
+        triggers = fetched[:max_fanout]
+
+        # Validate the complete serialized input for every enabled trigger before
+        # writing the event. trigger.config is caller-supplied automation state
+        # and can be far larger than the event payload itself.
+        for trigger in triggers:
+            if not trigger.enabled:
+                continue
+            input_data = {"event": data.payload, "trigger_config": trigger.config}
+            if _serialized_size(input_data) > max_payload_bytes:
+                raise AppError(
+                    code="event.input_too_large",
+                    message=f"Event execution input exceeds the {max_payload_bytes} byte limit",
+                    status_code=400,
+                )
+
+        if truncated:
+            get_counter(
+                "event_fanout_truncated",
+                description="Events whose fan-out exceeded the trigger limit",
+            ).add()
+            logger.warning(
+                "event fan-out truncated: org=%s event_type=%s limit=%s",
+                data.organization_id,
+                data.event_type,
+                max_fanout,
             )
 
         get_counter(
@@ -119,23 +156,6 @@ class WorkflowEventService:
         self._event_repo.add(event)
         await self._event_repo.flush()
         await self._event_repo.refresh(event)
-
-        fetched = await self._trigger_repo.get_by_event_type(
-            data.organization_id, data.event_type, limit=max_fanout + 1
-        )
-        truncated = len(fetched) > max_fanout
-        triggers = fetched[:max_fanout]
-        if truncated:
-            get_counter(
-                "event_fanout_truncated",
-                description="Events whose fan-out exceeded the trigger limit",
-            ).add()
-            logger.warning(
-                "event fan-out truncated: org=%s event_type=%s limit=%s",
-                data.organization_id,
-                data.event_type,
-                max_fanout,
-            )
 
         executions_queued = 0
         for trigger in triggers:
